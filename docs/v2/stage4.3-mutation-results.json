@@ -1,49 +1,84 @@
 {
   "control": "passed",
-  "killed": 6,
-  "total": 6,
+  "killed": 11,
+  "total": 11,
   "results": [
+    {
+      "mutation": "generic_upload_defaults_to_draft",
+      "killed": true,
+      "test": "tests.test_v2_policy_lifecycle.DraftRuntimeTests.test_upload_defaults_to_publish",
+      "exit_code": 1,
+      "output": "======================================================================\nFAIL: test_upload_defaults_to_publish (tests.test_v2_policy_lifecycle.DraftRuntimeTests.test_upload_defaults_to_publish)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 596, in test_upload_defaults_to_publish\n    self.assertEqual(runtime.status(job)['status'],'published')\nAssertionError: 'draft' != 'published'\n- draft\n+ published\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.624s\n\nFAILED (failures=1)\n"
+    },
+    {
+      "mutation": "source_digest_not_validated",
+      "killed": true,
+      "test": "tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_forged_source_digest_cannot_validate",
+      "exit_code": 1,
+      "output": "======================================================================\nFAIL: test_forged_source_digest_cannot_validate (tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_forged_source_digest_cannot_validate)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 567, in test_forged_source_digest_cannot_validate\n    self.assert_forged_provenance_rejected('source_digest','0'*64)\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 560, in assert_forged_provenance_rejected\n    with self.assertRaises(ValueError):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ValueError not raised\n\n----------------------------------------------------------------------\nRan 1 test in 0.189s\n\nFAILED (failures=1)\n"
+    },
+    {
+      "mutation": "source_version_not_validated",
+      "killed": true,
+      "test": "tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_forged_source_version_cannot_validate",
+      "exit_code": 1,
+      "output": "======================================================================\nFAIL: test_forged_source_version_cannot_validate (tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_forged_source_version_cannot_validate)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 564, in test_forged_source_version_cannot_validate\n    self.assert_forged_provenance_rejected('source_version','forged-version')\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 560, in assert_forged_provenance_rejected\n    with self.assertRaises(ValueError):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ValueError not raised\n\n----------------------------------------------------------------------\nRan 1 test in 0.209s\n\nFAILED (failures=1)\n"
+    },
+    {
+      "mutation": "provenance_not_validated",
+      "killed": true,
+      "test": "tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_forged_provenance_cannot_validate",
+      "exit_code": 1,
+      "output": "======================================================================\nFAIL: test_forged_provenance_cannot_validate (tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_forged_provenance_cannot_validate)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 570, in test_forged_provenance_cannot_validate\n    self.assert_forged_provenance_rejected('provenance',{'issuer':'forged','revision':'forged'})\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 560, in assert_forged_provenance_rejected\n    with self.assertRaises(ValueError):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: ValueError not raised\n\n----------------------------------------------------------------------\nRan 1 test in 0.205s\n\nFAILED (failures=1)\n"
+    },
+    {
+      "mutation": "default_catalog_uses_empty_generic_root",
+      "killed": true,
+      "test": "tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_default_registry_wires_real_adapter",
+      "exit_code": 1,
+      "output": "======================================================================\nFAIL: test_default_registry_wires_real_adapter (tests.test_v2_policy_lifecycle.ToolAndProvenanceTests.test_default_registry_wires_real_adapter)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 449, in test_default_registry_wires_real_adapter\n    self.assertEqual(result.status,ToolStatus.OK)\nAssertionError: <ToolStatus.ERROR: 'error'> != <ToolStatus.OK: 'ok'>\n\n----------------------------------------------------------------------\nRan 1 test in 0.180s\n\nFAILED (failures=1)\n"
+    },
     {
       "mutation": "publication_time_used_as_effective_time",
       "killed": true,
       "test": "tests.test_v2_policy_lifecycle.LifecycleTests.test_publication_wall_clock_never_filters_business_time",
       "exit_code": 1,
-      "output": "======================================================================\nERROR: test_publication_wall_clock_never_filters_business_time (tests.test_v2_policy_lifecycle.LifecycleTests.test_publication_wall_clock_never_filters_business_time)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 251, in test_publication_wall_clock_never_filters_business_time\n    self.assertEqual(self.selected().policy_id,\"november-promo-return\")\n                     ^^^^^^^^^^^^^^^\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 215, in selected\n    return self.catalog.select(as_of=now or at(2026,11,15), rule_type=PolicyRuleType.RETURN_WINDOW)[0]\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^\nIndexError: tuple index out of range\n\n----------------------------------------------------------------------\nRan 1 test in 0.222s\n\nFAILED (errors=1)\n"
+      "output": "======================================================================\nERROR: test_publication_wall_clock_never_filters_business_time (tests.test_v2_policy_lifecycle.LifecycleTests.test_publication_wall_clock_never_filters_business_time)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 251, in test_publication_wall_clock_never_filters_business_time\n    self.assertEqual(self.selected().policy_id,\"november-promo-return\")\n                     ^^^^^^^^^^^^^^^\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 215, in selected\n    return self.catalog.select(as_of=now or at(2026,11,15), rule_type=PolicyRuleType.RETURN_WINDOW)[0]\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^\nIndexError: tuple index out of range\n\n----------------------------------------------------------------------\nRan 1 test in 0.155s\n\nFAILED (errors=1)\n"
     },
     {
       "mutation": "priority_ignored",
       "killed": true,
       "test": "tests.test_v2_policy_lifecycle.PrecedenceTests.test_promo_active_wins",
       "exit_code": 1,
-      "output": "======================================================================\nERROR: test_promo_active_wins (tests.test_v2_policy_lifecycle.PrecedenceTests.test_promo_active_wins)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 141, in test_promo_active_wins\n    self.assertEqual(self.choose(), (self.promo,))\n                     ^^^^^^^^^^^^^\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 137, in choose\n    return select_policies(records or (self.standard, self.promo), as_of=now or at(2026,11,15),\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<isolated-copy>\\aftersales\\policy_catalog.py\", line 47, in select_policies\n    raise PolicyPrecedenceConflict(\"top-priority policy params disagree\")\naftersales.policy_catalog.PolicyPrecedenceConflict: top-priority policy params disagree\n\n----------------------------------------------------------------------\nRan 1 test in 0.002s\n\nFAILED (errors=1)\n"
+      "output": "======================================================================\nERROR: test_promo_active_wins (tests.test_v2_policy_lifecycle.PrecedenceTests.test_promo_active_wins)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 141, in test_promo_active_wins\n    self.assertEqual(self.choose(), (self.promo,))\n                     ^^^^^^^^^^^^^\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 137, in choose\n    return select_policies(records or (self.standard, self.promo), as_of=now or at(2026,11,15),\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<isolated-copy>\\aftersales\\policy_catalog.py\", line 50, in select_policies\n    raise PolicyPrecedenceConflict(\"top-priority policy params disagree\")\naftersales.policy_catalog.PolicyPrecedenceConflict: top-priority policy params disagree\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nFAILED (errors=1)\n"
     },
     {
       "mutation": "lower_priority_wins",
       "killed": true,
       "test": "tests.test_v2_policy_lifecycle.PrecedenceTests.test_promo_active_wins",
       "exit_code": 1,
-      "output": "======================================================================\nFAIL: test_promo_active_wins (tests.test_v2_policy_lifecycle.PrecedenceTests.test_promo_active_wins)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 141, in test_promo_active_wins\n    self.assertEqual(self.choose(), (self.promo,))\nAssertionError: Tuples differ: (Poli[15 chars]_id='P-RETURN-7D', version='1', title='七天无理由退货[383 chars]10),) != (Poli[15 chars]_id='promo', version='1', title='七天无理由退货', rul[402 chars]00),)\n\nFirst differing element 0:\nPolic[14 chars]_id='P-RETURN-7D', version='1', title='七天无理由退货[381 chars]y=10)\nPolic[14 chars]_id='promo', version='1', title='七天无理由退货', rul[400 chars]=100)\n\nDiff is 1282 characters long. Set self.maxDiff to None to see it.\n\n----------------------------------------------------------------------\nRan 1 test in 0.003s\n\nFAILED (failures=1)\n"
+      "output": "======================================================================\nFAIL: test_promo_active_wins (tests.test_v2_policy_lifecycle.PrecedenceTests.test_promo_active_wins)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 141, in test_promo_active_wins\n    self.assertEqual(self.choose(), (self.promo,))\nAssertionError: Tuples differ: (Poli[15 chars]_id='P-RETURN-7D', version='1', title='七天无理由退货[383 chars]10),) != (Poli[15 chars]_id='promo', version='1', title='七天无理由退货', rul[402 chars]00),)\n\nFirst differing element 0:\nPolic[14 chars]_id='P-RETURN-7D', version='1', title='七天无理由退货[381 chars]y=10)\nPolic[14 chars]_id='promo', version='1', title='七天无理由退货', rul[400 chars]=100)\n\nDiff is 1282 characters long. Set self.maxDiff to None to see it.\n\n----------------------------------------------------------------------\nRan 1 test in 0.002s\n\nFAILED (failures=1)\n"
     },
     {
       "mutation": "draft_visible",
       "killed": true,
       "test": "tests.test_v2_policy_lifecycle.LifecycleTests.test_draft_does_not_affect_runtime",
       "exit_code": 1,
-      "output": "======================================================================\nFAIL: test_draft_does_not_affect_runtime (tests.test_v2_policy_lifecycle.LifecycleTests.test_draft_does_not_affect_runtime)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 231, in test_draft_does_not_affect_runtime\n    self.assertEqual(self.selected().build_id,old.build_id)\nAssertionError: 'build-0002' != 'build-0001'\n- build-0002\n?          ^\n+ build-0001\n?          ^\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.244s\n\nFAILED (failures=1)\n"
+      "output": "======================================================================\nFAIL: test_draft_does_not_affect_runtime (tests.test_v2_policy_lifecycle.LifecycleTests.test_draft_does_not_affect_runtime)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 231, in test_draft_does_not_affect_runtime\n    self.assertEqual(self.selected().build_id,old.build_id)\nAssertionError: 'build-0002' != 'build-0001'\n- build-0002\n?          ^\n+ build-0001\n?          ^\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.242s\n\nFAILED (failures=1)\n"
     },
     {
       "mutation": "rollback_noop",
       "killed": true,
       "test": "tests.test_v2_policy_lifecycle.LifecycleTests.test_rollback_restores_runtime",
       "exit_code": 1,
-      "output": "======================================================================\nFAIL: test_rollback_restores_runtime (tests.test_v2_policy_lifecycle.LifecycleTests.test_rollback_restores_runtime)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 244, in test_rollback_restores_runtime\n    self.assertEqual(self.selected().build_id,old.build_id)\nAssertionError: 'build-0002' != 'build-0001'\n- build-0002\n?          ^\n+ build-0001\n?          ^\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.269s\n\nFAILED (failures=1)\n"
+      "output": "======================================================================\nFAIL: test_rollback_restores_runtime (tests.test_v2_policy_lifecycle.LifecycleTests.test_rollback_restores_runtime)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 244, in test_rollback_restores_runtime\n    self.assertEqual(self.selected().build_id,old.build_id)\nAssertionError: 'build-0002' != 'build-0001'\n- build-0002\n?          ^\n+ build-0001\n?          ^\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.197s\n\nFAILED (failures=1)\n"
     },
     {
       "mutation": "body_overrides_front_matter",
       "killed": true,
       "test": "tests.test_v2_policy_lifecycle.LifecycleTests.test_body_cannot_override_structured_params",
       "exit_code": 1,
-      "output": "======================================================================\nFAIL: test_body_cannot_override_structured_params (tests.test_v2_policy_lifecycle.LifecycleTests.test_body_cannot_override_structured_params)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 267, in test_body_cannot_override_structured_params\n    self.assertEqual(self.selected().params[\"window_days\"],15)\nAssertionError: 999 != 15\n\n----------------------------------------------------------------------\nRan 1 test in 0.259s\n\nFAILED (failures=1)\n"
+      "output": "======================================================================\nFAIL: test_body_cannot_override_structured_params (tests.test_v2_policy_lifecycle.LifecycleTests.test_body_cannot_override_structured_params)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<isolated-copy>\\tests\\test_v2_policy_lifecycle.py\", line 267, in test_body_cannot_override_structured_params\n    self.assertEqual(self.selected().params[\"window_days\"],15)\nAssertionError: 999 != 15\n\n----------------------------------------------------------------------\nRan 1 test in 0.137s\n\nFAILED (failures=1)\n"
     }
   ]
 }

@@ -1,13 +1,13 @@
 {
   "base_commit": "bc05c693bc89c1ace67415710141006fea1b8ab2",
-  "tests_run": 1520,
+  "tests_run": 1525,
   "failures": 0,
   "errors": 0,
   "skips": 0,
-  "new_stage43_tests": 83,
+  "new_stage43_tests": 88,
   "wiki_tests": 255,
   "v1_evidence_policy_tests": 71,
-  "test_ids_sha256": "ff251a6dcd0e5e4f6e0305960807501367891b78475a091f2d483ea4de05eee7",
+  "test_ids_sha256": "47e3d9c0b50a42fe311e9c9499d91ab7c93c13497a9b12aa85c5122cc9a0dec3",
   "verified_file_sha256": {
     "aftersales/__init__.py": "f32d59b2a375342ca30d8ada4bfe3659621acef46e64becb57b6174ed6cb21ed",
     "aftersales/arguments.py": "cde9675aad9d8f2108d4c5c08b09ddcbdca2968d0362f078a43b366c7fbbb0f4",
@@ -19,7 +19,7 @@
     "aftersales/errors.py": "6d636b62f464b1660d42a6a4525c6aa25719b7ea808350ec09e5ccfaf0f1a39f",
     "aftersales/executor.py": "0e5ba5a5857cbeede55a6d8c10545b6a51690fa3e3fc88a2364b477e21c89ae5",
     "aftersales/policy.py": "2613d219616cb2f9ce9b87962269b7f7e9a527c9247ad78c51c278901b336752",
-    "aftersales/policy_catalog.py": "c8d9b87932adcaa350c7d57d8f92f5e13644b239561bda8c16feaecefa7a8e4f",
+    "aftersales/policy_catalog.py": "4bf4cd60f9467caeb84011bf100ef3ba587107b72c0e856c0648206b88036bd8",
     "aftersales/policy_cli.py": "ed4a4e50cf0990198f241cf786b74d7e2c0b669fc8e19dc723e3bcd411f041bf",
     "aftersales/policy_lifecycle.py": "26960fe0d42d3eeda5298c804b4f01c55d6e98e6dd2d8576a5df0bc75cef2c2f",
     "aftersales/policy_source.py": "ed74484186ec500b857ba64243a83325e8f743520ce10bb744c6e8773fd914d6",
@@ -77,7 +77,7 @@
     "tests/test_v2_derived_facts.py": "e75820f58caf48a94b1fd55cdab308a437ba4a969e5a52ca070140e52d23d5f3",
     "tests/test_v2_domain_schema.py": "f9ffc0fb28b52fa345c68efad27ba931631f4c802cc3a0f6dcfb7eff54f9c15a",
     "tests/test_v2_evidence_policy.py": "2f93003618052d17b30ee7af3f473a9ae3c7a987ba93958854324fb9c99c13d3",
-    "tests/test_v2_policy_lifecycle.py": "872d38447b28c317361e27f92014eb73c0b39725c507756a82903632829d3cb8",
+    "tests/test_v2_policy_lifecycle.py": "e89021fb64a8b851407f1a850e43beee3d6775e9904a3a43a7721ecb47efc1a2",
     "tests/test_v2_policy_params.py": "0c95f13095b88750eb33ce408274e3445cd2350f12b9ec2d69001d61093ca27f",
     "tests/test_v2_tool_executor.py": "80dd529a5bbf927cec0e01ec81688c126f585037786e9fdbe4c2c3c8b54d9c10",
     "tests/test_v2_tool_registry.py": "b064dfc7f8dbd1975622c1135b09fb27d855dca06934e001e9c4a45933974df6",
@@ -97,8 +97,8 @@
     "wiki_maintenance/models.py": "341801253391cb6cccb0026b3bcc71c27cbf385001f3e2e4db612c0428a58849",
     "wiki_maintenance/ollama_compiler.py": "fd51d5d256ae7efbafdcce3b5befe66734672b8ed2fe79697a3c7fdbbd42a453",
     "wiki_maintenance/prompts.py": "ea01bbfafe006bd07a763edcf2c1a0a2b3ff5d318fc8c23ec2dc9018618246f3",
-    "wiki_maintenance/repository.py": "a963109a16c75f8fa9149bcdd802e16f5b609a725daf2048e6111e07df2a18e1",
+    "wiki_maintenance/repository.py": "d8232a93fb6091295045a5fa8833fcf39a9aa233760a6a85da13a604e9150995",
     "wiki_maintenance/source_spans.py": "d4797dacdf9c4213b478777d31a3c36d677a4418368f7f99ab68bc65ea723d62",
-    "wiki_runtime.py": "4d2dd242f33f1e0109eebd7973bf5a1715b9064567cd587b1c772f23f51a12f3"
+    "wiki_runtime.py": "b6df727854179a4ef1b0f04028e9c7b66712d506532b6b8e28db5d3655c98076"
   }
 }

@@ -11,9 +11,9 @@ finishes sooner, so the queue is deliberately serial.
 a build must take effect without restarting the API, so `current.json` is
 consulted on each read and the pages are cached against the build id it names.
 
-A batch defaults to hold-as-draft for explicit review. Each document compiles
-onto the preceding draft. Legacy callers can explicitly set hold_as_draft=False
-for the existing all-or-nothing publish/retirement path. A failed batch leaves
+A batch defaults to the existing all-or-nothing publish/retirement path.
+Callers can explicitly set hold_as_draft=True for review. Each document compiles
+onto the preceding draft. A failed batch leaves
 the live pointer intact in either mode. After-sales policy operations use
 aftersales.policy_lifecycle and the same repository's publish/rollback methods.
 
@@ -126,7 +126,7 @@ class WikiRuntime:
         *,
         root: str | Path = DEFAULT_WIKI_DATA_ROOT,
         model: WikiModel | None = None,
-        hold_as_draft: bool = True,
+        hold_as_draft: bool = False,
     ) -> None:
         self.root = Path(root)
         self._model = model

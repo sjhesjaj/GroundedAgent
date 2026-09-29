@@ -103,14 +103,17 @@ class WikiRepository:
     The root is injected so tests, a demo and production can never share one.
     """
 
-    def __init__(self, root: str | Path = DEFAULT_WIKI_DATA_ROOT) -> None:
+    def __init__(self, root: str | Path = DEFAULT_WIKI_DATA_ROOT, *,
+                 create_directories: bool = True) -> None:
         self.root = Path(root)
         self.documents_directory = self.root / DOCUMENTS_DIRECTORY
         self.builds_directory = self.root / BUILDS_DIRECTORY
         self.manifest_path = self.root / MANIFEST_FILENAME
         self.current_path = self.root / CURRENT_FILENAME
-        self.documents_directory.mkdir(parents=True, exist_ok=True)
-        self.builds_directory.mkdir(parents=True, exist_ok=True)
+        # Readers can open existing publications without initializing storage.
+        if create_directories:
+            self.documents_directory.mkdir(parents=True, exist_ok=True)
+            self.builds_directory.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Document snapshots

@@ -12,13 +12,16 @@ from pathlib import Path
 
 from orchestration.contracts import Evidence, SourceType, ToolResult, ToolStatus
 from orchestration.wiki_adapter import tokenize
-from wiki_maintenance.repository import CURRENT_FILENAME, DEFAULT_WIKI_DATA_ROOT, WikiRepository
+from wiki_maintenance.repository import CURRENT_FILENAME, WikiRepository
 
 from .clock import require_aware
 from .policy import (POLICY_TOOL_NAME, PolicyRecord, PolicyRuleType, is_policy_in_effect,
                      policy_applies_to_category, policy_ref)
 from .policy_lifecycle import load_policy_sources
 from .policy_source import canonical
+
+
+DEFAULT_AFTERSALES_POLICY_ROOT = Path(__file__).resolve().parent.parent / "wiki_pages" / "aftersales_frozen"
 
 
 class PolicyCatalogUnavailable(RuntimeError):
@@ -68,14 +71,14 @@ class CatalogSnapshot:
 
 
 class PublishedPolicyCatalog:
-    def __init__(self, root: str | Path = DEFAULT_WIKI_DATA_ROOT):
+    def __init__(self, root: str | Path = DEFAULT_AFTERSALES_POLICY_ROOT):
         self.root = Path(root)
 
     def snapshot(self) -> CatalogSnapshot:
         if not (self.root / CURRENT_FILENAME).exists():
             raise PolicyCatalogUnavailable("no published policy build")
         try:
-            repository = WikiRepository(self.root)
+            repository = WikiRepository(self.root, create_directories=False)
             build = repository.load_current_build()
             if build is None:
                 raise PolicyCatalogUnavailable("publication was retracted")
@@ -163,28 +166,34 @@ class PublishedPolicyAdapter:
                           status=ToolStatus.OK if evidence else ToolStatus.EMPTY, evidence=evidence)
 
 
-def validate_policy_refs(refs: tuple[str, ...], *, records: tuple[PolicyRecord, ...],
+def validate_policy_refs(refs: tuple[str, ...], *, snapshot: CatalogSnapshot,
                          evidence: tuple[Evidence, ...]) -> None:
     """Fail closed unless every cited build/version has its structured fields.
 
-    Pass DerivedEvidence.policy_refs and the records/evidence from the same
+    Pass DerivedEvidence.policy_refs and the snapshot/evidence from the same
     catalog read. This checks provenance correspondence, not eligibility.
-    CatalogSnapshot.lookup can additionally require current publication identity.
     """
-    by_ref = {policy_ref(r): r for r in records}
+    versions = {doc: (version, digest) for doc, version, digest in snapshot.source_versions}
+    provenance = dict(snapshot.provenance)
     for ref in refs:
-        if ref not in by_ref:
-            raise ValueError("derived policy reference has no matching PolicyRecord")
-        record = by_ref[ref]
+        record = snapshot.lookup(ref)
+        if (record.build_id != snapshot.build_id or record.source_doc not in versions
+                or record.policy_id not in provenance):
+            raise ValueError("derived policy reference lacks snapshot provenance")
+        source_version, source_digest = versions[record.source_doc]
+        policy_provenance = json.loads(provenance[record.policy_id])
         candidates = [e for e in evidence if e.metadata.get("policy_ref") == ref]
         for field, value in policy_fields(record).items():
             matches = [e for e in candidates if e.locator == "policy:" + record.policy_id + "#" + field]
             if not matches:
                 raise ValueError("derived policy reference lacks structured evidence: " + field)
             for item in matches:
-                expected = {"policy_id": record.policy_id, "version": record.version,
+                expected = {"policy_ref": ref, "policy_id": record.policy_id, "version": record.version,
                             "build_id": record.build_id, "rule_type": record.rule_type.value,
                             "source_doc": record.source_doc, "source_locator": record.locator,
+                            "source_version": source_version,
+                            "source_digest": source_digest,
+                            "provenance": policy_provenance,
                             "priority": record.priority, "effective_from": record.effective_from,
                             "effective_to": record.effective_to, "scope": list(record.scope),
                             "field": field, "value": value}

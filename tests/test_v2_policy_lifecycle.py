@@ -415,7 +415,7 @@ class LifecycleTests(RepositoryCase):
             delivery=business_evidence('logistics','TRACK-1','delivered_at','2026-11-20T10:00:00+08:00',observed_at=instant.isoformat())
             derived=derive_window_eligibility(delivery,record,clock=FixedClock(instant))
             result=self.adapter.search('退货',as_of=instant)
-            validate_policy_refs(derived.policy_refs,records=(record,),evidence=result.evidence)
+            validate_policy_refs(derived.policy_refs,snapshot=self.catalog.snapshot(),evidence=result.evidence)
             values.append(derived.value)
         self.assertEqual(values,[True,False])
 
@@ -438,9 +438,32 @@ class ToolAndProvenanceTests(RepositoryCase):
         self.assertEqual(snapshot(self.conn),before)
 
     def test_default_registry_wires_real_adapter(self):
-        with patch('aftersales.policy_catalog.PublishedPolicyCatalog',return_value=self.catalog):
+        root=Path(__file__).resolve().parent.parent/'wiki_pages'/'aftersales_frozen'
+        def frozen_bytes():
+            return {str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+        before=frozen_bytes()
+        self.assertTrue(before)
+        with patch.object(Path,'mkdir',side_effect=AssertionError('policy read must not create directories')):
             registry=build_runtime_registry()
-        self.assertEqual(self.call(registry=registry).status,ToolStatus.OK)
+            result=self.call(now=at(2026,11,15),registry=registry)
+        self.assertEqual(result.status,ToolStatus.OK)
+        self.assertEqual({e.metadata['build_id'] for e in result.evidence},{'build-0001'})
+        windows=[e for e in result.evidence if e.metadata['rule_type']=='return_window'
+                 and e.metadata['field']=='window_days']
+        self.assertEqual([(e.metadata['policy_id'],e.metadata['value']) for e in windows],
+                         [('november-promo-return',15)])
+        self.assertFalse(registry.get(POLICY_TOOL_NAME).side_effect)
+        self.assertEqual(frozen_bytes(),before)
+
+    def test_default_registry_2031_uses_standard_return(self):
+        registry=build_runtime_registry()
+        result=self.call(now=at(2031,11,15),registry=registry)
+        self.assertEqual(result.status,ToolStatus.OK)
+        self.assertNotIn('november-promo-return',{e.metadata['policy_id'] for e in result.evidence})
+        windows=[e for e in result.evidence if e.metadata['rule_type']=='return_window'
+                 and e.metadata['field']=='window_days']
+        self.assertEqual([(e.metadata['policy_id'],e.metadata['value']) for e in windows],
+                         [('standard-return',7)])
 
     def test_closed_arguments_reject_build_and_identity(self):
         for field in ('build_id','as_of','customer_id','draft'):
@@ -511,32 +534,49 @@ class ToolAndProvenanceTests(RepositoryCase):
     def test_ref_lookup_matches_record(self):
         record=self.selected();snap=self.catalog.snapshot()
         self.assertEqual(snap.lookup(policy_ref(record)),record)
-        validate_policy_refs((policy_ref(record),),records=(record,),evidence=self.call().evidence)
+        validate_policy_refs((policy_ref(record),),snapshot=snap,evidence=self.call().evidence)
 
     def test_wrong_build_cannot_validate(self):
-        old=self.selected();draft=compile_policy_draft(self.repo,self.sources);self.repo.publish(draft.build_id)
+        old=self.selected();old_snapshot=self.catalog.snapshot()
+        draft=compile_policy_draft(self.repo,self.sources);self.repo.publish(draft.build_id)
         with self.assertRaises(ValueError):
-            validate_policy_refs((policy_ref(old),),records=(old,),evidence=self.call().evidence)
+            validate_policy_refs((policy_ref(old),),snapshot=old_snapshot,evidence=self.call().evidence)
         with self.assertRaises(ValueError):self.catalog.snapshot().lookup(policy_ref(old))
 
     def test_wrong_version_cannot_validate(self):
         record=replace(self.selected(),version='other')
         with self.assertRaises(ValueError):
-            validate_policy_refs((policy_ref(record),),records=(record,),evidence=self.call().evidence)
+            validate_policy_refs((policy_ref(record),),snapshot=self.catalog.snapshot(),evidence=self.call().evidence)
 
     def test_forged_ref_metadata_cannot_validate(self):
         record=self.selected();items=copy.deepcopy(self.call().evidence)
         next(e for e in items if e.metadata['policy_id']==record.policy_id).metadata['build_id']='forged'
-        with self.assertRaises(ValueError):validate_policy_refs((policy_ref(record),),records=(record,),evidence=items)
+        with self.assertRaises(ValueError):validate_policy_refs((policy_ref(record),),snapshot=self.catalog.snapshot(),evidence=items)
+
+    def assert_forged_provenance_rejected(self,field,value):
+        snap=self.catalog.snapshot();record=self.selected()
+        items=copy.deepcopy(self.call().evidence)
+        next(e for e in items if e.metadata['policy_id']==record.policy_id).metadata[field]=value
+        with self.assertRaises(ValueError):
+            validate_policy_refs((policy_ref(record),),snapshot=snap,evidence=items)
+
+    def test_forged_source_version_cannot_validate(self):
+        self.assert_forged_provenance_rejected('source_version','forged-version')
+
+    def test_forged_source_digest_cannot_validate(self):
+        self.assert_forged_provenance_rejected('source_digest','0'*64)
+
+    def test_forged_provenance_cannot_validate(self):
+        self.assert_forged_provenance_rejected('provenance',{'issuer':'forged','revision':'forged'})
 
     def test_changed_parameter_value_cannot_validate(self):
         record=self.selected();items=copy.deepcopy(self.call().evidence)
         next(e for e in items if e.locator=='policy:november-promo-return#window_days').metadata['value']=999
-        with self.assertRaises(ValueError):validate_policy_refs((policy_ref(record),),records=(record,),evidence=items)
+        with self.assertRaises(ValueError):validate_policy_refs((policy_ref(record),),snapshot=self.catalog.snapshot(),evidence=items)
 
     def test_missing_structured_parameter_cannot_validate(self):
         record=self.selected();items=tuple(e for e in self.call().evidence if not e.locator.endswith('#window_days'))
-        with self.assertRaises(ValueError):validate_policy_refs((policy_ref(record),),records=(record,),evidence=items)
+        with self.assertRaises(ValueError):validate_policy_refs((policy_ref(record),),snapshot=self.catalog.snapshot(),evidence=items)
 
     def test_registry_creation_and_missing_read_write_no_files(self):
         root=self.root/'absent'
@@ -546,11 +586,21 @@ class ToolAndProvenanceTests(RepositoryCase):
 
 
 class DraftRuntimeTests(unittest.TestCase):
-    def test_upload_defaults_to_hold_as_draft(self):
+    def test_upload_defaults_to_publish(self):
         from wiki_runtime import WikiRuntime
         from tests.test_wiki_runtime import model_for, LEAVE_DOC
         with tempfile.TemporaryDirectory() as d:
             runtime=WikiRuntime(root=d,model=model_for(('rules.md',LEAVE_DOC)))
+            job=runtime.submit([('rules.md',LEAVE_DOC)])
+            self.assertTrue(runtime.wait(job,10))
+            self.assertEqual(runtime.status(job)['status'],'published')
+            self.assertIsNotNone(runtime.current_build_id())
+
+    def test_upload_explicitly_held_as_draft(self):
+        from wiki_runtime import WikiRuntime
+        from tests.test_wiki_runtime import model_for, LEAVE_DOC
+        with tempfile.TemporaryDirectory() as d:
+            runtime=WikiRuntime(root=d,model=model_for(('rules.md',LEAVE_DOC)),hold_as_draft=True)
             job=runtime.submit([('rules.md',LEAVE_DOC)])
             self.assertTrue(runtime.wait(job,10))
             self.assertEqual(runtime.status(job)['status'],'draft')

@@ -12,12 +12,12 @@
 - `aftersales/policy_lifecycle.py`：完整 corpus 编译、snapshot 完整性检查、字段/正文 diff、冻结和校验。
 - `aftersales/policy_catalog.py`：published snapshot、业务选择、Evidence 渲染、policy_ref 校验。
 - `aftersales/policy_cli.py`：compile / diff / publish / rollback / freeze / verify。
-- `tests/test_v2_policy_lifecycle.py`：83 项新增验收测试。
-- `tools/check_stage43_mutations.py`：隔离源副本上的 6 个语义 mutation。
+- `tests/test_v2_policy_lifecycle.py`：88 项验收测试（含 PR #10 review 的 5 项新增回归）。
+- `tools/check_stage43_mutations.py`：隔离源副本上的 11 个语义 mutation。
 
 新增数据：`policy_sources/*.md` 六条规则；`wiki_pages/sample_aftersales_wiki.json` 售后 fallback；`wiki_pages/aftersales_frozen/` 可读取的完整发布快照，包含现有格式的 build、文档快照、manifest、current pointer。
 
-修改代码：`aftersales/policy.py` 增加 priority；`registry.py` 默认绑定真实 published adapter；`wiki_maintenance/models.py` / `repository.py` 增加可选编译 provenance；`wiki_runtime.py` 默认 hold-as-draft；`prompts.py` 领域迁移；`chat_orchestration.py` 售后 fallback；`rag.py` 只增补售后名词。`orchestration/contracts.py`、Evidence Policy V2、WikiClaim schema 和业务 Evidence schema 均无需修改。
+修改代码：`aftersales/policy.py` 增加 priority；`registry.py` 默认绑定真实 published adapter；`wiki_maintenance/models.py` / `repository.py` 增加可选编译 provenance；`wiki_runtime.py` 支持显式 hold-as-draft，普通上传仍默认自动发布；`prompts.py` 领域迁移；`chat_orchestration.py` 售后 fallback；`rag.py` 只增补售后名词。`orchestration/contracts.py`、Evidence Policy V2、WikiClaim schema 和业务 Evidence schema 均无需修改。
 
 ## Source / front matter schema
 
@@ -69,7 +69,7 @@ Wiki `created_at`、current pointer 的 `published_at`、publish/rollback 的 Bu
 
 `compile_policy_draft(repo, sources)` 接受完整替换 corpus，始终产生 DRAFT，从当前发布 build 取得页版本复用信息。默认调用现有 `assemble_page_from_spans`：每条 source title 为一个 topic，正文原样成为 claims，不需要网络或模型。也可注入现有 WikiModel，走 `compile_wiki_fast`；必须提供 provider/model/config provenance，front matter 仍不进入模型。
 
-`WikiRuntime` 普通上传也默认 hold-as-draft，status 提供 `draft_build_id`。原自动发布、批次失败恢复和跨文档 retirement 路径由显式 `hold_as_draft=False` 保留。正式售后来源使用下列 policy CLI / Python API；未把通用上传或 V2 API 主聊天链扩展成新的规则运营入口。
+`WikiRuntime` 普通上传默认 `hold_as_draft=False`，模块级 `RUNTIME = WikiRuntime()` 保留 upload → publish 行为；显式 `hold_as_draft=True` 时保留草稿，status 提供 `draft_build_id`。自动发布、批次失败恢复和跨文档 retirement 机制不变。`compile_policy_draft()` 仍始终创建 DRAFT。正式售后来源使用下列 policy CLI / Python API；没有新增 API publish / rollback endpoint。
 
 在仓库根目录，使用一个新的本地 root（不要对冻结包运行 publish / compile）：
 
@@ -92,21 +92,18 @@ diff 包含 policy 新增/删除的 before/after，version / params / priority /
 
 registry 仍恰好五个只读工具。`search_after_sales_policy` 只有 `query: string`，additionalProperties=false，side_effect=false，不接收身份、build、draft 或 as_of 参数。as_of 来自受信任 context.clock；query 中写 build id 或时间不能改变所读 publication 或时钟。
 
-默认 adapter 读取现有 `data/wiki` root；只绑定当前 publication，不自动创建或发布规则。未部署 policy build、旧 V1 build、文件损坏均为 `PolicyCatalogUnavailable`，经执行器成为 ERROR，绝不伪装 EMPTY。只有已成功读取发布规则且无查询匹配时返回 EMPTY。precedence 冲突经执行器显示 `PolicyPrecedenceConflict` 类型的 ERROR，不能形成可用 policy evidence。
+默认 adapter 通过 `DEFAULT_AFTERSALES_POLICY_ROOT` 读取 committed `wiki_pages/aftersales_frozen/`，与当前工作目录无关。catalog 以 `WikiRepository(..., create_directories=False)` 读取既有 publication，不建目录、不创建文件、不 publish、不改变冻结包。可编辑 repository 仍可显式注入其他 root。未部署 policy build、旧 V1 build、文件损坏均为 `PolicyCatalogUnavailable`，经执行器成为 ERROR，绝不伪装 EMPTY。只有已成功读取发布规则且无查询匹配时返回 EMPTY。precedence 冲突经执行器显示 `PolicyPrecedenceConflict` 类型的 ERROR，不能形成可用 policy evidence。
 
-运行冻结包可显式装配（此构造不写文件）：
+默认直接运行冻结包（此构造不写文件）：
 
 ```python
-from aftersales.policy_catalog import PublishedPolicyAdapter, PublishedPolicyCatalog
 from aftersales.registry import build_runtime_registry
-registry = build_runtime_registry(PublishedPolicyAdapter(
-    PublishedPolicyCatalog("wiki_pages/aftersales_frozen")
-))
+registry = build_runtime_registry()
 ```
 
 输出为 DOCUMENT Evidence，每个结构字段一个 locator，例如 `policy:november-promo-return#window_days`。metadata.value 是整数 15，不需要解析 content。metadata 附带 policy_id/version/build_id/rule_type/source_doc/source_locator/source_version/source_digest/provenance/effective_from/effective_to/priority/scope；未 dump repository。观察时刻来自业务 Clock，observation_id 由既有 executor 关联。
 
-`CatalogSnapshot.lookup(ref)` 验证引用属于这次 publication。`validate_policy_refs(derived.policy_refs, records=..., evidence=...)` 要求每个 `policy:<id>@<version>#<build_id>` 同时有对应 PolicyRecord 和全部结构化 Evidence 字段，检查参数值和 provenance identity。错 build、错 version、只伪造 ref 字符串、修改字段值或缺字段均抛错。它不自动推导 eligibility，也没有修改 Evidence Policy V2。
+`validate_policy_refs(derived.policy_refs, snapshot=..., evidence=...)` 通过 `snapshot.lookup(ref)` 获取权威 PolicyRecord，以 snapshot.source_versions / snapshot.provenance 为来源锚点。全部结构化 Evidence 必须匹配 policy_ref、policy_id、version、build_id、rule_type、source_doc、source_locator、source_version、source_digest、provenance、priority、effective_from/to、scope、field 和 value。错 build、错 version、伪造来源版本/摘要/provenance、修改参数或缺字段均抛错；旧 snapshot 配新 Evidence 也拒绝。调用方不能再仅提供 records 作为来源锚点。此函数只检查 provenance correspondence，不自动推导 eligibility，也没有修改 Evidence Policy V2。
 
 ## Frozen build
 
@@ -130,7 +127,7 @@ Wiki decision/topic/page 三处提示词改为电商售后语境；售后草稿�
 
 原测试断言均保留，只有以下夹具装配变更：
 
-1. `test_wiki_runtime.py` RuntimeTestCase.runtime 和 import-purity 构造、`test_cross_document_supersede.py` 的运行时、`test_upload_upsert.py` 的两个运行时：显式 `hold_as_draft=False`，继续验证原自动发布/回退/retirement 机制。新增默认 DRAFT 测试验证新生产默认行为。
+1. `test_wiki_runtime.py` RuntimeTestCase.runtime 和 import-purity 构造、`test_cross_document_supersede.py` 的运行时、`test_upload_upsert.py` 的两个运行时：显式 `hold_as_draft=False`，继续验证原自动发布/回退/retirement 机制。Stage 4.3 同时覆盖不传 flag 的生产默认自动发布和显式 `hold_as_draft=True` 的 DRAFT 行为。
 2. `test_orchestrated_chat.py` 基础 fixture 显式注入原企业样例，保留原有来源映射/传输断言，避免生产 fallback 的领域改变破坏基础设施检查。
 3. `test_v2_tool_executor.py::test_policy_adapter_not_ready_is_its_own_error` 显式注入 NotReady fixture，继续检查错误分类。生产默认不再依赖该 fixture。
 
@@ -140,10 +137,16 @@ Wiki decision/topic/page 三处提示词改为电商售后语境；售后草稿�
 
 | 检查 | 实测结果 | Exit |
 |---|---:|---:|
-| 原 1437 项 + 新增 83 项，全量 unittest discover | 1520 passed / 0 failures / 0 errors / 0 skips，164.760 s | 0 |
+| 原 1437 项 + Stage 4.3 88 项，全量 unittest discover | 1525 passed / 0 failures / 0 errors / 0 skips | 0 |
+| Stage 4.3：tests.test_v2_policy_lifecycle 单独运行 | 88 passed / 0 skips | 0 |
 | Wiki infrastructure：test_wiki_*.py 单独运行 | 255 passed | 0 |
 | V1 Evidence Policy 单独运行 | 71 passed | 0 |
 | isolated mutation control | 全部指定测试通过 | 0 |
+| generic WikiRuntime 默认改回 hold_as_draft=True | killed | mutant=1 / runner=0 |
+| 去掉 source_version 校验 | killed | mutant=1 / runner=0 |
+| 去掉 source_digest 校验 | killed | mutant=1 / runner=0 |
+| 去掉 provenance 校验 | killed | mutant=1 / runner=0 |
+| 默认 catalog root 改回空 data/wiki | killed | mutant=1 / runner=0 |
 | publication time 被当作 effective_from | killed | mutant=1 / runner=0 |
 | priority ignored | killed | mutant=1 / runner=0 |
 | lower priority wins | killed | mutant=1 / runner=0 |
@@ -153,7 +156,7 @@ Wiki decision/topic/page 三处提示词改为电商售后语境；售后草稿�
 | 冻结包 CLI verify | verified=true / build-0001 | 0 |
 | git diff --check | 无 whitespace error | 0 |
 
-全量运行使用 `unittest.defaultTestLoader.discover('.')` 与 `TextTestRunner(verbosity=2)`，与 `python -m unittest discover -v` 相同发现入口，并直接记录 result.testsRun / failures / errors / skipped。完整本地日志为 `tmp/stage43-final-tests.log`。没有删除或 skip 既有测试。
+全量运行使用 `unittest.defaultTestLoader.discover('.')` 与 `TextTestRunner(verbosity=2)`，与 `python -m unittest discover -v` 相同发现入口，并直接记录 result.testsRun / failures / errors / skipped。mutation 合计 11/11 killed（原 6 + PR #10 review 5）。没有删除或 skip 既有测试。
 
 其他复现命令：
 

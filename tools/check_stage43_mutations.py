@@ -1,4 +1,4 @@
-"""Run six semantic mutants in a disposable source copy, never the checkout.
+"""Run Stage 4.3 semantic mutants in a disposable source copy, never the checkout.
 
 Uses the active interpreter and stdlib unittest. A clean control must pass;
 each mutant must fail the designated assertion/semantic path, not import.
@@ -14,7 +14,24 @@ import tempfile
 ROOT = Path(__file__).resolve().parent.parent
 TEST = "tests.test_v2_policy_lifecycle.LifecycleTests."
 PRECEDENCE = "tests.test_v2_policy_lifecycle.PrecedenceTests."
+PROVENANCE = "tests.test_v2_policy_lifecycle.ToolAndProvenanceTests."
 MUTATIONS = (
+    ("generic_upload_defaults_to_draft", "wiki_runtime.py",
+     "hold_as_draft: bool = False,", "hold_as_draft: bool = True,",
+     "tests.test_v2_policy_lifecycle.DraftRuntimeTests.test_upload_defaults_to_publish"),
+    ("source_digest_not_validated", "aftersales/policy_catalog.py",
+     '                            "source_digest": source_digest,\n', '',
+     PROVENANCE + "test_forged_source_digest_cannot_validate"),
+    ("source_version_not_validated", "aftersales/policy_catalog.py",
+     '                            "source_version": source_version,\n', '',
+     PROVENANCE + "test_forged_source_version_cannot_validate"),
+    ("provenance_not_validated", "aftersales/policy_catalog.py",
+     '                            "provenance": policy_provenance,\n', '',
+     PROVENANCE + "test_forged_provenance_cannot_validate"),
+    ("default_catalog_uses_empty_generic_root", "aftersales/policy_catalog.py",
+     'root: str | Path = DEFAULT_AFTERSALES_POLICY_ROOT',
+     'root: str | Path = Path(__file__).resolve().parent.parent / "data" / "wiki"',
+     PROVENANCE + "test_default_registry_wires_real_adapter"),
     ("publication_time_used_as_effective_time", "aftersales/policy_catalog.py",
      "tuple(s.record(build.build_id) for s, _ in pairs)",
      "tuple(__import__('dataclasses').replace(s.record(build.build_id), "
