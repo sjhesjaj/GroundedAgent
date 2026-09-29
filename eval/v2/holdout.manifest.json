@@ -1,0 +1,56 @@
+{
+  "schema": "v2-sealed-holdout-manifest/1",
+  "status": "sealed",
+  "sealed_against_repo_commit": "9312d31ab57be81a91ee16922ca904792b8c4709",
+  "input_bundle_digest": "7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8",
+  "input_file_count": 17,
+  "holdout_sha256": "0d312305e62ffc3bf4c73cf3ee0715a8cbe1b910d44183b9bb8abf9cc2d88e8a",
+  "seal_receipt_sha256": "1c899e4f8d54a168aef77489f9450f1d08f4166949a9164d935412fbae9ff002",
+  "case_count": 20,
+  "archetype_counts": {
+    "A01": 1,
+    "A02": 1,
+    "A03": 1,
+    "A04": 1,
+    "A05": 1,
+    "A06": 1,
+    "A07": 1,
+    "A08": 1,
+    "A09": 1,
+    "A10": 1,
+    "A11": 1,
+    "A12": 1,
+    "A13": 1,
+    "A14": 1,
+    "A15": 1,
+    "A16": 1,
+    "A17": 1,
+    "A18": 1,
+    "A19": 1,
+    "A20": 1
+  },
+  "contract_validation": {
+    "all_cases_valid": true,
+    "error_count": 0
+  },
+  "fixture_integrity": {
+    "all_cases_valid": true
+  },
+  "coverage": {
+    "all_required_final_values_represented": true,
+    "both_personas_represented": true,
+    "min_distinct_virtual_now_met": true
+  },
+  "expected_action_all_null": true,
+  "expected_final_state_all_null": true,
+  "author_context": {
+    "fresh_isolated_context": true,
+    "frozen_bundle_only": true,
+    "implementation_visible": false,
+    "dev_validation_visible": false,
+    "failure_analysis_visible": false,
+    "agent_runs": 0,
+    "external_sources_used": false
+  },
+  "isolation_note": "Process/context isolation, not filesystem access control. The hash proves immutability, not that the file was never readable."
+}
