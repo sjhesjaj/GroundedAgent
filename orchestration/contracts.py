@@ -141,12 +141,19 @@ class BusinessEvidence(Evidence):
 
     `metadata[OBSERVATION_ID_KEY]` is always present; it is `None` until the
     executor links the evidence to the tool call that produced it.
+
+    `relations` names the business keys the source record is structurally
+    linked to, as the source itself produced them - e.g. an order item's
+    `{"order_id": "ORD-1001"}`. Every field of one record carries the same map.
+    It is never parsed from `content`, `locator` or a label, and it is part of
+    `to_dict()`, so it is part of the evidence identity (`evidence_ref`).
     """
 
     record_updated_at: str | None
     state_version: int
     freshness_contract: FreshnessContract
     source_as_of: str | None = None
+    relations: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -182,6 +189,19 @@ class BusinessEvidence(Evidence):
             raise ValueError(
                 "BusinessEvidence.metadata must reserve " + OBSERVATION_ID_KEY
             )
+        if not isinstance(self.relations, Mapping):
+            raise ValueError("BusinessEvidence.relations must be a mapping")
+        relations: dict[str, str] = {}
+        for key, value in self.relations.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("BusinessEvidence.relations keys must be non-empty strings")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    "BusinessEvidence.relations[" + key + "] must be a non-empty string"
+                )
+            relations[key] = value
+        # A private plain copy: a caller's mapping changing later changes nothing.
+        self.relations = relations
 
     def to_dict(self) -> dict[str, object]:
         payload = super().to_dict()
@@ -191,6 +211,7 @@ class BusinessEvidence(Evidence):
                 "state_version": self.state_version,
                 "freshness_contract": self.freshness_contract.value,
                 "source_as_of": self.source_as_of,
+                "relations": dict(self.relations),
             }
         )
         return payload

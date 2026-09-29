@@ -21,7 +21,8 @@ Two ways to not produce a fact, kept apart:
 - `NotDerivable(code)`: the input is well formed but does not establish the
   fact (not delivered yet, a delivery later than the Clock, rule not in
   force, category out of scope, incomplete logistics, order and logistics
-  read at different instants). No derived evidence is produced - in particular, an
+  read at different instants, an item and a delivery not structurally linked
+  to the same order). No derived evidence is produced - in particular, an
   incomplete picture never yields a `business_state_conflict`.
 """
 
@@ -83,6 +84,11 @@ NOT_DERIVABLE_CATEGORY_REQUIRED = "category_evidence_required"
 NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE = "category_not_in_scope"
 NOT_DERIVABLE_LOGISTICS_INCOMPLETE = "logistics_evidence_incomplete"
 NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH = "observation_time_mismatch"
+NOT_DERIVABLE_ORDER_LINK_MISSING = "order_link_missing"
+NOT_DERIVABLE_ORDER_LINK_MISMATCH = "order_link_mismatch"
+
+# The structural relation (BusinessEvidence.relations) naming a record's order.
+ORDER_RELATION = "order_id"
 
 NOT_DERIVABLE_CODES = frozenset(
     {
@@ -93,6 +99,8 @@ NOT_DERIVABLE_CODES = frozenset(
         NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE,
         NOT_DERIVABLE_LOGISTICS_INCOMPLETE,
         NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH,
+        NOT_DERIVABLE_ORDER_LINK_MISSING,
+        NOT_DERIVABLE_ORDER_LINK_MISMATCH,
     }
 )
 
@@ -147,6 +155,25 @@ def _read_field(path: str, evidence: object, entity: str, field: str, now: datet
     if observed_at > now:
         raise ValueError(path + " was observed after the Clock's current instant")
     return _Field(evidence, record_id, metadata["value"], observed_at)
+
+
+def _order_relation(path: str, field: _Field) -> str:
+    """The order a business field belongs to, from its source-produced relations.
+
+    Read only from `BusinessEvidence.relations` - never from content, locator,
+    or labels. A malformed relation map is a data fault (`ValueError`); a
+    well-formed map without the order link cannot prove same-order membership
+    (`NotDerivable(order_link_missing)`).
+    """
+    relations = field.evidence.relations
+    if not isinstance(relations, dict) or not all(
+        isinstance(key, str) and key.strip() and isinstance(value, str) and value.strip()
+        for key, value in relations.items()
+    ):
+        raise ValueError(path + ".relations must map non-empty strings to non-empty strings")
+    if ORDER_RELATION not in relations:
+        raise NotDerivable(NOT_DERIVABLE_ORDER_LINK_MISSING)
+    return relations[ORDER_RELATION]
 
 
 def _parse_aware(path: str, value: object) -> datetime:
@@ -302,9 +329,12 @@ def derive_window_eligibility(
     The subject is the order item when category evidence is given (eligibility
     is per item), otherwise the delivered package.
 
-    Caller contract: `delivered_at` and `category` must belong to the same
-    order. Order-item evidence does not carry its order_id, so this cannot be
-    checked here.
+    Whenever `category` is given - whatever the rule's scope - it must be
+    structurally linked to the same order as `delivered_at`
+    (`relations["order_id"]` on both): a missing link is
+    `NotDerivable(order_link_missing)`, different orders are
+    `NotDerivable(order_link_mismatch)`. No window fact is produced from an
+    item of one order and a delivery of another.
     """
     now = _now(clock)
     params = window_params(policy)
@@ -325,6 +355,13 @@ def derive_window_eligibility(
             raise NotDerivable(NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE)
 
     field, delivered = _delivery("delivered_at", delivered_at, now)
+    order_id: str | None = None
+    if item is not None:
+        item_order = _order_relation("category", item)
+        delivery_order = _order_relation("delivered_at", field)
+        if item_order != delivery_order:
+            raise NotDerivable(NOT_DERIVABLE_ORDER_LINK_MISMATCH)
+        order_id = item_order
     days = elapsed_natural_days(
         delivered, now, counting_rule=params.counting_rule, utc_offset=params.utc_offset
     )
@@ -343,6 +380,8 @@ def derive_window_eligibility(
     inputs: list[BusinessEvidence] = [field.evidence]
     if item is not None:
         details["category"] = item.value
+        # Verified above; provenance for traces, not an authorization.
+        details["order_id"] = order_id
         inputs.append(item.evidence)
     return _derived(
         fact_key=fact_key,

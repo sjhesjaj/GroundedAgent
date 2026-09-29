@@ -23,7 +23,9 @@ structural rather than advisory (ported from the V1 system provider):
 Every result field becomes one `BusinessEvidence`, located to the field
 (`logistics:SF1001#delivered_at`), with `observed_at` = the Clock's reading,
 `record_updated_at` = the record's `updated_at`, and `state_version` = the
-record's `version`.
+record's `version`. `relations` carries the record's structural parent keys
+(e.g. an order item's `order_id`) read from their own columns, so a consumer can
+check that two facts belong to the same order without parsing any text.
 """
 
 from __future__ import annotations
@@ -96,6 +98,9 @@ class Query:
     fields: tuple[tuple[str, str], ...]
     # A primary-key lookup must match at most one row; a listing may match many.
     single_row: bool
+    # (source column, relation name): structural links copied onto every
+    # evidence item of the record. Never customer_id.
+    relations: tuple[tuple[str, str], ...] = ()
 
 
 ORDER_QUERY = Query(
@@ -116,14 +121,15 @@ ORDER_ITEMS_QUERY = Query(
     entity="order_item",
     table="order_items",
     sql=(
-        "SELECT i.order_item_id, i.sku, i.product_name, i.category, i.quantity,"
-        " i.unit_price, i.updated_at, i.version FROM order_items AS i"
+        "SELECT i.order_item_id, i.order_id, i.sku, i.product_name, i.category,"
+        " i.quantity, i.unit_price, i.updated_at, i.version FROM order_items AS i"
         " JOIN orders AS o ON o.order_id = i.order_id"
         " WHERE o.customer_id = ? AND i.order_id = ? ORDER BY i.order_item_id"
     ),
     bindings=(_CUSTOMER, "order_id"),
     columns=(
         "order_item_id",
+        "order_id",
         "sku",
         "product_name",
         "category",
@@ -141,6 +147,8 @@ ORDER_ITEMS_QUERY = Query(
         ("unit_price", "单价"),
     ),
     single_row=False,
+    # Selected for linkage only; not a separate field of evidence.
+    relations=(("order_id", "order_id"),),
 )
 
 LOGISTICS_QUERY = Query(
@@ -175,6 +183,7 @@ LOGISTICS_QUERY = Query(
     ),
     # An order may ship in several packages; every one is returned.
     single_row=False,
+    relations=(("order_id", "order_id"),),
 )
 
 INVENTORY_QUERY = Query(
@@ -224,6 +233,7 @@ CASE_QUERY = Query(
         ("created_at", "创建时间"),
     ),
     single_row=False,
+    relations=(("order_id", "order_id"), ("order_item_id", "order_item_id")),
 )
 
 # Queries run in order. A later query runs only if the first one matched: an
@@ -280,6 +290,12 @@ def _check_row(tool: str, query: Query, record: dict[str, object]) -> None:
         raise RecordIntegrityError(where + "version that is not a positive integer")
     if not isinstance(record[query.key], str) or not record[query.key].strip():
         raise RecordIntegrityError(where + query.key + " that is not a non-empty string")
+    for column, _ in query.relations:
+        if column not in record:
+            raise RecordIntegrityError(where + column + " relation column is not selected")
+        value = record[column]
+        if not isinstance(value, str) or not value.strip():
+            raise RecordIntegrityError(where + column + " relation that is not a non-empty string")
 
 
 def _render(value: object) -> str:
@@ -290,6 +306,7 @@ def _to_evidence(
     tool: str, query: Query, record: dict[str, object], observed_at: str
 ) -> list[BusinessEvidence]:
     record_id = record[query.key]
+    relations = {name: record[column] for column, name in query.relations}
     evidence = []
     for column, label in query.fields:
         value = record[column]
@@ -322,6 +339,7 @@ def _to_evidence(
                 state_version=record["version"],
                 freshness_contract=SOURCE_FRESHNESS,
                 source_as_of=None,
+                relations=relations,
             )
         )
     return evidence
