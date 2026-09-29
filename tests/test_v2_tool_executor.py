@@ -6,11 +6,12 @@ property (docs/v2/v1-test-inventory.json) over to V2.
 
 import dataclasses
 import json
+import sqlite3
 import unittest
 from unittest.mock import MagicMock, patch
 
 from aftersales.business_tools import BUSINESS_HANDLERS, TOOL_PARAMETERS
-from aftersales.errors import SideEffectForbidden
+from aftersales.errors import SideEffectForbidden, ToolNotReady
 from aftersales.executor import (
     ERROR_CODE_NOT_READY,
     ERROR_CODE_TOOL_ERROR,
@@ -499,6 +500,55 @@ class ReadOnlyTests(ExecutorTestCase):
         registry = replaced(self.registry, "get_inventory", handler=writing_handler)
         with self.assertRaises(ReadOnlyViolation):
             execute_tool(registry, self.context, "get_inventory", {"sku": SKU_STOCKED})
+
+    def test_a_handler_that_writes_then_raises_is_caught_not_laundered(self):
+        # Every exception class the executor would otherwise classify.
+        for failure in (
+            RuntimeError("after write"),
+            sqlite3.OperationalError("after write"),
+            ToolNotReady("after write"),
+            ValueError("after write"),
+            TypeError("after write"),
+        ):
+            with self.subTest(failure=type(failure).__name__):
+                def writing_then_failing(context, arguments, failure=failure):
+                    context.connection.execute(
+                        "UPDATE inventory SET available_qty = available_qty + 1"
+                    )
+                    raise failure
+
+                registry = replaced(self.registry, "get_inventory", handler=writing_then_failing)
+                outcome = None
+                with self.assertRaises(ReadOnlyViolation) as caught:
+                    outcome = execute_tool(
+                        registry, self.context, "get_inventory", {"sku": SKU_STOCKED}
+                    )
+                # Never an ERROR result, and the original failure is not lost.
+                self.assertIsNone(outcome)
+                self.assertIs(caught.exception.__cause__, failure)
+                self.assertNotIn(SKU_STOCKED, str(caught.exception))
+
+    def test_failures_without_a_write_keep_their_classification(self):
+        cases = (
+            (RuntimeError("x"), ERROR_CODE_TOOL_ERROR),
+            (sqlite3.OperationalError("x"), ERROR_CODE_TOOL_ERROR),
+            (ToolNotReady("x"), ERROR_CODE_NOT_READY),
+        )
+        for failure, code in cases:
+            with self.subTest(failure=type(failure).__name__):
+                registry = replaced(
+                    self.registry, "get_inventory", handler=MagicMock(side_effect=failure)
+                )
+                result = execute_tool(registry, self.context, "get_inventory", {"sku": SKU_STOCKED})
+                self.assertEqual(result.status, ToolStatus.ERROR)
+                self.assertEqual(result.error_code, code)
+        for failure in (ValueError("x"), TypeError("x")):
+            with self.subTest(failure=type(failure).__name__):
+                registry = replaced(
+                    self.registry, "get_inventory", handler=MagicMock(side_effect=failure)
+                )
+                with self.assertRaises(type(failure)):
+                    execute_tool(registry, self.context, "get_inventory", {"sku": SKU_STOCKED})
 
     def test_executor_opens_nothing(self):
         with patch("sqlite3.connect", side_effect=AssertionError("must not open a connection")):

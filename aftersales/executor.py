@@ -18,7 +18,8 @@ The Stage 4 path is read-only by construction, and the checks are hard:
   schema exactly; evidence must not carry the identity. A violation raises
   rather than being repaired, because this output is designed to be persisted.
 - **Reads leave the database unchanged.** `total_changes` is compared before
-  and after; a difference raises `ReadOnlyViolation`.
+  and after the handler, on normal return *and* on exception; a difference
+  raises `ReadOnlyViolation`, which takes priority over any error result.
 
 Evidence and trace are linked to the call through `observation_id`, which the
 caller supplies (the trace span of the tool call) or leaves as `None`.
@@ -231,8 +232,38 @@ def _linked(item: Evidence, observation_id: str | None) -> Evidence:
 
 
 def _total_changes(connection: object) -> int | None:
-    value = getattr(connection, "total_changes", None)
+    """The connection's write counter, or None if it cannot be read (e.g. closed)."""
+    try:
+        value = getattr(connection, "total_changes", None)
+    except Exception:
+        return None
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _require_unchanged(
+    spec: ToolSpec, connection: object, before: int | None,
+    cause: BaseException | None = None,
+) -> None:
+    """Raise ReadOnlyViolation if the handler changed the database.
+
+    Called on *every* exit from a handler - normal return or exception - and
+    before an exception is classified, so a write followed by a failure can
+    never be laundered into an ordinary ERROR result. The original exception is
+    kept as `__cause__`.
+    """
+    if before is None:
+        # The counter was unreadable before the call (a closed connection):
+        # nothing could have been written through it.
+        return
+    after = _total_changes(connection)
+    if after == before:
+        return
+    message = (
+        spec.name + " changed the database during a read"
+        if after is not None
+        else spec.name + " left the database connection unverifiable after a read"
+    )
+    raise ReadOnlyViolation(message) from cause
 
 
 # --------------------------------------------------------------------------
@@ -276,30 +307,30 @@ def execute_tool(
         {spec.name, *spec.parameter_names, *BUSINESS_TRACE_FIELDS}
     )
 
+    before = _total_changes(context.connection)
     try:
-        before = _total_changes(context.connection)
         # A fresh copy: the handler can neither retain nor mutate caller state.
         result = spec.handler(context, dict(checked))
-        after = _total_changes(context.connection)
-    except (ValueError, TypeError):
-        # A contract violation between executor and handler is a programmer
-        # error; it must not be laundered into "the data source was down".
-        raise
-    except ToolNotReady:
-        return _error_result(
-            spec, ERROR_CODE_NOT_READY, spec.name + " is not available yet",
-            observation_id, "ToolNotReady",
-        )
     except Exception as exc:
+        # The read-only check outranks every classification below: a write
+        # followed by a failure is a ReadOnlyViolation, never a tool_error.
+        _require_unchanged(spec, context.connection, before, cause=exc)
+        if isinstance(exc, (ValueError, TypeError)):
+            # A contract violation between executor and handler is a programmer
+            # error; it must not be laundered into "the data source was down".
+            raise
+        if isinstance(exc, ToolNotReady):
+            return _error_result(
+                spec, ERROR_CODE_NOT_READY, spec.name + " is not available yet",
+                observation_id, "ToolNotReady",
+            )
         return _error_result(
             spec, ERROR_CODE_TOOL_ERROR,
             # Class name only. str(exc) is never captured, anywhere.
             spec.name + " failed with " + type(exc).__name__,
             observation_id, type(exc).__name__,
         )
-
-    if before is not None and after != before:
-        raise ReadOnlyViolation(spec.name + " changed the database during a read")
+    _require_unchanged(spec, context.connection, before)
 
     _require_tool_result(spec, result)
     if result.status is ToolStatus.ERROR:

@@ -253,6 +253,77 @@ class CustomerIsolationTests(BusinessToolTestCase):
                 )
 
 
+class CaseOwnershipTests(BusinessToolTestCase):
+    """Authorization is order ownership, not the case's redundant customer_id."""
+
+    def insert_case(self, case_id, order_id, order_item_id, customer_id):
+        stamp = "2026-11-14T10:00:00+08:00"
+        self.connection.execute(
+            "INSERT INTO after_sales_cases VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (case_id, order_id, order_item_id, customer_id, "return", "处理中",
+             "inconsistent-" + case_id, stamp, stamp, 1),
+        )
+
+    def case_ids(self, result):
+        return sorted({item.metadata["record_id"] for item in result.evidence})
+
+    def test_case_claiming_another_customers_order_is_not_readable(self):
+        # The order belongs to CUST-002; the case's own column says CUST-001.
+        self.insert_case("AS-9001", ORDER_B_DELIVERED, "OI-2001-2", CUSTOMER_A)
+        registry = build_runtime_registry()
+        direct = call("get_after_sales_case", self.context, {"order_id": ORDER_B_DELIVERED})
+        executed = execute_tool(
+            registry, self.context, "get_after_sales_case", {"order_id": ORDER_B_DELIVERED}
+        )
+        for result in (direct, executed):
+            self.assertEqual(result.status, ToolStatus.EMPTY)
+            self.assertEqual(result.evidence, ())
+            self.assertNotIn("AS-9001", repr(result.to_dict()))
+            self.assertNotIn("inconsistent", repr(result.to_dict()))
+
+    def test_the_real_owner_sees_only_consistent_cases(self):
+        self.insert_case("AS-9001", ORDER_B_DELIVERED, "OI-2001-2", CUSTOMER_A)
+        owner = make_context(self.connection, persona_id=PERSONA_B)
+        result = call("get_after_sales_case", owner, {"order_id": ORDER_B_DELIVERED})
+        self.assertEqual(result.status, ToolStatus.OK)
+        self.assertEqual(self.case_ids(result), ["AS-2001"])
+
+    def test_case_disagreeing_with_its_order_owner_is_hidden_from_both_sides(self):
+        # The order belongs to CUST-001; the case's own column says CUST-002.
+        self.insert_case("AS-9002", ORDER_A_DELIVERED, "OI-1001-2", CUSTOMER_B)
+        other = make_context(self.connection, persona_id=PERSONA_B)
+        self.assertEqual(
+            call("get_after_sales_case", other, {"order_id": ORDER_A_DELIVERED}).status,
+            ToolStatus.EMPTY,
+        )
+        owner_view = call("get_after_sales_case", self.context, {"order_id": ORDER_A_DELIVERED})
+        self.assertEqual(self.case_ids(owner_view), ["AS-1001"])
+
+    def test_identity_and_customer_id_stay_out_of_evidence_and_trace(self):
+        self.insert_case("AS-9001", ORDER_B_DELIVERED, "OI-2001-2", CUSTOMER_A)
+        owner = make_context(self.connection, persona_id=PERSONA_B)
+        result = execute_tool(
+            build_runtime_registry(), owner, "get_after_sales_case",
+            {"order_id": ORDER_B_DELIVERED},
+        )
+        rendered = repr(result.to_dict())
+        for leaked in (CUSTOMER_A, CUSTOMER_B, "customer_id"):
+            self.assertNotIn(leaked, rendered)
+
+    def test_every_customer_scoped_query_is_authorized_by_order_ownership(self):
+        for tool in IDENTITY_SCOPED_TOOLS:
+            for query in TOOL_QUERIES[tool]:
+                with self.subTest(tool=tool, table=query.table):
+                    self.assertIn(" o.customer_id = ?", query.sql)
+                    if query.table != "orders":
+                        self.assertIn("JOIN orders AS o ON o.order_id = ", query.sql)
+                    # The case's own column is never the identity predicate.
+                    self.assertNotIn("c.customer_id = ?", query.sql)
+
+    def test_contract_is_unchanged(self):
+        self.assertEqual(TOOL_PARAMETERS["get_after_sales_case"], ("order_id",))
+
+
 class UnknownRecordTests(BusinessToolTestCase):
     def test_unknown_records_return_empty(self):
         """Ports V1 tests.test_system_provider.UnknownRecordTests.test_unknown_records_return_empty"""

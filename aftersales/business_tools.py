@@ -13,7 +13,8 @@ structural rather than advisory (ported from the V1 system provider):
 - rows are read positionally on the tool's own cursor, so a caller's
   `row_factory` changes nothing and is never overwritten;
 - `customer_id` comes only from the trusted context, is used as a predicate,
-  and is never selected - it cannot reach Evidence;
+  and is never selected - it cannot reach Evidence. Every customer-scoped
+  lookup is authorized by order ownership (`orders.customer_id`);
 - database faults propagate as exceptions: they are never an empty result.
   An empty result means the lookup ran and matched nothing, which is also what
   a record belonging to another customer looks like (existence is not leaked);
@@ -187,13 +188,19 @@ INVENTORY_QUERY = Query(
     single_row=True,
 )
 
+# Authorization is the order's ownership (orders.customer_id), never the
+# case's own redundant customer_id: nothing in the schema forces the two to
+# agree. A case whose customer_id disagrees with its order's owner is hidden
+# from everyone (fail closed).
 CASE_QUERY = Query(
     entity="after_sales_case",
     table="after_sales_cases",
     sql=(
         "SELECT c.case_id, c.order_id, c.order_item_id, c.type, c.status, c.reason,"
         " c.created_at, c.updated_at, c.version FROM after_sales_cases AS c"
-        " WHERE c.customer_id = ? AND c.order_id = ? ORDER BY c.case_id"
+        " JOIN orders AS o ON o.order_id = c.order_id"
+        " WHERE o.customer_id = ? AND c.order_id = ?"
+        " AND c.customer_id = o.customer_id ORDER BY c.case_id"
     ),
     bindings=(_CUSTOMER, "order_id"),
     columns=(
