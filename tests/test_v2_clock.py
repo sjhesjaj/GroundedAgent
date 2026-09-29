@@ -15,10 +15,12 @@ from tests.v2_support import VALID_BUSINESS_CALLS, at, make_context, memory_conn
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# The V2 business-time scope: the whole domain package plus the V2 evidence
-# contract. Audit time (agent_trace, storage, wiki build) is out of scope.
+# The V2 business-time scope: the whole domain package (derived facts
+# included) plus the V2 evidence contract and V2 Evidence Policy. Audit time
+# (agent_trace, storage, wiki build) is out of scope.
 SCANNED_PYTHON = sorted((REPO_ROOT / "aftersales").glob("*.py")) + [
-    REPO_ROOT / "orchestration" / "contracts.py"
+    REPO_ROOT / "orchestration" / "contracts.py",
+    REPO_ROOT / "orchestration" / "evidence_policy_v2.py",
 ]
 SCANNED_SQL = [
     REPO_ROOT / "aftersales" / "schema.sql",

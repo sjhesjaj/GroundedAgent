@@ -174,7 +174,11 @@ class PolicyContractTests(unittest.TestCase):
     def valid_record(self, **overrides):
         values = dict(
             policy_id="P-RETURN-7D", version="1", title="t", rule_type=PolicyRuleType.RETURN_WINDOW,
-            scope=(), params={"window_days": 7, "start_event": "delivered"},
+            scope=(),
+            params={
+                "window_days": 7, "start_event": "delivered",
+                "counting_rule": "natural_days_from_next_day", "utc_offset": "+08:00",
+            },
             effective_from="2026-01-01T00:00:00+08:00", effective_to=None,
             source_doc="rules.md", locator="rules.md#return", build_id="build-1",
         )

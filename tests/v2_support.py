@@ -8,7 +8,14 @@ from datetime import datetime
 from aftersales.clock import BUSINESS_TIMEZONE, FixedClock
 from aftersales.context import TrustedExecutionContext
 from aftersales.demo import DEMO_SEED_PATH, DEMO_VIRTUAL_NOW, resolve_persona
+from aftersales.policy import PolicyRecord, PolicyRuleType
 from aftersales.schema import SCHEMA_PATH, TABLE_COLUMNS
+from orchestration.contracts import (
+    OBSERVATION_ID_KEY,
+    BusinessEvidence,
+    FreshnessContract,
+    SourceType,
+)
 
 PERSONA_A = "demo-a"
 PERSONA_B = "demo-b"
@@ -64,8 +71,72 @@ def make_context(
     )
 
 
-def at(year: int, month: int = 1, day: int = 1, hour: int = 0) -> datetime:
-    return datetime(year, month, day, hour, tzinfo=BUSINESS_TIMEZONE)
+def at(year: int, month: int = 1, day: int = 1, hour: int = 0, minute: int = 0) -> datetime:
+    return datetime(year, month, day, hour, minute, tzinfo=BUSINESS_TIMEZONE)
+
+
+WINDOW_PARAMS_7D = {
+    "window_days": 7,
+    "start_event": "delivered",
+    "counting_rule": "natural_days_from_next_day",
+    "utc_offset": "+08:00",
+}
+
+
+def window_policy(**overrides) -> PolicyRecord:
+    """A valid 7-day return-window rule, in force from 2026-01-01 on."""
+    values = dict(
+        policy_id="P-RETURN-7D",
+        version="1",
+        title="七天无理由退货",
+        rule_type=PolicyRuleType.RETURN_WINDOW,
+        scope=(),
+        params=dict(WINDOW_PARAMS_7D),
+        effective_from="2026-01-01T00:00:00+08:00",
+        effective_to=None,
+        source_doc="aftersales_rules.md",
+        locator="aftersales_rules.md#return-window",
+        build_id="build-1",
+    )
+    values.update(overrides)
+    return PolicyRecord(**values)
+
+
+def business_evidence(
+    entity: str,
+    record_id: str,
+    field: str,
+    value,
+    *,
+    observed_at: str = DEMO_VIRTUAL_NOW.isoformat(),
+    record_updated_at: str | None = "2026-11-01T00:00:00+08:00",
+    state_version: int = 1,
+    freshness_contract: FreshnessContract = FreshnessContract.AUTHORITATIVE_ONLINE,
+    source_as_of: str | None = None,
+    observation_id: str | None = None,
+) -> BusinessEvidence:
+    """One hand-built business field, shaped exactly like a tool's output."""
+    return BusinessEvidence(
+        content=entity + " " + record_id + " " + field + " " + str(value),
+        source_type=SourceType.BUSINESS,
+        source="aftersales-demo-db",
+        locator=entity + ":" + record_id + "#" + field,
+        observed_at=observed_at,
+        authority=100,
+        metadata={
+            "tool": "test",
+            "entity": entity,
+            "record_id": record_id,
+            "field": field,
+            "value": value,
+            "authority_scope": "current_operational_state",
+            OBSERVATION_ID_KEY: observation_id,
+        },
+        record_updated_at=record_updated_at,
+        state_version=state_version,
+        freshness_contract=freshness_contract,
+        source_as_of=source_as_of,
+    )
 
 
 class RecordingCursor:
