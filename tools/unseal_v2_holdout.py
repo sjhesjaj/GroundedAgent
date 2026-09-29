@@ -9,15 +9,20 @@ knows, searches for, or derives where the sealed files live.
 Order, fail-closed at every step, nothing written until everything passes:
 
 1. Working tree clean (`git status --porcelain` empty), the sealed manifest
-   present with the expected schema/status and pinned hashes, and the holdout
+   present with the expected schema/status and pinned values, and the holdout
    never opened before (no destination file, no history for it).
-2. Receipt: sha256 of the raw bytes, then JSON, then its safe fields must
-   agree with the repo manifest. The receipt never controls a destination.
-3. Holdout: sha256 of the raw bytes, then JSON, then the case contract
+2. Frozen author inputs: every file listed in eval/v2/holdout-input.manifest.json
+   re-hashed and the content digest recomputed, so the opening uses exactly the
+   case contract, spec, seed and policy corpus the author saw.
+3. Receipt: sha256 of the raw bytes, then JSON, then the exact
+   v2-sealed-holdout-receipt/1 contract, field by field against the manifest.
+   The receipt never controls a destination.
+4. Holdout: sha256 of the raw bytes, then JSON, then the case contract
    (eval/v2/case_contract.py) and the sealed distribution for every case.
-4. Raw bytes are copied - never re-serialized - to eval/v2/holdout.json and
-   eval/v2/holdout.receipt.json via fsynced temp files and atomic rename, then
-   re-hashed. No git commit is made.
+5. Raw bytes are copied - never re-serialized - to eval/v2/holdout.json and
+   eval/v2/holdout.receipt.json via fsynced temp files and rename, then
+   re-hashed. On handled failures partial outputs are removed; an opened
+   destination, once observed, always refuses. No git commit is made.
 
 Stdlib only; no Agent, no LLM, no network.
 """
@@ -32,42 +37,44 @@ import os
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_RELATIVE = "eval/v2/holdout.manifest.json"
+INPUT_MANIFEST_RELATIVE = "eval/v2/holdout-input.manifest.json"
 HOLDOUT_DESTINATION = "eval/v2/holdout.json"
 RECEIPT_DESTINATION = "eval/v2/holdout.receipt.json"
 CHECKER_RELATIVE = "eval/v2/case_contract.py"
 MANIFEST_SCHEMA = "v2-sealed-holdout-manifest/1"
+INPUT_MANIFEST_SCHEMA = "v2-holdout-input-manifest/1"
+RECEIPT_SCHEMA = "v2-sealed-holdout-receipt/1"
 
 # Pinned when the seal was committed; the repo manifest must agree with them.
 PINNED = {
     "holdout_sha256": "0d312305e62ffc3bf4c73cf3ee0715a8cbe1b910d44183b9bb8abf9cc2d88e8a",
     "seal_receipt_sha256": "1c899e4f8d54a168aef77489f9450f1d08f4166949a9164d935412fbae9ff002",
+    "input_bundle_digest": "7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8",
+    "input_file_count": 17,
 }
 
-# Receipt field -> accepted key names (matched as a dotted-path suffix, so a
-# field may sit at top level or inside a wrapper object).
+# The frozen receipt contract: exactly these top-level keys, each compared with
+# one manifest field. No wrappers, no aliases, no other keys.
 RECEIPT_FIELDS = {
-    "sealed_against_repo_commit": ("sealed_against_repo_commit", "freeze_repo_commit",
-                                   "freeze_merge_commit"),
+    "freeze_merge_commit": ("sealed_against_repo_commit",),
     "input_bundle_digest": ("input_bundle_digest",),
     "input_file_count": ("input_file_count",),
     "holdout_sha256": ("holdout_sha256",),
     "case_count": ("case_count",),
     "archetype_counts": ("archetype_counts",),
-    "contract_validation.all_cases_valid": ("contract_validation.all_cases_valid",),
-    "contract_validation.error_count": ("contract_validation.error_count",),
-    "fixture_integrity.all_cases_valid": ("fixture_integrity.all_cases_valid",),
-    "coverage.all_required_final_values_represented": ("coverage.all_required_final_values_represented",),
-    "coverage.both_personas_represented": ("coverage.both_personas_represented",),
-    "coverage.min_distinct_virtual_now_met": ("coverage.min_distinct_virtual_now_met",),
+    "contract_validation": ("contract_validation",),
+    "fixture_integrity": ("fixture_integrity",),
+    "coverage": ("coverage",),
     "expected_action_all_null": ("expected_action_all_null",),
     "expected_final_state_all_null": ("expected_final_state_all_null",),
-    "author_context.agent_runs": ("agent_runs",),
-    "author_context.external_sources_used": ("external_sources_used",),
+    "agent_runs": ("author_context", "agent_runs"),
+    "external_sources_used": ("author_context", "external_sources_used"),
 }
+RECEIPT_KEYS = frozenset({"schema"} | set(RECEIPT_FIELDS))
 
 
 class UnsealRefused(RuntimeError):
@@ -78,27 +85,24 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _get(mapping: dict, dotted: str) -> object:
-    node: object = mapping
-    for part in dotted.split("."):
-        if not isinstance(node, dict) or part not in node:
-            raise UnsealRefused("manifest is missing " + dotted)
-        node = node[part]
+def _same(a: object, b: object) -> bool:
+    """JSON equality with exact types: True is not 1, and dicts compare key for key."""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, dict):
+        return a.keys() == b.keys() and all(_same(a[k], b[k]) for k in a)
+    if isinstance(a, list):
+        return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+def _manifest_value(manifest: dict, keys: tuple[str, ...]) -> object:
+    node: object = manifest
+    for key in keys:
+        if not isinstance(node, dict) or key not in node:
+            raise UnsealRefused("sealed manifest is missing " + ".".join(keys))
+        node = node[key]
     return node
-
-
-def _flatten(node: object, prefix: str = "") -> dict[str, object]:
-    out = {prefix: node} if prefix else {}
-    if isinstance(node, dict):
-        for key, value in node.items():
-            out.update(_flatten(value, prefix + "." + str(key) if prefix else str(key)))
-    return out
-
-
-def _nonzero(counts: object) -> object:
-    if isinstance(counts, dict):
-        return {k: v for k, v in counts.items() if v != 0}
-    return counts
 
 
 # ---------------------------------------------------------------- preconditions
@@ -132,9 +136,58 @@ def load_manifest(root: Path, pinned: dict) -> dict:
     if manifest.get("status") != "sealed":
         raise UnsealRefused("sealed manifest status is not 'sealed'")
     for key, value in pinned.items():
-        if manifest.get(key) != value:
+        if not _same(manifest.get(key), value):
             raise UnsealRefused("sealed manifest " + key + " differs from the pinned value")
     return manifest
+
+
+# ---------------------------------------------------------------- frozen author inputs
+
+def _plain_relative(relative: object) -> str:
+    if not isinstance(relative, str) or not relative:
+        raise UnsealRefused("frozen input path is not a string")
+    pure = PurePosixPath(relative)
+    if (pure.is_absolute() or "\\" in relative or ":" in relative
+            or any(part in ("", ".", "..") or part.startswith(".") for part in pure.parts)):
+        raise UnsealRefused("frozen input path is not a plain repo-relative path")
+    return relative
+
+
+def input_content_digest(files: list[dict]) -> str:
+    """Same serialization as the Stage 4.3.5 input manifest contract."""
+    payload = {"schema": INPUT_MANIFEST_SCHEMA,
+               "files": [{"path": f["path"], "sha256": f["sha256"]} for f in files]}
+    return sha256_hex(json.dumps(payload, sort_keys=True, ensure_ascii=False,
+                                 separators=(",", ":")).encode("utf-8"))
+
+
+def verify_frozen_inputs(root: Path, manifest: dict) -> None:
+    """The author inputs in the repo are byte-for-byte (LF-normalized) the sealed ones."""
+    path = root / INPUT_MANIFEST_RELATIVE
+    try:
+        inputs = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise UnsealRefused(INPUT_MANIFEST_RELATIVE + " is missing or not valid JSON") from None
+    if not isinstance(inputs, dict) or inputs.get("schema") != INPUT_MANIFEST_SCHEMA:
+        raise UnsealRefused("unknown frozen input manifest schema")
+    files = inputs.get("files")
+    if not isinstance(files, list) or not all(isinstance(f, dict) for f in files):
+        raise UnsealRefused("frozen input manifest has no file list")
+    if len(files) != manifest["input_file_count"]:
+        raise UnsealRefused("frozen input file count differs from the sealed manifest")
+    if not (inputs.get("content_digest") == manifest["input_bundle_digest"]
+            == input_content_digest(files)):
+        raise UnsealRefused("frozen input content digest differs from the sealed digest")
+    paths = [_plain_relative(f.get("path")) for f in files]
+    if paths != sorted(set(paths)):
+        raise UnsealRefused("frozen input paths are not unique and sorted")
+    repo = root.resolve()
+    for entry in files:
+        source = (root / entry["path"]).resolve()
+        if not source.is_relative_to(repo) or not source.is_file():
+            raise UnsealRefused("frozen input is missing: " + entry["path"])
+        if sha256_hex(source.read_bytes().replace(b"\r\n", b"\n")) != entry.get("sha256"):
+            raise UnsealRefused("frozen input changed since sealing: " + entry["path"])
 
 
 # ---------------------------------------------------------------- receipt
@@ -148,15 +201,12 @@ def verify_receipt(data: bytes, manifest: dict) -> dict:
         raise UnsealRefused("seal receipt is not valid JSON") from None
     if not isinstance(receipt, dict):
         raise UnsealRefused("seal receipt must be a JSON object")
-    flat = _flatten(receipt)
-    for field, aliases in RECEIPT_FIELDS.items():
-        expected = _nonzero(_get(manifest, field))
-        found = [value for path, value in flat.items()
-                 if any(path == alias or path.endswith("." + alias) for alias in aliases)]
-        if not found:
-            raise UnsealRefused("seal receipt lacks " + field)
-        if any(_nonzero(value) != expected or type(value) is not type(_get(manifest, field))
-               for value in found):
+    if receipt.get("schema") != RECEIPT_SCHEMA:
+        raise UnsealRefused("seal receipt schema is not " + RECEIPT_SCHEMA)
+    if set(receipt) != RECEIPT_KEYS:
+        raise UnsealRefused("seal receipt keys differ from the frozen receipt contract")
+    for field, manifest_keys in RECEIPT_FIELDS.items():
+        if not _same(receipt[field], _manifest_value(manifest, manifest_keys)):
             raise UnsealRefused("seal receipt disagrees with the manifest on " + field)
     return receipt
 
@@ -204,8 +254,7 @@ def verify_holdout(data: bytes, manifest: dict, root: Path) -> list:
     counts: dict[str, int] = {}
     for case in cases:
         counts[case["archetype"]] = counts.get(case["archetype"], 0) + 1
-    expected_counts = _nonzero(manifest["archetype_counts"])
-    if counts != expected_counts:
+    if not _same(counts, manifest["archetype_counts"]):
         raise UnsealRefused("archetype distribution differs from the manifest")
     if {"A21", "A22", "A23"} & set(counts):
         raise UnsealRefused("Stage 6 archetypes are not allowed in the holdout")
@@ -271,6 +320,7 @@ def unseal(holdout_file: Path, receipt_file: Path, *, root: Path = REPO_ROOT,
            pinned: dict = PINNED) -> dict:
     check_repository(root)
     manifest = load_manifest(root, pinned)
+    verify_frozen_inputs(root, manifest)
     receipt_bytes = Path(receipt_file).read_bytes()
     verify_receipt(receipt_bytes, manifest)
     holdout_bytes = Path(holdout_file).read_bytes()

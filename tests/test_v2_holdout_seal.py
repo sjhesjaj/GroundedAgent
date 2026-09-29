@@ -77,13 +77,15 @@ def synthetic_case(index: int) -> dict:
 
 
 def synthetic_receipt(holdout_sha: str) -> dict:
+    """Exactly the frozen v2-sealed-holdout-receipt/1 contract."""
     return {
-        "freeze_repo_commit": SAFE_METADATA["sealed_against_repo_commit"],
+        "schema": "v2-sealed-holdout-receipt/1",
+        "freeze_merge_commit": SAFE_METADATA["sealed_against_repo_commit"],
         "input_bundle_digest": SAFE_METADATA["input_bundle_digest"],
         "input_file_count": 17,
         "holdout_sha256": holdout_sha,
         "case_count": 20,
-        "archetype_counts": dict({a: 1 for a in ARCHETYPES}, A21=0, A22=0, A23=0),
+        "archetype_counts": {a: 1 for a in ARCHETYPES},
         "contract_validation": {"all_cases_valid": True, "error_count": 0},
         "fixture_integrity": {"all_cases_valid": True},
         "coverage": copy.deepcopy(SAFE_METADATA["coverage"]),
@@ -101,16 +103,18 @@ def git(root: Path, *args: str) -> str:
 
 
 class Sandbox:
-    """A throwaway repo with the committed checker/spec and a synthetic seal."""
+    """A throwaway repo holding the 17 frozen author inputs, their input
+    manifest and a synthetic seal (synthetic holdout and receipt hashes)."""
 
     template: Path | None = None
 
     @classmethod
     def build_template(cls, tmp: Path) -> None:
-        """Committed checker, spec and a placeholder manifest; copied per test."""
+        """Committed frozen inputs and manifests; copied per test."""
         root = tmp / "template"
-        for relative in ["eval/v2/case_contract.py", unseal_mod.MANIFEST_RELATIVE] + [
-                p.relative_to(ROOT).as_posix() for p in (ROOT / "eval/v2/spec").glob("*.json")]:
+        inputs = json.loads((ROOT / unseal_mod.INPUT_MANIFEST_RELATIVE).read_text(encoding="utf-8"))
+        for relative in [f["path"] for f in inputs["files"]] + [
+                unseal_mod.INPUT_MANIFEST_RELATIVE, unseal_mod.MANIFEST_RELATIVE]:
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / relative, target)
@@ -130,8 +134,9 @@ class Sandbox:
         if receipt_edit:
             receipt_edit(receipt)
         self.receipt_bytes = json.dumps(receipt, ensure_ascii=False, indent=2).encode("utf-8")
-        self.pinned = {"holdout_sha256": unseal_mod.sha256_hex(self.holdout_bytes),
-                       "seal_receipt_sha256": unseal_mod.sha256_hex(self.receipt_bytes)}
+        self.pinned = dict(unseal_mod.PINNED,
+                           holdout_sha256=unseal_mod.sha256_hex(self.holdout_bytes),
+                           seal_receipt_sha256=unseal_mod.sha256_hex(self.receipt_bytes))
         manifest = dict(copy.deepcopy(MANIFEST), **self.pinned)
         (self.root / unseal_mod.MANIFEST_RELATIVE).write_text(json.dumps(manifest, indent=2) + "\n",
                                                               encoding="utf-8")
@@ -268,7 +273,7 @@ class UnsealTests(unittest.TestCase):
         edits = [
             lambda r: r.__setitem__("case_count", 21),
             lambda r: r.__setitem__("input_bundle_digest", "0" * 64),
-            lambda r: r.__setitem__("freeze_repo_commit", "f9024050bb68260b6c9fb7fdea906384dfd606cf"),
+            lambda r: r.__setitem__("freeze_merge_commit", "f9024050bb68260b6c9fb7fdea906384dfd606cf"),
             lambda r: r.__setitem__("agent_runs", 1),
             lambda r: r.__setitem__("external_sources_used", True),
             lambda r: r["archetype_counts"].__setitem__("A21", 1),
@@ -279,6 +284,9 @@ class UnsealTests(unittest.TestCase):
             lambda r: r.__setitem__("expected_action_all_null", False),
             lambda r: r.pop("holdout_sha256"),
             lambda r: r.__setitem__("input_file_count", True),
+            lambda r: r.__setitem__("case_count", 20.0),
+            lambda r: r["archetype_counts"].__setitem__("A21", 0),
+            lambda r: r["coverage"].__setitem__("extra_flag", True),
         ]
         for i, edit in enumerate(edits):
             with self.subTest(edit=i):
@@ -289,12 +297,42 @@ class UnsealTests(unittest.TestCase):
         manifest = dict(copy.deepcopy(MANIFEST), seal_receipt_sha256=unseal_mod.sha256_hex(raw))
         unseal_mod.verify_receipt(raw, manifest)
 
-    def test_receipt_may_use_nested_or_aliased_keys(self):
-        def nest(receipt):
+    def test_exact_receipt_schema_accepted_end_to_end(self):
+        box = Sandbox(self.tmp)
+        self.assertEqual(set(json.loads(box.receipt_bytes)), unseal_mod.RECEIPT_KEYS)
+        box.unseal()
+
+    def test_wrong_receipt_schema_rejected(self):
+        for value in ("v2-sealed-holdout-receipt/2", "v2-sealed-holdout-manifest/1", None):
+            with self.subTest(value=value):
+                self.receipt_rejected(lambda r: r.__setitem__("schema", value))
+        self.receipt_rejected(lambda r: r.pop("schema"))
+
+    def test_missing_freeze_merge_commit_rejected(self):
+        self.receipt_rejected(lambda r: r.pop("freeze_merge_commit"))
+
+    def test_old_commit_aliases_rejected(self):
+        for alias in ("sealed_against_repo_commit", "freeze_repo_commit"):
+            with self.subTest(alias=alias):
+                self.receipt_rejected(lambda r: r.__setitem__(alias, r.pop("freeze_merge_commit")))
+                self.receipt_rejected(lambda r: r.__setitem__(alias, r["freeze_merge_commit"]))
+
+    def test_nested_wrapper_rejected(self):
+        def wrap_all(receipt):
+            inner = dict(receipt)
+            receipt.clear()
+            receipt.update(schema=inner["schema"], receipt=inner)
+
+        def move_author_fields(receipt):
             receipt["author_context"] = {"agent_runs": receipt.pop("agent_runs"),
                                          "external_sources_used": receipt.pop("external_sources_used")}
-            receipt["freeze_merge_commit"] = receipt.pop("freeze_repo_commit")
-        Sandbox(self.tmp, receipt_edit=nest).unseal()
+
+        def extra_top_level(receipt):
+            receipt["seal"] = {"agent_runs": 0}
+
+        for edit in (wrap_all, move_author_fields, extra_top_level):
+            with self.subTest(edit=edit.__name__):
+                self.receipt_rejected(edit)
 
     def test_dirty_workspace_rejected(self):
         box = Sandbox(self.tmp)
@@ -397,6 +435,77 @@ class UnsealTests(unittest.TestCase):
         raw = json.dumps([synthetic_case(i) for i in range(20)]).encode("utf-8")
         manifest = dict(copy.deepcopy(MANIFEST), holdout_sha256=unseal_mod.sha256_hex(raw))
         self.assertEqual(len(unseal_mod.verify_holdout(raw, manifest, Sandbox.template)), 20)
+
+    def loose_copy(self) -> Path:
+        """The template tree without running git, for direct input checks."""
+        root = self.tmp / "loose"
+        shutil.copytree(Sandbox.template, root, ignore=shutil.ignore_patterns(".git"))
+        return root
+
+    def inputs_rejected(self, root: Path):
+        with self.assertRaises(unseal_mod.UnsealRefused):
+            unseal_mod.verify_frozen_inputs(root, MANIFEST)
+
+    def test_unchanged_frozen_inputs_pass(self):
+        unseal_mod.verify_frozen_inputs(self.loose_copy(), MANIFEST)
+        unseal_mod.verify_frozen_inputs(ROOT, MANIFEST)
+
+    def test_frozen_input_file_modified_rejected(self):
+        root = self.loose_copy()
+        checker = root / "eval/v2/case_contract.py"
+        checker.write_bytes(checker.read_bytes() + b"\n# changed after sealing\n")
+        self.inputs_rejected(root)
+        root2 = self.tmp / "e2e"
+        root2.mkdir()
+        box = Sandbox(root2)
+        policy = box.root / "policy_sources/standard-return.md"
+        policy.write_bytes(policy.read_bytes().replace("7".encode(), "9".encode()))
+        git(box.root, "commit", "-q", "-am", "edit a frozen input")
+        self.assert_refused_cleanly(box)
+
+    def test_input_manifest_digest_modified_rejected(self):
+        root = self.loose_copy()
+        path = root / unseal_mod.INPUT_MANIFEST_RELATIVE
+        inputs = json.loads(path.read_text(encoding="utf-8"))
+        path.write_text(json.dumps(dict(inputs, content_digest="0" * 64)), encoding="utf-8")
+        self.inputs_rejected(root)
+
+    def test_input_manifest_hash_entry_modified_rejected(self):
+        root = self.loose_copy()
+        path = root / unseal_mod.INPUT_MANIFEST_RELATIVE
+        inputs = json.loads(path.read_text(encoding="utf-8"))
+        inputs["files"][3]["sha256"] = "0" * 64
+        path.write_text(json.dumps(inputs), encoding="utf-8")
+        self.inputs_rejected(root)
+        # Recomputing the digest over the forged entry still fails: it no longer
+        # equals the sealed digest, and the file no longer matches its entry.
+        inputs["content_digest"] = unseal_mod.input_content_digest(inputs["files"])
+        path.write_text(json.dumps(inputs), encoding="utf-8")
+        self.inputs_rejected(root)
+
+    def test_frozen_input_missing_rejected(self):
+        root = self.loose_copy()
+        (root / "system_fixtures/aftersales_demo_seed.sql").unlink()
+        self.inputs_rejected(root)
+
+    def test_input_manifest_structure_rejected(self):
+        root = self.loose_copy()
+        path = root / unseal_mod.INPUT_MANIFEST_RELATIVE
+        original = json.loads(path.read_text(encoding="utf-8"))
+        variants = [dict(original, schema="other/1"), dict(original, files=original["files"][:-1]),
+                    dict(original, files=[dict(original["files"][0], path="../x")] + original["files"][1:])]
+        for variant in variants:
+            path.write_text(json.dumps(variant), encoding="utf-8")
+            self.inputs_rejected(root)
+        path.unlink()
+        self.inputs_rejected(root)
+
+    def test_line_endings_do_not_affect_input_hashes(self):
+        root = self.loose_copy()
+        spec = root / "docs/v2/holdout-domain-spec.md"
+        data = spec.read_bytes().replace(b"\r\n", b"\n")
+        spec.write_bytes(data.replace(b"\n", b"\r\n"))
+        unseal_mod.verify_frozen_inputs(root, MANIFEST)
 
     def test_interrupted_write_leaves_nothing(self):
         box = Sandbox(self.tmp)
