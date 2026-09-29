@@ -1,9 +1,14 @@
 """Check V2 eval cases against eval/v2/spec/case.schema.json.
 
 Stdlib only: a small interpreter for exactly the JSON Schema 2020-12 keywords
-the case schema uses. An unsupported keyword is a SchemaError rather than
-something silently ignored, so the schema cannot grow a rule this checker
-does not enforce.
+the case schema uses. `lint_schema` preflights the whole schema before any
+instance is checked, so an unsupported keyword anywhere - even in an unused
+$def or a branch the instance never reaches - is a SchemaError rather than
+something silently ignored. The schema cannot grow a rule this checker does
+not enforce.
+
+Self-contained: depends only on the stdlib and the spec/ files beside it, so
+it runs unchanged from an exported holdout author bundle.
 
 `case_errors` adds the cross-field rules a JSON Schema cannot state (see
 docs/v2/holdout-domain-spec.md, "Case rules"). Nothing here reads the system
@@ -41,8 +46,95 @@ _SUPPORTED = _ANNOTATIONS | frozenset({
 })
 
 
+_TYPES = frozenset({"object", "array", "string", "integer", "number", "boolean", "null"})
+_FORMATS = frozenset({"date-time"})
+_SCHEMA_MAP_KEYWORDS = ("properties", "$defs")
+_SCHEMA_KEYWORDS = ("propertyNames", "items")
+_SCHEMA_LIST_KEYWORDS = ("prefixItems", "oneOf", "anyOf")
+_COUNT_KEYWORDS = ("minProperties", "minItems", "maxItems", "minLength", "maxLength")
+_TEXT_KEYWORDS = ("$schema", "$id", "$comment", "title", "description")
+
+
 class SchemaError(ValueError):
     """The schema itself uses something this checker does not implement."""
+
+
+def lint_schema(schema: object) -> None:
+    """Preflight the whole schema once, before any instance is checked.
+
+    Every schema-bearing node - including unused $defs and branches a given
+    instance never reaches - may only use the supported subset; every local
+    $ref must resolve to a schema object. Raises SchemaError on the first problem.
+    """
+    if not isinstance(schema, dict):
+        raise SchemaError("$: schema root must be an object")
+
+    def resolves(ref: object, path: str) -> None:
+        if not isinstance(ref, str) or not ref.startswith("#/"):
+            raise SchemaError(path + ": only local '#/...' $ref is supported")
+        node: object = schema
+        for part in ref[2:].split("/"):
+            if not isinstance(node, dict) or part not in node:
+                raise SchemaError(path + ": $ref does not resolve: " + ref)
+            node = node[part]
+        if not isinstance(node, dict):
+            raise SchemaError(path + ": $ref target is not a schema object: " + ref)
+
+    def walk(node: object, path: str) -> None:
+        if not isinstance(node, dict):
+            raise SchemaError(path + ": schema node must be an object")
+        unknown = set(node) - _SUPPORTED
+        if unknown:
+            raise SchemaError(path + ": unsupported keyword(s): " + ", ".join(sorted(unknown)))
+        for key in _TEXT_KEYWORDS:
+            if key in node and not isinstance(node[key], str):
+                raise SchemaError(path + "." + key + ": must be a string")
+        if "$ref" in node:
+            resolves(node["$ref"], path + ".$ref")
+        if "type" in node:
+            names = node["type"] if isinstance(node["type"], list) else [node["type"]]
+            if not names or not all(isinstance(n, str) and n in _TYPES for n in names):
+                raise SchemaError(path + ".type: unsupported type name")
+        if "enum" in node and (not isinstance(node["enum"], list) or not node["enum"]):
+            raise SchemaError(path + ".enum: must be a non-empty array")
+        if "format" in node and node["format"] not in _FORMATS:
+            raise SchemaError(path + ".format: unsupported format")
+        if "pattern" in node:
+            try:
+                re.compile(node["pattern"])
+            except (TypeError, re.error):
+                raise SchemaError(path + ".pattern: not a valid regular expression") from None
+        for key in _COUNT_KEYWORDS:
+            if key in node and not (_is_type(node[key], "integer") and node[key] >= 0):
+                raise SchemaError(path + "." + key + ": must be a non-negative integer")
+        if "minimum" in node and not _is_type(node["minimum"], "number"):
+            raise SchemaError(path + ".minimum: must be a number")
+        if "uniqueItems" in node and not isinstance(node["uniqueItems"], bool):
+            raise SchemaError(path + ".uniqueItems: must be a boolean")
+        if "required" in node:
+            required = node["required"]
+            if (not isinstance(required, list) or not all(isinstance(r, str) for r in required)
+                    or len(set(required)) != len(required)):
+                raise SchemaError(path + ".required: must be an array of unique strings")
+        for key in _SCHEMA_MAP_KEYWORDS:
+            if key in node:
+                if not isinstance(node[key], dict):
+                    raise SchemaError(path + "." + key + ": must be an object")
+                for name, child in node[key].items():
+                    walk(child, path + "." + key + "." + name)
+        for key in _SCHEMA_KEYWORDS:
+            if key in node:
+                walk(node[key], path + "." + key)
+        if "additionalProperties" in node and not isinstance(node["additionalProperties"], bool):
+            walk(node["additionalProperties"], path + ".additionalProperties")
+        for key in _SCHEMA_LIST_KEYWORDS:
+            if key in node:
+                if not isinstance(node[key], list) or not node[key]:
+                    raise SchemaError(path + "." + key + ": must be a non-empty array")
+                for i, child in enumerate(node[key]):
+                    walk(child, path + "." + key + "[" + str(i) + "]")
+
+    walk(schema, "$")
 
 
 def load_json(path: Path) -> object:
@@ -178,6 +270,7 @@ class _Checker:
 
 def schema_errors(instance: object, schema: dict | None = None) -> list[str]:
     schema = load_json(CASE_SCHEMA_PATH) if schema is None else schema
+    lint_schema(schema)
     return _Checker(schema).errors(instance, schema, "$")
 
 

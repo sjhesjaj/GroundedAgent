@@ -32,6 +32,7 @@ BUNDLE_MANIFEST_NAME = "bundle-manifest.json"
 
 ALLOWED_INPUTS = (
     "docs/v2/holdout-domain-spec.md",
+    "eval/v2/case_contract.py",
     "eval/v2/spec/case.schema.json",
     "eval/v2/spec/slots.json",
     "eval/v2/spec/archetypes.json",

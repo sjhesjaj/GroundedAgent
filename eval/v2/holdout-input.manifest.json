@@ -3,7 +3,7 @@
   "description": "The only files an isolated holdout author may read (design §7.4). sha256 is over LF-normalized content. content_digest covers schema and (path, sha256) pairs only.",
   "base_commit": "f9024050bb68260b6c9fb7fdea906384dfd606cf",
   "hash_normalization": "crlf-to-lf",
-  "content_digest": "8ad55a60f2f531272a2deb7d2d19aad74cbe61e4a75a93b1823a8fe368086c20",
+  "content_digest": "7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8",
   "files": [
     {
       "path": "aftersales/schema.sql",
@@ -12,13 +12,18 @@
     },
     {
       "path": "docs/v2/holdout-domain-spec.md",
-      "sha256": "9dba114b4a7d97d5cdfa289b67ae444ce78d8d30e9b831f5bf60b8f598b9fa8a",
-      "bytes": 19139
+      "sha256": "3ddd7bd90604a9959ca35cc16737c2ce2f15efba9bde1503e1ac3a9e57a596ae",
+      "bytes": 19399
     },
     {
       "path": "docs/v2/stage4.3-frozen-manifest.json",
       "sha256": "ffbe61cf95ab1ef512e7664b77913e4a5eae891f2ac8d9b11d973ef7b9b11b1c",
       "bytes": 5961
+    },
+    {
+      "path": "eval/v2/case_contract.py",
+      "sha256": "b68b6ec6fad17674f59ac0c92496b214ed4803833cade6db91e2b729b56533c3",
+      "bytes": 14677
     },
     {
       "path": "eval/v2/spec/archetypes.json",

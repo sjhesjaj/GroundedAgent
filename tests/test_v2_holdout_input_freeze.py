@@ -12,6 +12,8 @@ import io
 import json
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -292,6 +294,48 @@ class CaseSchemaTests(unittest.TestCase):
         with self.assertRaises(cc.SchemaError):
             cc.schema_errors("x", {"type": "string", "contentEncoding": "base64"})
 
+    def test_frozen_schema_passes_lint(self):
+        cc.lint_schema(SCHEMA)
+
+    def lint_rejects(self, mutate):
+        schema = copy.deepcopy(SCHEMA)
+        mutate(schema)
+        with self.assertRaises(cc.SchemaError):
+            cc.lint_schema(schema)
+        # The preflight runs before any instance check, even for a valid case.
+        with self.assertRaises(cc.SchemaError):
+            cc.schema_errors(valid_case(), schema)
+
+    def test_unsupported_keyword_in_unused_def(self):
+        self.lint_rejects(lambda s: s["$defs"].__setitem__("unused", {"type": "string", "contentMediaType": "x"}))
+
+    def test_unsupported_keyword_under_absent_optional_property(self):
+        def mutate(schema):
+            schema["properties"]["initial_state"]["properties"]["orders"]["dependentRequired"] = {}
+        case = valid_case()
+        self.assertNotIn("orders", case["initial_state"])
+        self.lint_rejects(mutate)
+
+    def test_unsupported_keyword_in_unreached_branch(self):
+        self.lint_rejects(lambda s: s["$defs"]["orders_patch"]["oneOf"][2].__setitem__("if", {}))
+
+    def test_broken_local_ref(self):
+        self.lint_rejects(lambda s: s["$defs"].__setitem__("dangling", {"$ref": "#/$defs/missing"}))
+        self.lint_rejects(lambda s: s["$defs"].__setitem__("remote", {"$ref": "https://example.com/x"}))
+
+    def test_unknown_type_name(self):
+        self.lint_rejects(lambda s: s["$defs"].__setitem__("odd", {"type": "decimal"}))
+
+    def test_malformed_schema_structure(self):
+        for mutate in (lambda s: s["$defs"].__setitem__("bad", "string"),
+                       lambda s: s["$defs"].__setitem__("bad", {"oneOf": []}),
+                       lambda s: s["$defs"].__setitem__("bad", {"pattern": "("}),
+                       lambda s: s["$defs"].__setitem__("bad", {"format": "email"}),
+                       lambda s: s["$defs"].__setitem__("bad", {"minItems": True}),
+                       lambda s: s["$defs"].__setitem__("bad", {"required": ["a", "a"]})):
+            with self.subTest(mutate=mutate):
+                self.lint_rejects(mutate)
+
     def test_validation_reads_no_system_clock(self):
         tree = ast.parse(Path(cc.__file__).read_text(encoding="utf-8"))
         banned = {"now", "utcnow", "today", "time", "localtime", "monotonic"}
@@ -357,7 +401,8 @@ class ArchetypeTests(unittest.TestCase):
     def test_no_implementation_hints(self):
         for path in (cc.ARCHETYPES_PATH, ROOT / "docs/v2/holdout-domain-spec.md", cc.SPEC_DIR / "holdout-plan.json",
                      cc.PERSONAS_PATH, cc.FINAL_OUTCOMES_PATH):
-            text = path.read_text(encoding="utf-8")
+            # The one allowed mention: the checker disclaims any Agent / Planner behaviour.
+            text = path.read_text(encoding="utf-8").replace("不包含任何 Agent / Planner 行为", "")
             for hint in ("Baseline", "baseline", "Planner", "planner", "预期弱", "Router", "dev 集", "mutation"):
                 with self.subTest(path=path.name, hint=hint):
                     self.assertNotIn(hint, text)
@@ -590,6 +635,41 @@ class ExportTests(unittest.TestCase):
         self.assertFalse((out / "tests").exists())
         self.assertFalse((out / "HANDOFF.md").exists())
         self.assertFalse((out / "orchestration").exists())
+
+    def test_exported_checker_is_self_contained(self):
+        out = self.tmp / "bundle"
+        bundle.export_bundle(out)
+        overlap = valid_case()
+        overlap["expected_capabilities"]["forbidden"].append("get_order")
+        script = (
+            "import importlib.util, json, sys\n"
+            "spec = importlib.util.spec_from_file_location('case_contract', 'eval/v2/case_contract.py')\n"
+            "cc = importlib.util.module_from_spec(spec); spec.loader.exec_module(cc)\n"
+            "cases = json.load(sys.stdin)\n"
+            "cc.lint_schema(cc.load_json(cc.CASE_SCHEMA_PATH))\n"
+            "result = {'valid': cc.case_errors(cases[0]), 'overlap': cc.case_errors(cases[1]),\n"
+            "          'personas': cc.persona_customer_ids(), 'spec_dir': str(cc.SPEC_DIR),\n"
+            "          'foreign': sorted(m.split('.')[0] for m in sys.modules\n"
+            "                            if m.split('.')[0] not in sys.stdlib_module_names\n"
+            "                            and m not in ('__main__', 'case_contract')),\n"
+            "          'path': sys.path}\n"
+            "print(json.dumps(result))\n"
+        )
+        # -I: no cwd / user site / PYTHON* env on sys.path; -S: no site-packages,
+        # so an installed jsonschema or the repo cannot be imported.
+        run = subprocess.run([sys.executable, "-I", "-S", "-c", script], cwd=out,
+                             input=json.dumps([valid_case(), overlap]), capture_output=True,
+                             text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        result = json.loads(run.stdout)
+        self.assertEqual(result["valid"], [])
+        self.assertEqual(len(result["overlap"]), 1)
+        self.assertIn("required and forbidden overlap", result["overlap"][0])
+        self.assertEqual(result["personas"], {"demo-a": "CUST-001", "demo-b": "CUST-002"})
+        self.assertEqual(Path(result["spec_dir"]).resolve(), (out / "eval/v2/spec").resolve())
+        self.assertEqual(result["foreign"], [])
+        repo = str(ROOT.resolve()).lower()
+        self.assertFalse(any(p and str(Path(p).resolve()).lower().startswith(repo) for p in result["path"]))
 
     def test_export_is_deterministic(self):
         first, second = self.tmp / "a", self.tmp / "b"

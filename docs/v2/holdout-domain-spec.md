@@ -7,6 +7,7 @@
 | 文件 | 内容 |
 |---|---|
 | `eval/v2/spec/case.schema.json` | case 格式（JSON Schema 2020-12） |
+| `eval/v2/case_contract.py` | 只依赖 Python 标准库的 case 契约检查器：验证 schema 和 §11 中 schema 表达不了的跨字段规则（`case_errors(case)` 返回错误列表，空列表表示通过）；不包含任何 Agent / Planner 行为 |
 | `eval/v2/spec/slots.json` | 封闭的追问槽位词表 |
 | `eval/v2/spec/personas.json` | 演示身份 persona_id → customer_id 的冻结映射 |
 | `eval/v2/spec/final-outcomes.json` | 最终结论类型的规范定义与示例（与 §8 一致） |
