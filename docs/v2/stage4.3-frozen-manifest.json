@@ -1,0 +1,154 @@
+{
+  "build_id": "build-0001",
+  "content_digest": "191f4b6d9bc885cb1b161557319186511fcbc4c24014900cb7dd3f972e02fef5",
+  "policy_source_digest": "ffb347b259ce619c9573fa343d44021eb0fdd78dd652277bee3c394e37766639",
+  "schema": "policy-freeze/1",
+  "documents": [
+    {
+      "document_id": "apparel-exchange.md",
+      "version": "v-00251d5274d9",
+      "content_hash": "00251d5274d990ad5cc8533621be768cedc6ea71f14c1dd6fb453996d8c37071"
+    },
+    {
+      "document_id": "custom-non-returnable.md",
+      "version": "v-db5b4dacf7bb",
+      "content_hash": "db5b4dacf7bbdcea96266d1252e11d156ed4595478a0b2fbb4747fd9aeb814a4"
+    },
+    {
+      "document_id": "november-promo-return.md",
+      "version": "v-291213d3502c",
+      "content_hash": "291213d3502ccfc6accf4829a2c4b682b918af34e0142ab7e54dfd74c5564406"
+    },
+    {
+      "document_id": "quality-handoff.md",
+      "version": "v-df23742c0109",
+      "content_hash": "df23742c0109d4694b89d23e0496a9ab678cd31dfdb79e00a4664e0c1e72ff91"
+    },
+    {
+      "document_id": "standard-exchange.md",
+      "version": "v-90cf62c08409",
+      "content_hash": "90cf62c084092b3a11014d431a39a195b45424f56121c093a9762808a3090c35"
+    },
+    {
+      "document_id": "standard-return.md",
+      "version": "v-a43904ae05fb",
+      "content_hash": "a43904ae05fbcd9a994f8ab597e9638d20b2db8279b48286a7262a59e17c9cdf"
+    }
+  ],
+  "pages": [
+    {
+      "page_id": "wiki-1e3c18d355ed",
+      "title": "质量争议人工处理",
+      "summary": "本页涵盖：质量争议人工处理。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-1e3c18d355ed-c2cd72c2a",
+          "text": "商品质量争议需要鉴定或双方对责任认定不一致时，请联系人工客服并提供商品情况和相关凭证。咨询工具只能说明处理路径，不能承诺已经提交或完成处理。",
+          "source": "quality-handoff.md",
+          "locator": "section:质量争议人工处理",
+          "source_span_ids": [
+            "span-0ade8b1875883263"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-4855be9cafb2",
+      "title": "标准退货窗口",
+      "summary": "本页涵盖：标准退货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-4855be9cafb2-cdd3d039f",
+          "text": "商品保持完好且符合退货条件时，标准退货申请窗口为签收次日起算 7 个自然日，按 +08:00 日界线计日。签收当日属于窗口内；最后一日结束后窗口关闭。特殊品类限制及人工处理条件需同时核对。",
+          "source": "standard-return.md",
+          "locator": "section:标准退货窗口",
+          "source_span_ids": [
+            "span-410af6b14f53b00d"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-4b95b271a442",
+      "title": "十一月促销退货窗口",
+      "summary": "本页涵盖：十一月促销退货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-4b95b271a442-cbc8a6685",
+          "text": "十一月促销期间，符合退货条件的商品适用签收次日起算 15 个自然日的退货申请窗口，按 +08:00 日界线计日。本规则从 2026-11-01 起生效，至 2026-12-01 零时失效，生效期间优先于标准退货窗口；期满后恢复标准窗口。特殊品类限制仍需核对。",
+          "source": "november-promo-return.md",
+          "locator": "section:十一月促销退货窗口",
+          "source_span_ids": [
+            "span-c951094a584e3e59"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-b32a8740415d",
+      "title": "定制商品退货限制",
+      "summary": "本页涵盖：定制商品退货限制。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-b32a8740415d-cc72cf76c",
+          "text": "按顾客要求制作的定制商品不适用无理由退货。存在质量争议时应转人工核实，本条不替代质量问题处理流程。",
+          "source": "custom-non-returnable.md",
+          "locator": "section:定制商品退货限制",
+          "source_span_ids": [
+            "span-a89bd8f3c7fd8cf6"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-c5fb8ace7e93",
+      "title": "标准换货窗口",
+      "summary": "本页涵盖：标准换货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-c5fb8ace7e93-c65b05953",
+          "text": "符合换货条件的商品，可在签收次日起算 15 个自然日内咨询换货，按 +08:00 日界线计日。换货还需要核对目标规格的当前库存，本规则不代表已经办理换货。",
+          "source": "standard-exchange.md",
+          "locator": "section:标准换货窗口",
+          "source_span_ids": [
+            "span-367bfedbeb7c0517"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-ecedc89dc753",
+      "title": "服装换货窗口",
+      "summary": "本页涵盖：服装换货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-ecedc89dc753-cd510230c",
+          "text": "服装商品吊牌完整且不影响再次销售时，换货咨询窗口为签收次日起算 30 个自然日，按 +08:00 日界线计日。服装规则的业务优先级高于标准换货窗口。",
+          "source": "apparel-exchange.md",
+          "locator": "section:服装换货窗口",
+          "source_span_ids": [
+            "span-a5e5f65a9b84f5f3"
+          ]
+        }
+      ]
+    }
+  ],
+  "compiler_provenance": {
+    "domain": "after_sales_policy",
+    "parser": "after-sales-front-matter/1",
+    "compiler": "wiki_maintenance.assemble_page_from_spans/1",
+    "implementation_digest": "73336f4ed7b8b78a7a4e5624c090e52830ad7aad21a6d2bbdbe2fbd53456b625"
+  }
+}

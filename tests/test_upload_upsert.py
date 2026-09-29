@@ -88,7 +88,7 @@ class UploadFixture(unittest.TestCase):
         patch.object(api, "build_index", side_effect=fake_build_index).start()
         self.addCleanup(patch.stopall)
 
-        self.runtime = WikiRuntime(
+        self.runtime = WikiRuntime(hold_as_draft=False,
             root=self.root / "wiki",
             model=model_for(
                 (LEAVE_FILE, DOC_A),
@@ -280,7 +280,7 @@ class UploadUpsertTests(UploadFixture):
         failure must not cost the user the upload they already paid for."""
         self.upload((LEAVE_FILE, DOC_A))
 
-        broken = WikiRuntime(root=self.root / "wiki", model=_UnusableModel())
+        broken = WikiRuntime(hold_as_draft=False, root=self.root / "wiki", model=_UnusableModel())
         with patch.object(wiki_runtime, "RUNTIME", broken):
             body = self.upload((REMOTE_FILE, DOC_B), wait=False)
             self.assertTrue(broken.wait(body["wiki_job_id"], WAIT_SECONDS))

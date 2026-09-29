@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "document_id": "standard-return.md",
+  "filename": "standard-return.md",
+  "version": "v-a43904ae05fb",
+  "content_hash": "a43904ae05fbcd9a994f8ab597e9638d20b2db8279b48286a7262a59e17c9cdf",
+  "created_at": "2026-09-29T08:42:09.856+00:00",
+  "spans": [
+    {
+      "span_id": "span-aea6be505fe2c8b4",
+      "document_id": "standard-return.md",
+      "document_version": "v-a43904ae05fb",
+      "ordinal": 1,
+      "source": "standard-return.md",
+      "heading": null,
+      "text": "---\n{\"effective_from\":\"2026-01-01T00:00:00+08:00\",\"effective_to\":null,\"locator\":\"section:标准退货窗口\",\"params\":{\"counting_rule\":\"natural_days_from_next_day\",\"start_event\":\"delivered\",\"utc_offset\":\"+08:00\",\"window_days\":7},\"policy_id\":\"standard-return\",\"priority\":10,\"provenance\":{\"issuer\":\"GroundedAgent 演示商城售后服务\",\"revision\":\"2026-09-policy-1\"},\"rule_type\":\"return_window\",\"scope\":[],\"source_doc\":\"standard-return.md\",\"title\":\"标准退货窗口\",\"version\":\"1\"}\n---",
+      "content_hash": "d8090ed8622753d793eb9967e90717669f864e36563459ac2e95eed5bd1f6a8b"
+    },
+    {
+      "span_id": "span-410af6b14f53b00d",
+      "document_id": "standard-return.md",
+      "document_version": "v-a43904ae05fb",
+      "ordinal": 2,
+      "source": "standard-return.md",
+      "heading": "标准退货窗口",
+      "text": "商品保持完好且符合退货条件时，标准退货申请窗口为签收次日起算 7 个自然日，按 +08:00 日界线计日。签收当日属于窗口内；最后一日结束后窗口关闭。特殊品类限制及人工处理条件需同时核对。",
+      "content_hash": "5dd23c2d27ae191a37a16bc738b7e826daae5f00960f60202a125957db1b9a0b"
+    }
+  ]
+}

@@ -272,6 +272,7 @@ class WikiRepository:
         document_versions: Mapping[str, str] | Sequence[DocumentVersion] = (),
         base_build_id: str | None = None,
         created_at: str | None = None,
+        provenance: Mapping[str, str] | None = None,
     ) -> WikiBuild:
         """Write a new draft build and record it.
 
@@ -296,6 +297,7 @@ class WikiRepository:
             created_at=timestamp,
             document_versions=document_versions,
             pages=pages,
+            provenance={} if provenance is None else provenance,
         )
         self._require_resolvable_provenance(build)
         _write_json_atomically(self.build_path(build.build_id), build.to_dict())

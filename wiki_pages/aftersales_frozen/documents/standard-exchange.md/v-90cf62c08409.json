@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "document_id": "standard-exchange.md",
+  "filename": "standard-exchange.md",
+  "version": "v-90cf62c08409",
+  "content_hash": "90cf62c084092b3a11014d431a39a195b45424f56121c093a9762808a3090c35",
+  "created_at": "2026-09-29T08:42:09.856+00:00",
+  "spans": [
+    {
+      "span_id": "span-d3471ce8cf2b7995",
+      "document_id": "standard-exchange.md",
+      "document_version": "v-90cf62c08409",
+      "ordinal": 1,
+      "source": "standard-exchange.md",
+      "heading": null,
+      "text": "---\n{\"effective_from\":\"2026-01-01T00:00:00+08:00\",\"effective_to\":null,\"locator\":\"section:标准换货窗口\",\"params\":{\"counting_rule\":\"natural_days_from_next_day\",\"start_event\":\"delivered\",\"utc_offset\":\"+08:00\",\"window_days\":15},\"policy_id\":\"standard-exchange\",\"priority\":10,\"provenance\":{\"issuer\":\"GroundedAgent 演示商城售后服务\",\"revision\":\"2026-09-policy-1\"},\"rule_type\":\"exchange_window\",\"scope\":[],\"source_doc\":\"standard-exchange.md\",\"title\":\"标准换货窗口\",\"version\":\"1\"}\n---",
+      "content_hash": "3a4b19fff876f43e147de8532713ee16e6ff5ce7be575772cc39a4cffde81f5c"
+    },
+    {
+      "span_id": "span-367bfedbeb7c0517",
+      "document_id": "standard-exchange.md",
+      "document_version": "v-90cf62c08409",
+      "ordinal": 2,
+      "source": "standard-exchange.md",
+      "heading": "标准换货窗口",
+      "text": "符合换货条件的商品，可在签收次日起算 15 个自然日内咨询换货，按 +08:00 日界线计日。换货还需要核对目标规格的当前库存，本规则不代表已经办理换货。",
+      "content_hash": "4f113d407d8ae9fe77e6ffea77c63f9be982c7686075d333ced0fad8f87908f0"
+    }
+  ]
+}

@@ -427,6 +427,8 @@ class ErrorTaxonomyTests(ExecutorTestCase):
         self.assertNotIn(SKU_STOCKED, repr(result.to_dict()))
 
     def test_policy_adapter_not_ready_is_its_own_error(self):
+        from aftersales.policy import PolicyAdapterNotReady
+        self.registry = build_runtime_registry(PolicyAdapterNotReady())
         result = execute_tool(
             self.registry, self.context, "search_after_sales_policy", {"query": "七天无理由"}
         )

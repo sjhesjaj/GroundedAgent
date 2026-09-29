@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "pages": [
+    {
+      "page_id": "wiki-ecedc89dc753",
+      "title": "服装换货窗口",
+      "summary": "本页涵盖：服装换货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-ecedc89dc753-cd510230c",
+          "text": "服装商品吊牌完整且不影响再次销售时，换货咨询窗口为签收次日起算 30 个自然日，按 +08:00 日界线计日。服装规则的业务优先级高于标准换货窗口。",
+          "source": "apparel-exchange.md",
+          "locator": "section:服装换货窗口",
+          "source_span_ids": [
+            "span-a5e5f65a9b84f5f3"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-b32a8740415d",
+      "title": "定制商品退货限制",
+      "summary": "本页涵盖：定制商品退货限制。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-b32a8740415d-cc72cf76c",
+          "text": "按顾客要求制作的定制商品不适用无理由退货。存在质量争议时应转人工核实，本条不替代质量问题处理流程。",
+          "source": "custom-non-returnable.md",
+          "locator": "section:定制商品退货限制",
+          "source_span_ids": [
+            "span-a89bd8f3c7fd8cf6"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-4b95b271a442",
+      "title": "十一月促销退货窗口",
+      "summary": "本页涵盖：十一月促销退货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-4b95b271a442-cbc8a6685",
+          "text": "十一月促销期间，符合退货条件的商品适用签收次日起算 15 个自然日的退货申请窗口，按 +08:00 日界线计日。本规则从 2026-11-01 起生效，至 2026-12-01 零时失效，生效期间优先于标准退货窗口；期满后恢复标准窗口。特殊品类限制仍需核对。",
+          "source": "november-promo-return.md",
+          "locator": "section:十一月促销退货窗口",
+          "source_span_ids": [
+            "span-c951094a584e3e59"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-1e3c18d355ed",
+      "title": "质量争议人工处理",
+      "summary": "本页涵盖：质量争议人工处理。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-1e3c18d355ed-c2cd72c2a",
+          "text": "商品质量争议需要鉴定或双方对责任认定不一致时，请联系人工客服并提供商品情况和相关凭证。咨询工具只能说明处理路径，不能承诺已经提交或完成处理。",
+          "source": "quality-handoff.md",
+          "locator": "section:质量争议人工处理",
+          "source_span_ids": [
+            "span-0ade8b1875883263"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-c5fb8ace7e93",
+      "title": "标准换货窗口",
+      "summary": "本页涵盖：标准换货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-c5fb8ace7e93-c65b05953",
+          "text": "符合换货条件的商品，可在签收次日起算 15 个自然日内咨询换货，按 +08:00 日界线计日。换货还需要核对目标规格的当前库存，本规则不代表已经办理换货。",
+          "source": "standard-exchange.md",
+          "locator": "section:标准换货窗口",
+          "source_span_ids": [
+            "span-367bfedbeb7c0517"
+          ]
+        }
+      ]
+    },
+    {
+      "page_id": "wiki-4855be9cafb2",
+      "title": "标准退货窗口",
+      "summary": "本页涵盖：标准退货窗口。",
+      "aliases": [],
+      "version": "1.0",
+      "claims": [
+        {
+          "claim_id": "wiki-4855be9cafb2-cdd3d039f",
+          "text": "商品保持完好且符合退货条件时，标准退货申请窗口为签收次日起算 7 个自然日，按 +08:00 日界线计日。签收当日属于窗口内；最后一日结束后窗口关闭。特殊品类限制及人工处理条件需同时核对。",
+          "source": "standard-return.md",
+          "locator": "section:标准退货窗口",
+          "source_span_ids": [
+            "span-410af6b14f53b00d"
+          ]
+        }
+      ]
+    }
+  ]
+}

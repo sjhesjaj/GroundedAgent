@@ -1,11 +1,8 @@
 """The `search_after_sales_policy` contract and its adapter boundary.
 
-Stage 4.1 freezes the *contract* only: the tool name, its closed input schema
-(declared in `registry.py`), the policy record type, and the adapter interface.
-The adapter that merges Wiki rule pages with rule source text and filters by
-effective window arrives with the Wiki migration (Stage 4.3). Until then the
-runtime adapter raises `ToolNotReady`, which the executor reports as an error -
-never as "no matching policy", and never with placeholder policy text.
+The closed tool arguments live in registry.py. Stage 4.3's published catalog
+implements the adapter using versioned Wiki source snapshots. NotReady remains
+an explicit injectable failure fixture; it is no longer the runtime default.
 """
 
 from __future__ import annotations
@@ -170,15 +167,10 @@ class PolicyRecord:
 
     Effective window: `[effective_from, effective_to)` - see `is_policy_in_effect`.
 
-    Not yet modelled (decided for Stage 4.3, with front matter): precedence
-    between several same-type rules in force at once (standard 7 days vs a
-    15-day promotion). Planned: `priority: int`, a business-rule precedence
-    unrelated to Evidence authority. Among in-force rules of one type the
-    highest priority applies; several at the top priority support a
-    conclusion together only if their params agree, otherwise it is a
-    conflict (BLOCKED). No implicit "more specific scope wins" rule. Until
-    then a caller applies one explicit rule, and differing verdicts from two
-    rules block in the V2 Evidence Policy.
+    `priority` is business precedence, unrelated to Evidence authority.
+    The published catalog selects the highest applicable priority; ties must
+    agree on params. Zero is a compatibility default for older fixtures only;
+    formal source front matter must explicitly declare it.
     """
 
     policy_id: str
@@ -193,8 +185,11 @@ class PolicyRecord:
     source_doc: str
     locator: str
     build_id: str
+    priority: int = 0
 
     def __post_init__(self) -> None:
+        if type(self.priority) is not int:
+            raise ValueError("PolicyRecord.priority must be an integer")
         for name in ("policy_id", "version", "title", "source_doc", "locator", "build_id"):
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
