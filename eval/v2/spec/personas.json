@@ -1,0 +1,8 @@
+{
+  "schema": "v2-personas/1",
+  "description": "Frozen demo persona fixture mapping. A case names its trusted identity by persona_id; the harness resolves it server-side to customer_id, as the runtime composition root does. This is a demo stand-in for a trusted identity, not authentication or authorization. No persona carries a role such as store manager.",
+  "personas": [
+    {"persona_id": "demo-a", "customer_id": "CUST-001", "display_name": "演示顾客甲"},
+    {"persona_id": "demo-b", "customer_id": "CUST-002", "display_name": "演示顾客乙"}
+  ]
+}

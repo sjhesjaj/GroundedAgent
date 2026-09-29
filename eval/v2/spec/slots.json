@@ -1,0 +1,22 @@
+{
+  "schema": "v2-clarification-slots/1",
+  "description": "Closed clarification slot vocabulary (docs/v2/stage4-design.md §8, D13). A structured clarification may only name these slots; user_turns[].on_clarify and expected_answerability.clarify.slots may only reference them. Size or colour variants are distinct SKUs in this domain, so a target variant is expressed as target_sku.",
+  "slots": [
+    {
+      "slot": "order_id",
+      "meaning": "Which order the request is about (an order number such as ORD-1001)."
+    },
+    {
+      "slot": "order_item",
+      "meaning": "Which line item of an order the request is about, when the order has several items."
+    },
+    {
+      "slot": "target_sku",
+      "meaning": "The SKU the customer wants to exchange to (for example another size of the same product)."
+    },
+    {
+      "slot": "reason",
+      "meaning": "Why the customer wants the return or exchange (for example quality problem or size)."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "v2-holdout-plan/1",
+  "description": "Distribution constraints for the sealed V2 holdout (design §7.1, §7.4, D23). Contains no case content. The holdout is opened once, at the end of Stage 5, to score both agent control policies.",
+  "total_cases": {"target": 20, "min": 20, "max": 22},
+  "per_archetype_cases": {"min": 1, "max": 2},
+  "included_archetypes": [
+    "A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10",
+    "A11", "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "A20"
+  ],
+  "excluded_archetypes": [
+    {"id": "A21", "reason": "Stage 6: requires write actions and idempotency, which do not exist before Stage 6."},
+    {"id": "A22", "reason": "Stage 6: requires the approval workflow (WAITING_APPROVAL)."},
+    {"id": "A23", "reason": "Stage 6: requires the approval workflow (approval rejected)."}
+  ],
+  "stage_mix": {
+    "4": {"archetypes": ["A01", "A02", "A03", "A04", "A05", "A06", "A07", "A08", "A09", "A10", "A11", "A12", "A14", "A15", "A16", "A17", "A18", "A19"], "min_cases": 18},
+    "5": {"archetypes": ["A13", "A20"], "min_cases": 2}
+  },
+  "required_final_values": ["answer", "refuse", "handoff", "boundary"],
+  "required_personas": ["demo-a", "demo-b"],
+  "min_distinct_virtual_now": 2,
+  "coverage_rules": [
+    "Each case declares exactly one archetype and counts only toward that archetype.",
+    "Every included archetype has at least one case of its own; coverage through a case of another archetype does not count.",
+    "Every value in required_final_values is the expected_answerability.final of at least one case.",
+    "Both frozen personas are represented: every persona in required_personas is the initial_state.trusted_context.persona_id of at least one case.",
+    "expected_action and expected_final_state are null in every case.",
+    "Every case validates against eval/v2/spec/case.schema.json and the case rules in docs/v2/holdout-domain-spec.md."
+  ]
+}
