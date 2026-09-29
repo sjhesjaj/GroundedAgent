@@ -170,7 +170,7 @@ class RuntimeTestCase(unittest.TestCase):
         self.addCleanup(self.temp_directory.cleanup)
 
     def runtime(self, model) -> WikiRuntime:
-        return WikiRuntime(root=self.root, model=model)
+        return WikiRuntime(hold_as_draft=False, root=self.root, model=model)
 
     def run_job(self, runtime, documents):
         job_id = runtime.submit(documents)
@@ -667,7 +667,7 @@ class ImportPurityTests(unittest.TestCase):
         data directory just by asking which build is live."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "never-created"
-            runtime = WikiRuntime(root=root, model=None)
+            runtime = WikiRuntime(hold_as_draft=False, root=root, model=None)
 
             self.assertIsNone(runtime.current_build_id())
             self.assertIsNone(runtime.published_pages())

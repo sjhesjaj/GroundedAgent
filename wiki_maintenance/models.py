@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 
 from orchestration.wiki_adapter import page_from_json
 from orchestration.wiki_schema import WikiPage, validate_collection
@@ -397,9 +398,17 @@ class WikiBuild:
     created_at: str = field(default_factory=utc_now)
     document_versions: tuple[DocumentVersion, ...] = ()
     pages: tuple[WikiPage, ...] = ()
+    # Compiler/parser identity, not business fields. Optional for V1 builds.
+    provenance: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         require_build_id("WikiBuild.build_id", self.build_id)
+        if not isinstance(self.provenance, Mapping) or not all(
+            isinstance(key, str) and key.strip() and isinstance(value, str) and value.strip()
+            for key, value in self.provenance.items()
+        ):
+            raise ValueError("WikiBuild.provenance must map non-empty strings to strings")
+        object.__setattr__(self, "provenance", MappingProxyType(dict(self.provenance)))
         if self.base_build_id is not None:
             require_build_id("WikiBuild.base_build_id", self.base_build_id)
         if self.base_build_id == self.build_id:
@@ -430,6 +439,7 @@ class WikiBuild:
                 entry.to_dict() for entry in self.document_versions
             ],
             "pages": [page.to_dict() for page in self.pages],
+            **({"provenance": dict(self.provenance)} if self.provenance else {}),
         }
 
     @classmethod
@@ -454,6 +464,7 @@ class WikiBuild:
             created_at=_require_str_field(data, "created_at", path),
             document_versions=document_versions,
             pages=pages,
+            provenance=data.get("provenance", {}),
         )
 
 

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "document_id": "apparel-exchange.md",
+  "filename": "apparel-exchange.md",
+  "version": "v-00251d5274d9",
+  "content_hash": "00251d5274d990ad5cc8533621be768cedc6ea71f14c1dd6fb453996d8c37071",
+  "created_at": "2026-09-29T08:42:09.856+00:00",
+  "spans": [
+    {
+      "span_id": "span-b4c9a2d73ef2aa35",
+      "document_id": "apparel-exchange.md",
+      "document_version": "v-00251d5274d9",
+      "ordinal": 1,
+      "source": "apparel-exchange.md",
+      "heading": null,
+      "text": "---\n{\"effective_from\":\"2026-01-01T00:00:00+08:00\",\"effective_to\":null,\"locator\":\"section:服装换货窗口\",\"params\":{\"counting_rule\":\"natural_days_from_next_day\",\"start_event\":\"delivered\",\"utc_offset\":\"+08:00\",\"window_days\":30},\"policy_id\":\"apparel-exchange\",\"priority\":20,\"provenance\":{\"issuer\":\"GroundedAgent 演示商城售后服务\",\"revision\":\"2026-09-policy-1\"},\"rule_type\":\"exchange_window\",\"scope\":[\"服装\"],\"source_doc\":\"apparel-exchange.md\",\"title\":\"服装换货窗口\",\"version\":\"1\"}\n---",
+      "content_hash": "b149b07ebf072a4f40f808844d03b48d1c1b09bb7b74208496555737fc2604a1"
+    },
+    {
+      "span_id": "span-a5e5f65a9b84f5f3",
+      "document_id": "apparel-exchange.md",
+      "document_version": "v-00251d5274d9",
+      "ordinal": 2,
+      "source": "apparel-exchange.md",
+      "heading": "服装换货窗口",
+      "text": "服装商品吊牌完整且不影响再次销售时，换货咨询窗口为签收次日起算 30 个自然日，按 +08:00 日界线计日。服装规则的业务优先级高于标准换货窗口。",
+      "content_hash": "32d09092307a44959fbd407ab235dfb9f9e989ddf96d0ffdbf586083c31b7284"
+    }
+  ]
+}

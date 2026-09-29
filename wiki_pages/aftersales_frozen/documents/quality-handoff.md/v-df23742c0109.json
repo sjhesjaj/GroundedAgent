@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "document_id": "quality-handoff.md",
+  "filename": "quality-handoff.md",
+  "version": "v-df23742c0109",
+  "content_hash": "df23742c0109d4694b89d23e0496a9ab678cd31dfdb79e00a4664e0c1e72ff91",
+  "created_at": "2026-09-29T08:42:09.856+00:00",
+  "spans": [
+    {
+      "span_id": "span-03c2f61c35e89769",
+      "document_id": "quality-handoff.md",
+      "document_version": "v-df23742c0109",
+      "ordinal": 1,
+      "source": "quality-handoff.md",
+      "heading": null,
+      "text": "---\n{\"effective_from\":\"2026-01-01T00:00:00+08:00\",\"effective_to\":null,\"locator\":\"section:质量争议人工处理\",\"params\":{\"trigger\":\"quality_dispute\"},\"policy_id\":\"quality-handoff\",\"priority\":10,\"provenance\":{\"issuer\":\"GroundedAgent 演示商城售后服务\",\"revision\":\"2026-09-policy-1\"},\"rule_type\":\"handoff\",\"scope\":[],\"source_doc\":\"quality-handoff.md\",\"title\":\"质量争议人工处理\",\"version\":\"1\"}\n---",
+      "content_hash": "0f0d7a16b4fd3c6d6a1824ff6ff73de466c25000b27cdd808266162610a5be53"
+    },
+    {
+      "span_id": "span-0ade8b1875883263",
+      "document_id": "quality-handoff.md",
+      "document_version": "v-df23742c0109",
+      "ordinal": 2,
+      "source": "quality-handoff.md",
+      "heading": "质量争议人工处理",
+      "text": "商品质量争议需要鉴定或双方对责任认定不一致时，请联系人工客服并提供商品情况和相关凭证。咨询工具只能说明处理路径，不能承诺已经提交或完成处理。",
+      "content_hash": "e585188ca8df845cd9bee92f742353d949681333639bcac3cb77411c154dead3"
+    }
+  ]
+}

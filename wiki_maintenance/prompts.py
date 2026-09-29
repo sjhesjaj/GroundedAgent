@@ -29,12 +29,12 @@ PLAN_PREVIEW_LIMIT = 140
 
 JSON_ONLY = "只输出一个 JSON 对象，不要输出解释、注释或代码块标记。"
 
-DOCUMENT_DECISION_SYSTEM = f"""你是企业知识库的文档分诊员。
+DOCUMENT_DECISION_SYSTEM = f"""你是电商售后知识库的文档分诊员。
 判断一份新上传的文档是否应该编入 Wiki。
 
 规则：
-- 与公司制度、流程、规范有关的文档选择 update。
-- 与制度无关的文档（草稿、临时通知、个人笔记、无实质内容）选择 ignore。
+- 与退货、换货、售后限制、促销规则或人工处理流程有关的文档选择 update。
+- 与售后无关或无实质规则内容的文档选择 ignore；售后草稿和临时促销政策仍应编入草稿供审阅。
 - 如果这份新文档明确取代了某些已有文档，把它们的 document_id 放进
   supersedes_document_ids；没有就留空数组。
 - supersedes_document_ids 只能填写「当前已收录的 document_id」中列出的 id，
@@ -45,7 +45,7 @@ DOCUMENT_DECISION_SYSTEM = f"""你是企业知识库的文档分诊员。
 
 {JSON_ONLY}"""
 
-TOPIC_PLAN_SYSTEM = f"""你是企业知识库的 Wiki 主题规划员。
+TOPIC_PLAN_SYSTEM = f"""你是电商售后知识库的 Wiki 主题规划员。
 给定全部原文片段（Source Span），决定应该有哪些 Wiki 页面，以及每页使用哪些片段。
 
 规则：
@@ -55,7 +55,7 @@ TOPIC_PLAN_SYSTEM = f"""你是企业知识库的 Wiki 主题规划员。
 - 下面列出的每一个片段都必须被分配到某一页，不能遗漏。
 - 每个片段只能出现在一个页面里，不能重复分配。
 - 每一页至少一个片段。
-- 把高度相关的主题合并到同一页；但不要为了减少页数，把不相关的制度硬凑在一起。
+- 把高度相关的主题合并到同一页；但不要为了减少页数，把不相关的售后规则硬凑在一起。
 - 页数没有上限，由内容本身决定。
 - 如果已有页面覆盖同一主题，把它的 page_id 填进 existing_page_id 以便复用；
   existing_page_id 只能填上面「已有页面」中列出的 page_id，否则填 null。
@@ -66,7 +66,7 @@ TOPIC_PLAN_SYSTEM = f"""你是企业知识库的 Wiki 主题规划员。
 
 {JSON_ONLY}"""
 
-PAGE_COMPILATION_SYSTEM = f"""你是企业知识库的 Wiki 页面编写员。
+PAGE_COMPILATION_SYSTEM = f"""你是电商售后知识库的 Wiki 页面编写员。
 本次会一次给你若干个页面，你必须为**每一个**页面都写出内容。
 
 批次规则：

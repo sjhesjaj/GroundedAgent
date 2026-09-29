@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from pathlib import Path
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from time import perf_counter
@@ -74,7 +75,7 @@ SKU_PATTERN = re.compile(r"(?<![a-z0-9])sku[-_ ]?([a-z]\d{3})(?![a-z0-9])", re.I
 def _load_wiki_pages_safely() -> tuple:
     """A missing or invalid Wiki file must not stop the service from starting."""
     try:
-        return load_wiki_pages()
+        return load_wiki_pages(Path(__file__).resolve().parent / "wiki_pages" / "sample_aftersales_wiki.json")
     except (OSError, ValueError):
         return ()
 

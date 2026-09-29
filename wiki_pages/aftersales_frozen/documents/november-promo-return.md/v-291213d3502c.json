@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "document_id": "november-promo-return.md",
+  "filename": "november-promo-return.md",
+  "version": "v-291213d3502c",
+  "content_hash": "291213d3502ccfc6accf4829a2c4b682b918af34e0142ab7e54dfd74c5564406",
+  "created_at": "2026-09-29T08:42:09.856+00:00",
+  "spans": [
+    {
+      "span_id": "span-efbc6b90bdc2864c",
+      "document_id": "november-promo-return.md",
+      "document_version": "v-291213d3502c",
+      "ordinal": 1,
+      "source": "november-promo-return.md",
+      "heading": null,
+      "text": "---\n{\"effective_from\":\"2026-11-01T00:00:00+08:00\",\"effective_to\":\"2026-12-01T00:00:00+08:00\",\"locator\":\"section:十一月促销退货窗口\",\"params\":{\"counting_rule\":\"natural_days_from_next_day\",\"start_event\":\"delivered\",\"utc_offset\":\"+08:00\",\"window_days\":15},\"policy_id\":\"november-promo-return\",\"priority\":100,\"provenance\":{\"issuer\":\"GroundedAgent 演示商城售后服务\",\"revision\":\"2026-09-policy-1\"},\"rule_type\":\"return_window\",\"scope\":[],\"source_doc\":\"november-promo-return.md\",\"title\":\"十一月促销退货窗口\",\"version\":\"1\"}\n---",
+      "content_hash": "7bef5c193bd194ec92cdf4dacf89b0c296f30cb55aa6ff810d1d6883c62a2057"
+    },
+    {
+      "span_id": "span-c951094a584e3e59",
+      "document_id": "november-promo-return.md",
+      "document_version": "v-291213d3502c",
+      "ordinal": 2,
+      "source": "november-promo-return.md",
+      "heading": "十一月促销退货窗口",
+      "text": "十一月促销期间，符合退货条件的商品适用签收次日起算 15 个自然日的退货申请窗口，按 +08:00 日界线计日。本规则从 2026-11-01 起生效，至 2026-12-01 零时失效，生效期间优先于标准退货窗口；期满后恢复标准窗口。特殊品类限制仍需核对。",
+      "content_hash": "27a82d09c8d58566dc01b44c0d27777ab87e3add0ab48947cc2f435de986f069"
+    }
+  ]
+}

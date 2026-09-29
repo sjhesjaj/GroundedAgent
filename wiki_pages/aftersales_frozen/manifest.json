@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "builds": [
+    {
+      "build_id": "build-0001",
+      "status": "published",
+      "base_build_id": null,
+      "created_at": "2026-09-29T08:42:09.872+00:00",
+      "updated_at": "2026-09-29T08:42:10.035+00:00",
+      "page_count": 6,
+      "note": null
+    }
+  ]
+}

@@ -11,11 +11,11 @@ finishes sooner, so the queue is deliberately serial.
 a build must take effect without restarting the API, so `current.json` is
 consulted on each read and the pages are cached against the build id it names.
 
-A batch is all-or-nothing at the publish step. Each document is compiled onto
-the draft the previous one produced, and only the final draft is published - so
-a batch that fails halfway leaves drafts on disk and the *live* Wiki exactly
-where it was. That is the whole reason compilation is allowed to run unattended:
-its failure mode is "nothing changed", not "the Wiki is now half-rewritten".
+A batch defaults to the existing all-or-nothing publish/retirement path.
+Callers can explicitly set hold_as_draft=True for review. Each document compiles
+onto the preceding draft. A failed batch leaves
+the live pointer intact in either mode. After-sales policy operations use
+aftersales.policy_lifecycle and the same repository's publish/rollback methods.
 
 Job state lives in memory. It is lost on restart, which is acceptable for a
 progress indicator and is not acceptable for the builds themselves - those are
@@ -49,6 +49,7 @@ from wiki_maintenance.repository import CURRENT_FILENAME, DEFAULT_WIKI_DATA_ROOT
 class JobStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
+    DRAFT = "draft"
     IGNORED = "ignored"
     PUBLISHED = "published"
     FAILED = "failed"
@@ -78,6 +79,7 @@ class WikiJob:
     completed_documents: int = 0
     error: str | None = None
     published_build_id: str | None = None
+    draft_build_id: str | None = None
     #: The knowledge-base version this batch was compiled from. A document
     #: uploaded again after that version is newer than anything this job knows,
     #: and must not be retired by it.
@@ -124,9 +126,13 @@ class WikiRuntime:
         *,
         root: str | Path = DEFAULT_WIKI_DATA_ROOT,
         model: WikiModel | None = None,
+        hold_as_draft: bool = False,
     ) -> None:
         self.root = Path(root)
         self._model = model
+        if type(hold_as_draft) is not bool:
+            raise ValueError("hold_as_draft must be a bool")
+        self.hold_as_draft = hold_as_draft
         self._queue: Queue[str] = Queue()
         self._lock = threading.RLock()
         self._jobs: dict[str, WikiJob] = {}
@@ -312,6 +318,11 @@ class WikiRuntime:
                 job.status = JobStatus.IGNORED
                 job.stage = None
                 return
+            job.draft_build_id = base_build_id
+            if self.hold_as_draft:
+                job.status = JobStatus.DRAFT
+                job.stage = None
+                return
             repository.publish(base_build_id)
             job.stage = None
             job.published_build_id = base_build_id
@@ -464,6 +475,7 @@ class WikiRuntime:
                     "total_documents": job.total_documents,
                     "error": job.error,
                     "published_build_id": job.published_build_id,
+                    "draft_build_id": job.draft_build_id,
                     "superseded_document_ids": list(job.superseded_document_ids),
                     "retired_document_ids": list(job.retired_document_ids),
                 }
@@ -481,6 +493,7 @@ class WikiRuntime:
                 "current_build_id": current_build_id,
                 "error": None,
                 "published_build_id": None,
+                "draft_build_id": None,
                 "superseded_document_ids": [],
                 "retired_document_ids": [],
             }

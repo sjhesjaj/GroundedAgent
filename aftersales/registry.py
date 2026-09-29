@@ -33,7 +33,6 @@ from .business_tools import (
 from .context import TrustedExecutionContext
 from .policy import (
     POLICY_TOOL_NAME,
-    PolicyAdapterNotReady,
     PolicySearchAdapter,
     make_policy_handler,
 )
@@ -190,7 +189,12 @@ def build_runtime_registry(
     policy_adapter: PolicySearchAdapter | None = None,
 ) -> ToolRegistry:
     """The Stage 4 runtime registry. The composition root picks the adapter."""
-    adapter = PolicyAdapterNotReady() if policy_adapter is None else policy_adapter
+    if policy_adapter is None:
+        # Lazy import preserves domain/repository import purity.
+        from .policy_catalog import PublishedPolicyAdapter
+        adapter = PublishedPolicyAdapter()
+    else:
+        adapter = policy_adapter
     specs = [
         ToolSpec(
             name=POLICY_TOOL_NAME,

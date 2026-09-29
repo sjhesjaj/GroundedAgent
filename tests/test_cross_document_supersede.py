@@ -152,7 +152,7 @@ class SupersedeFixture(unittest.TestCase):
             runtime.wait(job_id, WAIT_SECONDS)
 
     def use_runtime(self, model):
-        self.runtime = WikiRuntime(root=self.root / "wiki", model=model)
+        self.runtime = WikiRuntime(hold_as_draft=False, root=self.root / "wiki", model=model)
         patch.object(wiki_runtime, "RUNTIME", self.runtime).start()
         return self.runtime
 

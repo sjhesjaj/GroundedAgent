@@ -43,6 +43,9 @@ class OrchestratedChatTests(unittest.TestCase):
             api.chunks.append(LEAVE_CHUNK)
             api.conversation_locks.clear()
         self.client = TestClient(api.app)
+        # These V1 transport/provenance checks explicitly own their old sample;
+        # production fallback now uses after-sales pages. Assertions unchanged.
+        patch.object(chat_orchestration, "WIKI_PAGES", chat_orchestration.load_wiki_pages()).start()
 
         # Never reach a model or the network: generation is patched, and so is
         # retrieval, which would otherwise call Ollama for embeddings.

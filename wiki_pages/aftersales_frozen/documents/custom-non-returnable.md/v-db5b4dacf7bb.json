@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "document_id": "custom-non-returnable.md",
+  "filename": "custom-non-returnable.md",
+  "version": "v-db5b4dacf7bb",
+  "content_hash": "db5b4dacf7bbdcea96266d1252e11d156ed4595478a0b2fbb4747fd9aeb814a4",
+  "created_at": "2026-09-29T08:42:09.856+00:00",
+  "spans": [
+    {
+      "span_id": "span-ab427b80aea1ef31",
+      "document_id": "custom-non-returnable.md",
+      "document_version": "v-db5b4dacf7bb",
+      "ordinal": 1,
+      "source": "custom-non-returnable.md",
+      "heading": null,
+      "text": "---\n{\"effective_from\":\"2026-01-01T00:00:00+08:00\",\"effective_to\":null,\"locator\":\"section:定制商品退货限制\",\"params\":{\"reason_code\":\"custom_made\"},\"policy_id\":\"custom-non-returnable\",\"priority\":10,\"provenance\":{\"issuer\":\"GroundedAgent 演示商城售后服务\",\"revision\":\"2026-09-policy-1\"},\"rule_type\":\"non_returnable\",\"scope\":[\"定制\"],\"source_doc\":\"custom-non-returnable.md\",\"title\":\"定制商品退货限制\",\"version\":\"1\"}\n---",
+      "content_hash": "320fb8a73d200a67f2c4d047d9036bae907afbd12930d42d1c226377c143577d"
+    },
+    {
+      "span_id": "span-a89bd8f3c7fd8cf6",
+      "document_id": "custom-non-returnable.md",
+      "document_version": "v-db5b4dacf7bb",
+      "ordinal": 2,
+      "source": "custom-non-returnable.md",
+      "heading": "定制商品退货限制",
+      "text": "按顾客要求制作的定制商品不适用无理由退货。存在质量争议时应转人工核实，本条不替代质量问题处理流程。",
+      "content_hash": "f49ff20622347d1d17d8c4eaa2508d8986d269ba315346e9dffe247208799882"
+    }
+  ]
+}
