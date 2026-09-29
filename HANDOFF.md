@@ -1497,3 +1497,17 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 本阶段没有重跑 DeepSeek 对照。A′ 只改变 freshness 标记，不改变路由和生成，而且 h008 的失败本来就与模型无关。
 
 按要求在这里停止：Planner 在 A′ 之后没有再修改；没有重新生成 holdout；没有进入 Tool Use Stage。
+
+
+## 16. GroundedAgent V2 Stage 4.3：售后 Policy + Wiki Lifecycle
+
+- 基线 `bc05c693bc89c1ace67415710141006fea1b8ab2`；工作分支 `stage4-policy-wiki`。实现验收后仅交付 commit / push / PR，禁止 merge。
+- 正式规则仅从严格 JSON front matter 解析；复用 WikiRepository 文档快照、draft/diff/publish/rollback；runtime catalog 只读当前发布 build。业务优先级和 `[effective_from, effective_to)` 时间窗分别独立于 Evidence authority 和 publication wall clock。
+- `search_after_sales_policy` 默认绑定真实 adapter；5 个 runtime tools 全部只读。结构化参数 Evidence 和 DerivedEvidence.policy_refs 的 build/version 校验已闭合。
+- 冻结包 `wiki_pages/aftersales_frozen/`，manifest `docs/v2/stage4.3-frozen-manifest.json`。compile 默认保留 DRAFT；既有自动发布测试显式设置 `hold_as_draft=False`，原断言保留。旧聊天来源映射测试显式注入原企业 Wiki fixture，NotReady 错误测试显式注入失败 adapter。完整逐文件记录见本阶段交付报告。
+- 最终 1520 tests passed（1437 原有 + 83 新增），0 skip；Wiki 255/255，V1 evidence_policy 71/71，6/6 semantic mutants killed。结果与源码 hash：`docs/v2/stage4.3-validation.json`。
+- 真实临时仓库演示：15 天 → 新 draft 不可见 → publish 20 天 → rollback 15 天；ORD-1001 在 2026-11-15 促销窗口内、2026-12-01 标准窗口外，两次真实 policy_refs/Evidence 校验通过，业务 DB 未写。
+- TD: Wiki compiler still uses current compiler path; formal Stage 4 eval consumes a frozen build. 默认售后构建复用确定性 verbatim assembler；没有做真实在线模型编译验收。
+- category evidence 与 delivered_at evidence 的同订单结构化关联，必须在 Stage 4.4 Baseline 接入之前解决；本阶段未改业务 Evidence schema。
+- 完整报告、schema、CLI、diff、冻结方案、fixture 变更与边界：`docs/v2/stage4.3-handoff.md`。
+- 未开始 Stage 4.4、Planner/Router、Eval/数据集/holdout、Tool Loop、主聊天 API 切 V2、frontend、业务写动作、Guard 或 approval。
