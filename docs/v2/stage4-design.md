@@ -14,8 +14,11 @@
 
 ### 1.1 V1 tag
 
-- 建议名称 **`v1-final`**，打在 `3daabd0` 上，使用 annotated tag。tag message 写明：1140 tests、eval-env-v1 Qwen 40/40 × 3、freshness holdout 已开封。
-- 仓库里已有 `stage0-baseline`、`agent-eval-v1`、`v1-demo-20260827`，新名字不会和它们混淆。**由人工执行，本设计不打 tag。**
+- **已创建** annotated tag **`v1-final`**，这是 GroundedAgent V1 企业知识 Agent 的冻结版本（在 Stage 4.0 收尾时经人工确认后创建）。
+  - tag object：`c635e6756958cba14961f27935778c489252f1b3`
+  - 指向 commit：`3daabd076120cfb2c21bb3a9f685b7d79de9115b`
+  - tag message：`V1 final: enterprise knowledge agent; 1140 tests pass; eval-env-v1 Qwen 40/40 x3; freshness holdout opened`
+- 仓库里已有 `stage0-baseline`、`agent-eval-v1`、`v1-demo-20260827`，新名字不会和它们混淆。
 
 ### 1.2 单域原则
 
