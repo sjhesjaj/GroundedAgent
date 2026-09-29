@@ -35,12 +35,14 @@ Rules this layer enforces:
 3. **Scope isolation.** A current-operational-state requirement is met only by
    business or derived evidence; a policy requirement only by wiki or
    document evidence. The wrong kind never counts, however authoritative.
-4. **Conflicts are never resolved silently.** A `business_state_conflict`
-   fact that is true blocks, whatever else is present. Two usable
+4. **Conflicts are never resolved silently.** A usable
+   `business_state_conflict` fact that is true blocks, whatever else is
+   present; an excluded one (stale, other instant, input unavailable) is
+   diagnostic only and must be re-derived. Two usable
    observations of one field with different values are always reported, and
    block any requirement that needs that field.
 5. **Requirement-driven outcome.** BLOCKED iff some requirement is not
-   supported, or a business-state conflict is present. Extra evidence or tool
+   supported, or a usable business-state conflict is present. Extra evidence or tool
    results - an unrelated EMPTY / ERROR, stale or out-of-scope evidence - are
    diagnostics and never poison an otherwise supported decision.
 """
@@ -643,9 +645,11 @@ def evaluate_evidence_v2(
 
     # --- conflicts ----------------------------------------------------------
     conflicts: list[ConflictReport] = []
-    # Every presented conflict fact counts, usable or not: dropping one because
-    # it went stale would hide the very contradiction it reports.
-    for ref, item in candidates:
+    # Only a *usable* conflict fact is a current conflict. One that is stale,
+    # derived at another instant, or missing an input goes through the same
+    # freshness / dependency checks as any derived fact: it is excluded (and
+    # visible in excluded_evidence) and must be re-derived to count.
+    for ref, item in usable:
         if (
             isinstance(item, DerivedEvidence)
             and item.fact_key == BUSINESS_STATE_CONFLICT_FACT
@@ -732,7 +736,7 @@ def evaluate_evidence_v2(
         )
 
     # Requirement-driven: BLOCKED iff a required fact is not supported, or a
-    # business-state conflict is present. An unrelated EMPTY / ERROR result,
+    # usable business-state conflict is present. An unrelated EMPTY / ERROR result,
     # stale or out-of-scope evidence, or a disagreement on a fact nobody
     # requires never decides the outcome; they stay visible in tool_outcomes,
     # excluded_evidence, conflicts, and out_of_scope_refs.

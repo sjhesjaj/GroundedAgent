@@ -20,7 +20,8 @@ Two ways to not produce a fact, kept apart:
   fault; fail loudly.
 - `NotDerivable(code)`: the input is well formed but does not establish the
   fact (not delivered yet, a delivery later than the Clock, rule not in
-  force, category out of scope, incomplete logistics). No derived evidence is produced - in particular, an
+  force, category out of scope, incomplete logistics, order and logistics
+  read at different instants). No derived evidence is produced - in particular, an
   incomplete picture never yields a `business_state_conflict`.
 """
 
@@ -81,6 +82,7 @@ NOT_DERIVABLE_POLICY_NOT_IN_EFFECT = "policy_not_in_effect"
 NOT_DERIVABLE_CATEGORY_REQUIRED = "category_evidence_required"
 NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE = "category_not_in_scope"
 NOT_DERIVABLE_LOGISTICS_INCOMPLETE = "logistics_evidence_incomplete"
+NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH = "observation_time_mismatch"
 
 NOT_DERIVABLE_CODES = frozenset(
     {
@@ -90,6 +92,7 @@ NOT_DERIVABLE_CODES = frozenset(
         NOT_DERIVABLE_CATEGORY_REQUIRED,
         NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE,
         NOT_DERIVABLE_LOGISTICS_INCOMPLETE,
+        NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH,
     }
 )
 
@@ -455,8 +458,11 @@ def derive_business_state_conflict(
     order; per package the `status` and `order_id` fields are used and the
     rest is ignored. Every package must have both, must name this order, and
     all of it must come from a single observation (one observed_at, one
-    observation_id) - comparing reads taken at different instants could turn
-    an ordinary state transition into a "conflict".
+    observation_id). The order status must have been observed at the same
+    business instant as the logistics; otherwise the reads cannot show that
+    both states held at once, and the result is
+    `NotDerivable(observation_time_mismatch)` - neither a conflict nor a
+    "no conflict".
 
     Caller contract: pass the whole observation. A package filtered out
     before this call cannot be detected here.
@@ -500,6 +506,14 @@ def derive_business_state_conflict(
         status = statuses[tracking_no].value
         if status not in PACKAGE_STATUSES:
             raise ValueError("logistics status is not a package status")
+    # The order and the logistics must describe one business instant: an order
+    # read at 09:59 and logistics read at 10:00 may just show an ordinary
+    # transition in between. Compared as absolute instants, so the same moment
+    # written at two offsets agrees. The two reads are separate tool calls, so
+    # their observation_ids are not compared.
+    logistics_at = next(iter(statuses.values())).observed_at
+    if order.observed_at != logistics_at:
+        raise NotDerivable(NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH)
 
     packages = sorted(statuses)
     package_statuses = [statuses[tracking_no].value for tracking_no in packages]

@@ -667,12 +667,75 @@ class ConflictTests(unittest.TestCase):
         self.assertIs(decision.outcome, EvidenceOutcome.BLOCKED)
         self.assertEqual(decision.reason_codes, (REASON_BUSINESS_STATE_CONFLICT,))
 
-    def test_conflict_is_not_dropped_when_it_is_stale(self):
+    def test_stale_conflict_must_be_rederived_and_does_not_block(self):
+        """A: conflict derived at 10:00, evaluated as of 11:00. The underlying
+        reads are within max_age, but the conflict is not an 11:00 derivation."""
         results, conflict, _, _ = self.state("已发货", "已签收")
         later = FreshnessRequirement(as_of=NOW + timedelta(hours=1), max_age=timedelta(hours=2))
         decision = evaluate_evidence_v2(results, requirements=self.REQUIREMENTS,
                                         freshness=later, derived=(conflict,))
-        self.assertIn(REASON_BUSINESS_STATE_CONFLICT, decision.reason_codes)
+        self.assertEqual(
+            [(item.ref, item.cause) for item in decision.excluded_evidence],
+            [(evidence_ref(conflict), REASON_FRESHNESS_UNSATISFIED)],
+        )
+        self.assertNotIn(REASON_BUSINESS_STATE_CONFLICT, decision.reason_codes)
+        self.assertEqual(decision.conflicts, ())
+        self.assertIs(decision.outcome, EvidenceOutcome.SUFFICIENT)
+        self.assertEqual(decision.derived_evidence, ())
+
+    def test_future_conflict_does_not_block_either(self):
+        results, _, order, logistics = self.state("已发货", "已签收")
+        future = derive_business_state_conflict(
+            order, logistics, clock=FixedClock(NOW + timedelta(minutes=1)))
+        decision = evaluate_evidence_v2(results, requirements=self.REQUIREMENTS,
+                                        freshness=FRESH, derived=(future,))
+        self.assertIs(decision.outcome, EvidenceOutcome.SUFFICIENT)
+        self.assertEqual(decision.conflicts, ())
+
+    def test_current_conflict_with_usable_inputs_blocks(self):
+        """B: conflict=true derived at exactly as_of, every input usable."""
+        results, conflict, _, _ = self.state("已发货", "已签收")
+        self.assertEqual(conflict.observed_at, NOW_ISO)
+        decision = evaluate_evidence_v2(results, requirements=self.REQUIREMENTS,
+                                        freshness=FRESH, derived=(conflict,))
+        self.assertIs(decision.outcome, EvidenceOutcome.BLOCKED)
+        self.assertEqual(decision.reason_codes, (REASON_BUSINESS_STATE_CONFLICT,))
+        self.assertIn(conflict, decision.derived_evidence)
+
+    def test_conflict_with_an_unavailable_input_does_not_block(self):
+        """C: an input_ref is missing, or present but unusable."""
+        (order_result, logistics_result), conflict, order, logistics = self.state("已发货", "已签收")
+        # Missing: the logistics observation was not collected.
+        decision = evaluate_evidence_v2(
+            (order_result,), requirements=self.REQUIREMENTS[:1], freshness=FRESH,
+            derived=(conflict,),
+        )
+        self.assertEqual(
+            [(item.ref, item.cause) for item in decision.excluded_evidence],
+            [(evidence_ref(conflict), REASON_DERIVED_INPUT_UNAVAILABLE)],
+        )
+        self.assertNotIn(REASON_BUSINESS_STATE_CONFLICT, decision.reason_codes)
+        self.assertIs(decision.outcome, EvidenceOutcome.SUFFICIENT)
+        # Unusable: the order read is stale, so the conflict built on it is too.
+        stale_order = business_evidence("order", "ORD-1", "status", "已发货",
+                                        observed_at=TWO_DAYS_AGO, observation_id="o")
+        stale_logistics = [
+            business_evidence("logistics", "T0", field, value, observed_at=TWO_DAYS_AGO,
+                              observation_id="l")
+            for field, value in (("order_id", "ORD-1"), ("status", "已签收"))
+        ]
+        stale_conflict = derive_business_state_conflict(
+            stale_order, stale_logistics, clock=FixedClock(NOW))
+        self.assertIs(stale_conflict.value, True)
+        decision = evaluate_evidence_v2(
+            (ok("get_order", stale_order), ok("get_logistics", *stale_logistics),
+             ok("get_inventory", inventory())),
+            requirements=(INVENTORY_NEED,), freshness=FRESH, derived=(stale_conflict,),
+        )
+        excluded = {item.ref: item.cause for item in decision.excluded_evidence}
+        self.assertEqual(excluded[evidence_ref(stale_conflict)], REASON_DERIVED_INPUT_UNAVAILABLE)
+        self.assertEqual(decision.conflicts, ())
+        self.assertIs(decision.outcome, EvidenceOutcome.SUFFICIENT)
 
     def test_consistent_state_passes(self):
         results, conflict, _, _ = self.state("已签收", "已签收")

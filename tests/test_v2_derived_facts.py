@@ -22,6 +22,7 @@ from aftersales.derived import (
     NOT_DERIVABLE_CATEGORY_REQUIRED,
     NOT_DERIVABLE_DELIVERY_IN_FUTURE,
     NOT_DERIVABLE_LOGISTICS_INCOMPLETE,
+    NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH,
     NOT_DERIVABLE_POLICY_NOT_IN_EFFECT,
     NOT_DERIVABLE_START_EVENT_ABSENT,
     STATE_CONFLICT_RULES,
@@ -595,6 +596,54 @@ class BusinessStateConflictTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             derive_business_state_conflict(
                 self.order("已发货"), tuple(self.packages("已签收"))[0], clock=clock)
+
+    def at_instant(self, order_status, package_status, order_at, logistics_at):
+        order = business_evidence("order", self.ORDER, "status", order_status,
+                                  observed_at=order_at, observation_id="obs-order")
+        logistics = [
+            business_evidence("logistics", "T1", field, value, observed_at=logistics_at,
+                              observation_id="obs-logistics")
+            for field, value in (("order_id", self.ORDER), ("status", package_status))
+        ]
+        return derive_business_state_conflict(order, logistics, clock=FixedClock(DEMO_VIRTUAL_NOW))
+
+    def test_order_and_logistics_read_at_different_instants_is_not_derivable(self):
+        """A: order @ 09:59 已发货, logistics @ 10:00 已签收 - maybe just a transition."""
+        for order_status, package_status in (("已发货", "已签收"), ("已签收", "已签收")):
+            with self.subTest(order=order_status, package=package_status):
+                with self.assertRaises(NotDerivable) as caught:
+                    self.at_instant(order_status, package_status,
+                                    "2026-11-15T09:59:00+08:00", "2026-11-15T10:00:00+08:00")
+                self.assertEqual(caught.exception.code, NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH)
+        # The other direction, and a one-second difference, likewise.
+        with self.assertRaises(NotDerivable):
+            self.at_instant("已签收", "运输中",
+                            "2026-11-15T10:00:00+08:00", "2026-11-15T09:59:59+08:00")
+
+    def test_same_instant_at_different_offsets_is_derivable(self):
+        """B: 10:00+08:00 and 02:00Z are one instant."""
+        fact = self.at_instant("已签收", "已签收",
+                               "2026-11-15T10:00:00+08:00", "2026-11-15T02:00:00+00:00")
+        self.assertIs(fact.value, False)
+
+    def test_same_instant_clear_conflict(self):
+        """C."""
+        fact = self.at_instant("已发货", "已签收",
+                               "2026-11-15T02:00:00+00:00", "2026-11-15T10:00:00+08:00")
+        self.assertIs(fact.value, True)
+        self.assertEqual(fact.details["fired_rules"], ["order_shipped_all_packages_delivered"])
+
+    def test_same_instant_consistent(self):
+        """D."""
+        fact = self.at_instant("已发货", "运输中",
+                               "2026-11-15T10:00:00+08:00", "2026-11-15T10:00:00+08:00")
+        self.assertIs(fact.value, False)
+
+    def test_observation_ids_of_the_two_tools_are_not_compared(self):
+        # Different tool calls, different observation_ids, same instant: fine.
+        fact = self.at_instant("已发货", "已签收", DEMO_VIRTUAL_NOW.isoformat(),
+                               DEMO_VIRTUAL_NOW.isoformat())
+        self.assertIs(fact.value, True)
 
     def test_demo_orders(self):
         connection = memory_connection()
