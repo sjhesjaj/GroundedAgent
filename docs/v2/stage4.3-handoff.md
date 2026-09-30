@@ -170,7 +170,9 @@ git diff --check
 
 Provider 未迁移：**TD: Wiki compiler still uses current compiler path; formal Stage 4 eval consumes a frozen build.** 默认售后冻结构建使用现有确定性 verbatim assembler；注入模型时仍可用当前 Ollama WikiModel。没有声称做过真实在线模型编译验证。
 
-**category evidence 与 delivered_at evidence 属于同一订单的结构化证明，必须在 Stage 4.4 Baseline 接入之前解决。** 本阶段没有扩大业务 Evidence schema。
+~~category evidence 与 delivered_at evidence 属于同一订单的结构化证明，必须在 Stage 4.4 Baseline 接入之前解决。~~ **已解决（PR #13，merge `d9b6ab0`）：** `BusinessEvidence.relations` 由业务工具从记录自身的列产出（订单明细、物流、售后单带 `order_id`，售后单另带 `order_item_id`）；`derive_window_eligibility` 只要传入 category，就要求两边 `relations["order_id"]` 一致，缺失为 `order_link_missing`，不一致为 `order_link_mismatch`，不从 locator / content 推断。
+
+**多包裹歧义（Stage 4.3.8）：** 同订单不等于同包裹。schema 只有 order_id → 0..N tracking_no，没有 order_item → tracking_no 映射。因此订单明细级的退换货窗口必须经过 `derive_item_window_eligibility(该订单一次 get_logistics 观测的全部 delivered_at, policy, clock=..., category=...)`：0 个包裹为 `start_event_absent`；恰好 1 个包裹才交给低层 `derive_window_eligibility`；多个包裹一律 `item_package_link_ambiguous`，不按已签收、最早/最晚签收、运单号、明细顺序或 SKU 任选包裹，即使各种选法结论相同。Stage 4.4 / Stage 5 不得从多包裹观测中挑一个包裹直接调用低层函数做明细级判断。多包裹物流本身仍可正常查询和报告；不传 category 的包裹级事实不受影响。
 
 沿用 repository 的单进程、单 writer 限制；没有引入多 writer 事务。参数只认 front matter，正文与参数在语义上是否一致仍需审阅。词法查询可能返回多个相关规则类型，测试证明结构、时间、precedence 和来源闭环，不代表自然语言检索准确率或完整售后资格判断。
 
