@@ -4,7 +4,7 @@
 > Stage 4 实现必须遵守本文的边界；任何超出 Acceptance Criteria 的扩展先进入 review，不在实现过程中顺手加入。
 > 文中标 **〔Dn〕** 的地方，是本 prompt 没有规定、由我先给出建议的取舍，集中列在文末 §15。
 
-**Stage 4 的一句话目标：** 把 GroundedAgent 的领域从企业制度换成电商售后，引入 `Clock` / `virtual_now`、只读业务工具和可引用的 observation 证据，重建 dev / validation 并封存 holdout，再用**轻量改造的旧 Planner** 跑出一条可复现的 Deterministic Baseline。
+**Stage 4 的一句话目标：** 把 GroundedAgent 的领域从企业制度换成电商售后，引入 `Clock` / `virtual_now`、只读业务工具和可引用的 observation 证据，重建 dev / validation 并封存 holdout，再用一个**小型确定性 ControlPolicy**（`eval_v2.baseline.Stage4BaselinePolicy`，扮演旧 Planner 的规则式对照角色）跑出一条可复现的 Deterministic Baseline。
 
 **Stage 4 不做：** LLM-native Tool Loop、任何有副作用的动作、审批流程、Policy Guard 的实现。
 
@@ -137,19 +137,24 @@ V2 的 main 只服务售后领域，不保留「企业制度 + 售后」双域�
   - **control-layer metrics：** 只从 Trace 中生成之前的部分计算，包括 capability 选择（required 是否命中、forbidden 是否违反）、参数正确率、追问的 precision / recall 与 over_ask、步数与停止是否合理、证据获取（最终掌握的证据是否满足 expected_evidence 的 all_of / any_of，并且没有依赖 forbidden 里的证据）、工具故障后的处理。这一层直接衡量 control policy 本身。control policy 走哪条合法路径拿到证据，不影响评分。
   - **end-to-end metrics：** 按任务成功率、answerability 结论、事实命中、证据引用（最终答案引用的证据是否满足 expected_evidence，并且没有引用 forbidden 里的证据）、结构性引用检查、误拒答率和无依据断言率计算，另外报告延迟和费用。这一层衡量用户实际看到的结果。
   - 两层分开统计、分开解读：control 层领先不等于端到端领先，反过来也一样。
-- **对旧 Planner 只做最轻量的适配：**
-  - `ToolName` 换成 V2 的只读工具集。
-  - 固定的 `Route` 枚举（8 种三通道组合）改为派生的能力集合〔D7〕。
-  - 用规则抽取订单号 / SKU。
-  - 缺少必需槽位时输出结构化的追问（§8）。
-  - 不新增路由词表，也不在旧 Router 上做长期架构工作。
+- **Baseline 的实现方式（冻结前修订）：** 不再改造旧 Planner。
+  - V1 的 `orchestration/planner.py` / executor 保持冻结，不做任何修改。
+  - V2 Baseline 是一个小型确定性 `ControlPolicy`：`eval_v2.baseline.Stage4BaselinePolicy`。它保留旧 Planner 在实验中的对照角色：规则式、确定性、不调用 LLM。它不是新的完整 Agent 框架。
+  - 不复用 V1 的 `Route` 枚举；直接面向 V2 的五个只读工具，能力集合由调用本身派生〔D7〕。
+  - 用规则抽取订单号 / SKU；缺少必需槽位时输出结构化的追问（§8）。
+  - **不重试：** 同一个 (tool_name, canonical arguments) 在一次 case-run 里最多调用一次。
+  - **步数上限：** `FORMAL_MAX_STEPS = 5`〔D7〕。runner 的 `HARD_MAX_STEPS = 64` 只是安全上限。
 - **参数绑定：** Baseline 只能从用户的话和受信任的上下文里取参数，**不能把一个 observation 的结果当作下一个工具的参数**，这是 Tool Loop 的职责〔D8〕。所以像「换货要先查订单得到 SKU，再查库存」这类任务，Baseline 大概率失败。**这是预期结果。**
 - **防止针对评测集调优：**
   - Planner 的适配只能依据领域规格（工具表、槽位表）编写，并且**在首次查看 dev 运行结果之前冻结**：打 tag `v2-stage4-baseline`，记录 planner 文件的 sha256。
   - 冻结之后，只允许修复崩溃和违反契约的问题。每一处修复都重新打 tag（例如 `v2-stage4-baseline.1`）并记入 HANDOFF，而且不得改动规划规则。**禁止根据 dev 的失败补词表或加规则。**
   - Stage 5 对比时必须使用冻结的 Baseline（同一个 tag、同一个 sha）。
-- **生成仍然用 LLM**（DeepSeek，temperature 0），和 Stage 5 保持一致。否则对比结果会混进「模板生成和 LLM 生成的差异」。
-  - 「结果可复现」的要求因此分两层：生成之前的各层（plan、工具调用、observation、证据、policy decision）在重复运行中**必须逐字节一致**，比较时用去掉耗时字段后的 Trace 哈希；答案层的指标报告 3 轮各自的结果和翻转数〔D9〕。
+- **生成与指标（冻结前修订）〔D9〕：** Stage 4 关闭时**只报告 control-layer metrics**，不单独实现正式的 generation / end-to-end 评分。
+  - Stage 5 建立共享的 DeepSeek generation layer 之后，**同一个 generator、同一组模型参数、同一个 generation / citation evaluator** 同时用于冻结的 Stage 4 Baseline 和 Stage 5 Tool Loop，届时再并排报告 end-to-end 指标。这是**延迟的共享生成对比**，不是放弃 Baseline 的端到端对照；否则对比结果会混进「两套生成实现的差异」。
+  - 「结果可复现」的要求：生成之前的各层（工具调用、observation、证据、policy decision）在重复运行中**必须逐字节一致**；答案层的 3 轮结果和翻转数在 Stage 5 的共享生成对比中报告。
+- **重试协议（在首次正式数据集运行之前冻结）：**
+  - Stage 4 Baseline：不重试。
+  - 未来 Stage 5：同一次 case-run 中，完全相同的 (tool_name, canonical arguments) 最多尝试 **3** 次。这是 Tool Loop 的执行预算约束，不是针对某个数据集的调参；不得根据 dev / validation 的表现调整。
 
 ---
 
@@ -402,7 +407,7 @@ V2 的 main 只服务售后领域，不保留「企业制度 + 售后」双域�
 | `eval/model_comparison.py` | Adapt | 从「换 provider」改为「换 agent control policy」（Baseline 对 Tool Loop），模型固定，control 层和端到端分开报告 |
 | `check_evaluation_overlap.py` | Adapt | 相似度门禁在 V2 用来检查 dev / validation / holdout 的独立性，需要适配新 schema |
 | `orchestration/contracts.py` | Adapt | 增加 business / derived 类型，以及 state_version 和 observation_id |
-| `orchestration/planner.py` | Adapt | 按 §4 轻量适配后冻结为 Baseline，不做长期投入 |
+| `orchestration/planner.py` | Keep | V1 冻结，不修改；V2 Baseline 改为 `eval_v2/baseline.py` 中的小型确定性 ControlPolicy（§4） |
 | `orchestration/executor.py` | Adapt | 改为工具注册表（带 side_effect 标记），Clock 通过 context 传入，执行前经过故障注入 gateway；preflight 和脱敏机制不变 |
 | `orchestration/evidence_policy.py` | Adapt | 机制保留；freshness 改为依据数据源的 freshness contract：authoritative_online 看 observed_at，snapshot 看 source_as_of，record_updated_at 不参与陈旧判断；增加业务状态冲突的判定 |
 | `orchestration/system_provider.py` | Replace | 旧的 orders/inventory/approvals 被四个售后只读工具取代；安全性质要先移植 |
@@ -445,7 +450,7 @@ V2 的 main 只服务售后领域，不保留「企业制度 + 售后」双域�
 8. **没有 LLM-native Tool Loop。** 工具的选择和参数只来自确定性的 Planner。
 9. **没有有副作用的动作。** runtime ToolRegistry 恰好只有五个只读工具，future actions 只出现在领域规格里；所有 case 运行前后数据库哈希不变；答案里没有「已办理」一类的说法。
 10. **main 能独立演示。** 按 §12 在 Vue 上完成 A01、A03、A08、A14、A16 的演示。
-11. **Baseline 已冻结。** 在首次查看 dev 结果之前打了 tag `v2-stage4-baseline` 并记录了 planner 的 sha；冻结之后的每一处修复都重新打了 tag，并在 HANDOFF 里有记录。Baseline 的 control-layer 和 end-to-end 指标分开报告。
+11. **Baseline 已冻结。** 在首次查看 dev 结果之前打了 tag `v2-stage4-baseline` 并记录了 Baseline 源文件（`eval_v2/baseline.py`）的 sha；冻结之后的每一处修复都重新打了 tag，并在 HANDOFF 里有记录。Stage 4 只报告 control-layer 指标；Baseline 的 end-to-end 指标在 Stage 5 与 Tool Loop 用同一个 generator 并排报告〔D9〕。
 
 ---
 
@@ -459,9 +464,9 @@ V2 的 main 只服务售后领域，不保留「企业制度 + 售后」双域�
 | D4 | 改变 `observed_at` 的语义（从记录的 updated_at 改为读取时的 Clock） | 改；拆成 observed_at / record_updated_at / state_version 三个一等字段；freshness 依据数据源的 freshness contract（authoritative_online 看 observed_at，snapshot 看预留的 source_as_of），record_updated_at 不用来判断是否陈旧 |
 | D5 | 在 Stage 4 引入确定性的派生事实 / 资格计算模块，以后由 Guard 复用 | 引入；Baseline 和 Tool Loop 共用同一个模块，对比依然公平 |
 | D6 | 审计时间（Trace、storage、build）继续用墙钟 | 是，由白名单限定范围 |
-| D7 | 废弃 `Route` 枚举，改为能力集合；Baseline 的 max_steps | 改；Baseline 上限定为 4 |
+| D7 | 废弃 `Route` 枚举，改为能力集合；Baseline 的 max_steps | 改；Baseline `FORMAL_MAX_STEPS = 5`（原定 4，冻结前修订：顺序式 ControlPolicy 中 Clarify、ToolCall、Finish 各占一个 control step，合法最长的冻结领域流程 Clarify(order_id) → search_after_sales_policy → get_order → get_logistics → Finish 恰好需要 5 步；修订发生在 0 次 dev / 0 次 validation / 0 次 holdout 运行之前。runner 的 `HARD_MAX_STEPS = 64` 仍然只是安全上限） |
 | D8 | Baseline 不做 observation → 参数的串联 | 不做（这是 Stage 5 的职责） |
-| D9 | Baseline 仍然用 DeepSeek 生成答案；「可复现」只要求生成之前的各层 | 是 |
+| D9 | Baseline 仍然用 DeepSeek 生成答案；「可复现」只要求生成之前的各层 | 是；冻结前修订：Stage 4 只报告 control-layer 指标，Baseline 与 Tool Loop 的 end-to-end 对比在 Stage 5 用同一个 generator、同一组参数、同一个 evaluator 并排报告（§4） |
 | D10 | 故障声明放在 `initial_state.faults` 里（schema 不增加字段） | 是 |
 | D11 | holdout 放在仓库之外，而不是仓库里加混淆；隔离方式是流程 / 上下文隔离，不是权限隔离 | 放在仓库之外，路径只由人工掌握，实现 Agent 在开发期间不获知路径和内容 |
 | D12 | validation 40 条，只允许按 archetype 分析；dev 和 validation 是否也由看不到实现的作者编写 | 40 条；建议 dev 和 validation 也由隔离的作者编写（V1 自编 95% 对盲测 22.5% 的教训） |
