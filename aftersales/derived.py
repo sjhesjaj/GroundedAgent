@@ -22,7 +22,7 @@ Two ways to not produce a fact, kept apart:
   fact (not delivered yet, a delivery later than the Clock, rule not in
   force, category out of scope, incomplete logistics, order and logistics
   read at different instants, an item and a delivery not structurally linked
-  to the same order). No derived evidence is produced - in particular, an
+  to the same order, an item whose order shipped in several packages). No derived evidence is produced - in particular, an
   incomplete picture never yields a `business_state_conflict`.
 """
 
@@ -86,6 +86,7 @@ NOT_DERIVABLE_LOGISTICS_INCOMPLETE = "logistics_evidence_incomplete"
 NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH = "observation_time_mismatch"
 NOT_DERIVABLE_ORDER_LINK_MISSING = "order_link_missing"
 NOT_DERIVABLE_ORDER_LINK_MISMATCH = "order_link_mismatch"
+NOT_DERIVABLE_ITEM_PACKAGE_LINK_AMBIGUOUS = "item_package_link_ambiguous"
 
 # The structural relation (BusinessEvidence.relations) naming a record's order.
 ORDER_RELATION = "order_id"
@@ -101,6 +102,7 @@ NOT_DERIVABLE_CODES = frozenset(
         NOT_DERIVABLE_OBSERVATION_TIME_MISMATCH,
         NOT_DERIVABLE_ORDER_LINK_MISSING,
         NOT_DERIVABLE_ORDER_LINK_MISMATCH,
+        NOT_DERIVABLE_ITEM_PACKAGE_LINK_AMBIGUOUS,
     }
 )
 
@@ -310,6 +312,26 @@ def derive_days_since_delivery(
 # --------------------------------------------------------------------------
 
 
+def _read_category(category: object, now: datetime) -> _Field:
+    item = _read_field("category", category, "order_item", "category", now)
+    if not isinstance(item.value, str) or not item.value.strip():
+        raise ValueError("category.metadata.value must be a non-empty string")
+    return item
+
+
+def _window_rule_gate(policy: PolicyRecord, category: object, now: datetime) -> _Field | None:
+    """Rule in force, then scope. Returns the category field when given."""
+    item = None if category is None else _read_category(category, now)
+    if not is_policy_in_effect(policy, now):
+        raise NotDerivable(NOT_DERIVABLE_POLICY_NOT_IN_EFFECT)
+    if policy.scope:
+        if item is None:
+            raise NotDerivable(NOT_DERIVABLE_CATEGORY_REQUIRED)
+        if not policy_applies_to_category(policy, item.value):
+            raise NotDerivable(NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE)
+    return item
+
+
 def derive_window_eligibility(
     delivered_at: BusinessEvidence,
     policy: PolicyRecord,
@@ -335,24 +357,18 @@ def derive_window_eligibility(
     `NotDerivable(order_link_missing)`, different orders are
     `NotDerivable(order_link_mismatch)`. No window fact is produced from an
     item of one order and a delivery of another.
+
+    This is the low-level primitive for ONE delivery fact. Same order does not
+    mean same package: the schema has no order_item -> tracking_no mapping.
+    Stage 4.4 / Stage 5 must not pick one package out of a multi-package
+    observation and pass it here for an item-level answer; item-level
+    eligibility goes through `derive_item_window_eligibility` (or an
+    equivalent ambiguity gate).
     """
     now = _now(clock)
     params = window_params(policy)
     fact_key = WINDOW_FACTS[policy.rule_type]
-
-    item: _Field | None = None
-    if category is not None:
-        item = _read_field("category", category, "order_item", "category", now)
-        if not isinstance(item.value, str) or not item.value.strip():
-            raise ValueError("category.metadata.value must be a non-empty string")
-
-    if not is_policy_in_effect(policy, now):
-        raise NotDerivable(NOT_DERIVABLE_POLICY_NOT_IN_EFFECT)
-    if policy.scope:
-        if item is None:
-            raise NotDerivable(NOT_DERIVABLE_CATEGORY_REQUIRED)
-        if not policy_applies_to_category(policy, item.value):
-            raise NotDerivable(NOT_DERIVABLE_CATEGORY_OUT_OF_SCOPE)
+    item = _window_rule_gate(policy, category, now)
 
     field, delivered = _delivery("delivered_at", delivered_at, now)
     order_id: str | None = None
@@ -396,6 +412,67 @@ def derive_window_eligibility(
         derivation_id=DERIVATION_WINDOW_ELIGIBILITY,
         now=now,
     )
+
+
+def derive_item_window_eligibility(
+    delivered_at_evidence: Sequence[BusinessEvidence],
+    policy: PolicyRecord,
+    *,
+    clock: Clock,
+    category: BusinessEvidence,
+) -> DerivedEvidence:
+    """Item-level `within_return_window` / `within_exchange_window`.
+
+    The entry Stage 4.4 / Stage 5 must use for an order item's eligibility.
+    `delivered_at_evidence` is every `logistics#delivered_at` of the item's
+    order, from one `get_logistics` observation - pass the whole observation,
+    never a package chosen from it.
+
+    The schema links packages to orders (order_id -> 0..N tracking_no) but not
+    items to packages. So:
+
+    - no package: `NotDerivable(start_event_absent)`;
+    - exactly one package: it is the only possible start event, and the
+      low-level `derive_window_eligibility` decides;
+    - several packages: `NotDerivable(item_package_link_ambiguous)`. Which
+      package carries the item is unknown, so no delivery is attributed to it:
+      not the delivered one, not the earliest or latest, not by tracking
+      number, item order or SKU - even when every choice would give the same
+      answer.
+
+    Before counting, every package must carry the same `order_id` relation as
+    the category (missing -> `order_link_missing`, another order ->
+    `order_link_mismatch`), all packages must come from one observation, and
+    the rule / scope gate of the low-level primitive applies first.
+    """
+    now = _now(clock)
+    window_params(policy)
+    if category is None:
+        raise ValueError("category is required for item-level eligibility")
+    if not isinstance(delivered_at_evidence, (list, tuple)):
+        raise ValueError("delivered_at_evidence must be a list or tuple of BusinessEvidence")
+    item = _window_rule_gate(policy, category, now)
+    item_order = _order_relation("category", item)
+
+    packages: list[_Field] = []
+    observations: set[tuple[object, object]] = set()
+    for index, evidence in enumerate(delivered_at_evidence):
+        path = "delivered_at_evidence[" + str(index) + "]"
+        field = _read_field(path, evidence, "logistics", "delivered_at", now)
+        if any(package.record_id == field.record_id for package in packages):
+            raise ValueError(path + " repeats a package")
+        if _order_relation(path, field) != item_order:
+            raise NotDerivable(NOT_DERIVABLE_ORDER_LINK_MISMATCH)
+        packages.append(field)
+        observations.add((evidence.observed_at, evidence.metadata.get(OBSERVATION_ID_KEY)))
+    if len(observations) > 1:
+        raise ValueError("delivered_at_evidence must come from a single observation")
+
+    if not packages:
+        raise NotDerivable(NOT_DERIVABLE_START_EVENT_ABSENT)
+    if len(packages) > 1:
+        raise NotDerivable(NOT_DERIVABLE_ITEM_PACKAGE_LINK_AMBIGUOUS)
+    return derive_window_eligibility(packages[0].evidence, policy, clock=clock, category=category)
 
 
 # --------------------------------------------------------------------------

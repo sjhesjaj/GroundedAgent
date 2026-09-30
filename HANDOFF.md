@@ -1508,6 +1508,7 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 最终（含 PR #10 review 修复）1525 tests passed（1437 原有 + 88 Stage 4.3），0 skip；Wiki 255/255，V1 evidence_policy 71/71，11/11 semantic mutants killed。结果与源码 hash：`docs/v2/stage4.3-validation.json`。
 - 真实临时仓库演示：15 天 → 新 draft 不可见 → publish 20 天 → rollback 15 天；ORD-1001 在 2026-11-15 促销窗口内、2026-12-01 标准窗口外，两次真实 policy_refs/Evidence 校验通过，业务 DB 未写。
 - TD: Wiki compiler still uses current compiler path; formal Stage 4 eval consumes a frozen build. 默认售后构建复用确定性 verbatim assembler；没有做真实在线模型编译验收。
-- category evidence 与 delivered_at evidence 的同订单结构化关联，必须在 Stage 4.4 Baseline 接入之前解决；本阶段未改业务 Evidence schema。
+- category evidence 与 delivered_at evidence 的同订单结构化关联：**已由 PR #13（merge `d9b6ab0`）解决**。`BusinessEvidence.relations` 由数据源产出 `order_id`（售后单另有 `order_item_id`），窗口派生在缺失 / 不一致时分别 fail closed 为 `order_link_missing` / `order_link_mismatch`，不解析 locator / content。
+- 多包裹歧义（Stage 4.3.8）：schema 没有 order_item → tracking_no 映射，同订单不等于同包裹。明细级窗口必须经 `derive_item_window_eligibility`（传入该订单一次观测的全部 delivered_at）：1 个包裹才计算，多个包裹为 `item_package_link_ambiguous`，不任选包裹；Stage 4.4 / 5 不得绕过该入口直接用低层 `derive_window_eligibility` 做明细级判断。
 - 完整报告、schema、CLI、diff、冻结方案、fixture 变更与边界：`docs/v2/stage4.3-handoff.md`。
 - 未开始 Stage 4.4、Planner/Router、Eval/数据集/holdout、Tool Loop、主聊天 API 切 V2、frontend、业务写动作、Guard 或 approval。
