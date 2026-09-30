@@ -11,11 +11,12 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from aftersales.business_tools import BUSINESS_HANDLERS, TOOL_PARAMETERS
-from aftersales.errors import SideEffectForbidden, ToolNotReady
+from aftersales.errors import SideEffectForbidden, ToolNotReady, ToolTimeout
 from aftersales.executor import (
     ERROR_CODE_NOT_READY,
     ERROR_CODE_TOOL_ERROR,
     ERROR_CODE_TOOL_REPORTED,
+    ERROR_CODE_TOOL_TIMEOUT,
     ReadOnlyViolation,
     execute_tool,
 )
@@ -437,6 +438,58 @@ class ErrorTaxonomyTests(ExecutorTestCase):
         self.assertEqual(result.evidence, ())
         self.assertNotIn("七天无理由", repr(result.to_dict()))
 
+    def test_timeout_is_its_own_sanitized_error(self):
+        secret = "SELECT * FROM orders WHERE order_id = '" + ORDER_SENTINEL + "' / CUST-001"
+        registry = replaced(
+            self.registry, "get_order", handler=MagicMock(side_effect=ToolTimeout(secret))
+        )
+        result = execute_tool(
+            registry, self.context, "get_order", {"order_id": ORDER_SENTINEL},
+            observation_id="span-timeout",
+        )
+        self.assertEqual(ERROR_CODE_TOOL_TIMEOUT, "tool_timeout")
+        self.assertIs(result.status, ToolStatus.ERROR)
+        self.assertEqual(result.error_code, ERROR_CODE_TOOL_TIMEOUT)
+        self.assertEqual(result.error_message, "get_order timed out")
+        self.assertEqual(result.evidence, ())
+        self.assertEqual(dict(result.trace), {
+            "tool": "get_order", "observation_id": "span-timeout",
+            "exception_type": "ToolTimeout",
+        })
+        rendered = json.dumps(result.to_dict(), ensure_ascii=False) + repr(result)
+        for leaked in (ORDER_SENTINEL, CUSTOMER_A, "SELECT", "orders"):
+            self.assertNotIn(leaked, rendered)
+
+    def test_a_timeout_subclass_keeps_the_stable_contract(self):
+        class ProviderTimeout(ToolTimeout):
+            pass
+
+        registry = replaced(
+            self.registry, "get_inventory",
+            handler=MagicMock(side_effect=ProviderTimeout(SKU_STOCKED)),
+        )
+        result = execute_tool(registry, self.context, "get_inventory", {"sku": SKU_STOCKED})
+        self.assertEqual(result.error_code, ERROR_CODE_TOOL_TIMEOUT)
+        self.assertEqual(result.trace["exception_type"], "ToolTimeout")
+        self.assertNotIn(SKU_STOCKED, repr(result.to_dict()))
+
+    def test_generic_runtime_error_is_still_tool_error_and_sanitized(self):
+        secret = "provider said " + ORDER_SENTINEL + " for CUST-001"
+        registry = replaced(
+            self.registry, "get_order", handler=MagicMock(side_effect=RuntimeError(secret))
+        )
+        result = execute_tool(
+            registry, self.context, "get_order", {"order_id": ORDER_SENTINEL},
+            observation_id="span-error",
+        )
+        self.assertEqual(result.error_code, ERROR_CODE_TOOL_ERROR)
+        self.assertEqual(result.error_message, "get_order failed with RuntimeError")
+        self.assertEqual(result.trace["exception_type"], "RuntimeError")
+        self.assertEqual(result.trace["observation_id"], "span-error")
+        rendered = json.dumps(result.to_dict(), ensure_ascii=False) + repr(result)
+        self.assertNotIn(ORDER_SENTINEL, rendered)
+        self.assertNotIn(CUSTOMER_A, rendered)
+
     def test_reported_error_is_replaced_with_a_fixed_payload(self):
         handler = MagicMock(return_value=ToolResult(
             tool_name="get_order", status=ToolStatus.ERROR,
@@ -509,6 +562,7 @@ class ReadOnlyTests(ExecutorTestCase):
             RuntimeError("after write"),
             sqlite3.OperationalError("after write"),
             ToolNotReady("after write"),
+            ToolTimeout("after write"),
             ValueError("after write"),
             TypeError("after write"),
         ):
@@ -535,6 +589,7 @@ class ReadOnlyTests(ExecutorTestCase):
             (RuntimeError("x"), ERROR_CODE_TOOL_ERROR),
             (sqlite3.OperationalError("x"), ERROR_CODE_TOOL_ERROR),
             (ToolNotReady("x"), ERROR_CODE_NOT_READY),
+            (ToolTimeout("x"), ERROR_CODE_TOOL_TIMEOUT),
         )
         for failure, code in cases:
             with self.subTest(failure=type(failure).__name__):

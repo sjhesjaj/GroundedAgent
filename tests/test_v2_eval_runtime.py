@@ -154,8 +154,11 @@ class PackageBoundaryTests(unittest.TestCase):
         self.assertEqual(rt.case_contract().TOOL_ARGUMENTS, frozen.TOOL_ARGUMENTS)
 
     def test_package_reexports(self):
+        from eval_v2 import faults
         for name in eval_v2.__all__:
-            self.assertIs(getattr(eval_v2, name), getattr(rt, name))
+            with self.subTest(name=name):
+                source = rt if hasattr(rt, name) else faults
+                self.assertIs(getattr(eval_v2, name), getattr(source, name))
 
 
 # --------------------------------------------------------------------------
@@ -615,7 +618,8 @@ class ObservationTests(RuntimeTestCase):
                         execute_observation(runtime, tool, arguments,
                                             observation_id="obs-001")
                     self.assertEqual(str(caught.exception),
-                                     "fault gateway is not installed in Stage 4.4.0")
+                                     "faulted case must execute through "
+                                     "FaultInjectingGateway")
         runtime.assert_database_unchanged()
 
     def test_no_fault_direct_execution_works(self):

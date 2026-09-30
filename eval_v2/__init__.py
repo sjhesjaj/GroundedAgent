@@ -1,4 +1,4 @@
-"""GroundedAgent V2 eval runtime (Stage 4.4.0: deterministic foundation).
+"""GroundedAgent V2 eval runtime (Stage 4.4: deterministic foundation + faults).
 
 Executes V2 eval cases. Kept apart from `eval/v2/`, which holds the frozen case
 contract and spec that the holdout author received; this package reuses that
@@ -9,6 +9,13 @@ Re-exports only. This package performs no work at import time.
 
 from __future__ import annotations
 
+from .faults import (
+    DEFAULT_SIMULATED_TIMEOUT_MS,
+    FaultCallRecord,
+    FaultConfigurationError,
+    FaultInjectingGateway,
+    InjectedToolError,
+)
 from .runtime import (
     DELETE_ORDER,
     EXPECTED_TOOL_NAMES,
@@ -31,6 +38,7 @@ from .runtime import (
 )
 
 __all__ = [
+    "DEFAULT_SIMULATED_TIMEOUT_MS",
     "DELETE_ORDER",
     "EXPECTED_TOOL_NAMES",
     "FAULT_GATEWAY_MESSAGE",
@@ -42,8 +50,12 @@ __all__ = [
     "EvalFixtureError",
     "EvalRuntimeDrift",
     "EvalRuntimeError",
+    "FaultCallRecord",
+    "FaultConfigurationError",
     "FaultGatewayRequired",
+    "FaultInjectingGateway",
     "IncompleteLogisticsObservation",
+    "InjectedToolError",
     "V2CaseRuntime",
     "complete_delivered_at_evidence",
     "database_content_sha256",
