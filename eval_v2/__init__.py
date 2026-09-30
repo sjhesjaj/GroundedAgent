@@ -1,4 +1,4 @@
-"""GroundedAgent V2 eval runtime (Stage 4.4: foundation, faults, control-layer runner).
+"""GroundedAgent V2 eval runtime (Stage 4: foundation, faults, control runner, evaluation).
 
 Executes V2 eval cases. Kept apart from `eval/v2/`, which holds the frozen case
 contract and spec that the holdout author received; this package reuses that
@@ -22,6 +22,28 @@ from .control import (
     UserMessage,
     clarification_slots,
     finish_dispositions,
+)
+from .dataset import (
+    DATASET_RUN_SCHEMA,
+    DatasetCaseResult,
+    DatasetRun,
+    DatasetRunError,
+    EvaluatedCase,
+    dataset_run_sha256,
+    evaluate_case,
+    run_dataset,
+)
+from .evidence import (
+    DERIVATION_FAMILIES,
+    EVIDENCE_STATE_SCHEMA,
+    DerivationRecord,
+    EvalEvidenceError,
+    EvidenceItem,
+    EvidenceState,
+    derive_evidence_state,
+    derive_from_control_state,
+    evaluate_evidence_state,
+    evidence_state_sha256,
 )
 from .faults import (
     DEFAULT_SIMULATED_TIMEOUT_MS,
@@ -60,11 +82,23 @@ from .runner import (
     observation_id_for,
     run_case,
 )
+from .scoring import (
+    CONTROL_SCORE_SCHEMA,
+    CaseScore,
+    ClarificationScore,
+    EvalScoringError,
+    EvidenceScore,
+    score_case,
+)
 
 __all__ = [
     "CONTROL_RUN_SCHEMA",
+    "CONTROL_SCORE_SCHEMA",
+    "DATASET_RUN_SCHEMA",
     "DEFAULT_SIMULATED_TIMEOUT_MS",
     "DELETE_ORDER",
+    "DERIVATION_FAMILIES",
+    "EVIDENCE_STATE_SCHEMA",
     "EXPECTED_TOOL_NAMES",
     "FAULT_GATEWAY_MESSAGE",
     "HARD_MAX_STEPS",
@@ -72,17 +106,29 @@ __all__ = [
     "OVERLAY_PRIMARY_KEYS",
     "UPDATE_ORDER",
     "CaseRunRecord",
+    "CaseScore",
     "ClarificationRecord",
+    "ClarificationScore",
     "Clarify",
     "ControlAction",
     "ControlPolicy",
     "ControlPolicyContractError",
     "ControlState",
     "DatabaseChanged",
+    "DatasetCaseResult",
+    "DatasetRun",
+    "DatasetRunError",
+    "DerivationRecord",
     "EvalCaseInvalid",
+    "EvalEvidenceError",
     "EvalFixtureError",
     "EvalRuntimeDrift",
     "EvalRuntimeError",
+    "EvalScoringError",
+    "EvaluatedCase",
+    "EvidenceItem",
+    "EvidenceScore",
+    "EvidenceState",
     "FaultCallRecord",
     "FaultConfigurationError",
     "FaultGatewayRequired",
@@ -100,9 +146,17 @@ __all__ = [
     "complete_delivered_at_evidence",
     "control_run_sha256",
     "database_content_sha256",
+    "dataset_run_sha256",
+    "derive_evidence_state",
+    "derive_from_control_state",
     "derive_item_window_from_logistics_result",
+    "evaluate_case",
+    "evaluate_evidence_state",
+    "evidence_state_sha256",
     "execute_observation",
     "finish_dispositions",
     "observation_id_for",
     "run_case",
+    "run_dataset",
+    "score_case",
 ]
