@@ -8,8 +8,11 @@ holdout is never read.
 from __future__ import annotations
 
 import ast
+import copy
 import dataclasses
+import inspect
 import json
+import re
 import unittest
 import uuid
 from pathlib import Path
@@ -59,6 +62,7 @@ SOURCES = {name: ROOT / "eval_v2" / (name + ".py") for name in ("control", "runn
 SPEC = ROOT / "eval" / "v2" / "spec"
 
 CASE_ID = "runtime-fixture-1"
+SECRET_CASE_ID = "A01-SECRET-EVAL-IDENTITY"
 CUSTOMER = "CUST-001"
 ORDER = "ORD-1001"
 SKU = "SKU-TSHIRT-M"
@@ -289,7 +293,7 @@ class BasicRunTests(RunnerTestCase):
 # --------------------------------------------------------------------------
 
 
-STATE_FIELDS = ("case_id", "virtual_now", "persona_id", "allowed_tools", "max_steps",
+STATE_FIELDS = ("virtual_now", "persona_id", "allowed_tools", "max_steps",
                 "step_number", "remaining_steps", "user_messages", "observations")
 
 
@@ -302,7 +306,7 @@ class ControlStateTests(RunnerTestCase):
     def test_state_has_exactly_the_visible_fields(self):
         state = self.first_state()
         self.assertEqual(tuple(f.name for f in dataclasses.fields(ControlState)), STATE_FIELDS)
-        self.assertEqual(state.case_id, CASE_ID)
+        self.assertFalse(hasattr(state, "case_id"))
         self.assertEqual(state.virtual_now, "2026-11-15T10:00:00+08:00")
         self.assertEqual(state.persona_id, "demo-a")
         self.assertEqual(state.allowed_tools, EXPECTED_TOOL_NAMES)
@@ -312,7 +316,8 @@ class ControlStateTests(RunnerTestCase):
 
     def test_no_label_fixture_fault_or_identity_backdoor(self):
         state = self.first_state(make_case(faults=[fault("get_order", "error")]))
-        for name in LABEL_KEYS + ("faults", "initial_state", "case", "customer_id", "runtime",
+        for name in LABEL_KEYS + ("case_id", "faults", "initial_state", "case", "customer_id",
+                                  "runtime",
                                   "registry", "context", "connection", "gateway", "user_turns",
                                   "__dict__"):
             with self.subTest(name=name):
@@ -589,21 +594,112 @@ class ObservationIdTests(RunnerTestCase):
 
     def test_ids_are_structural_and_stable(self):
         first, record = self.ids()
-        self.assertEqual(first, [
-            "case:runtime-fixture-1:turn:1:tool:1",
-            "case:runtime-fixture-1:turn:1:tool:2",
-            "case:runtime-fixture-1:turn:2:tool:3",
-        ])
+        self.assertEqual(first, ["turn:1:tool:1", "turn:1:tool:2", "turn:2:tool:3"])
         self.assertEqual(self.ids()[0], first)
-        self.assertEqual(observation_id_for(CASE_ID, 2, 3), first[2])
+        self.assertEqual(observation_id_for(2, 3), first[2])
         for observation_id in first:
-            for secret in (ORDER, SKU, CUSTOMER, "turn one", "second message", "get_"):
+            self.assertRegex(observation_id, r"^turn:[1-9][0-9]*:tool:[1-9][0-9]*$")
+            self.assertIsNone(re.search(r"A[0-9]{2}", observation_id))  # no archetype-like id
+            for secret in (CASE_ID, "runtime-fixture", "case", ORDER, SKU, "SKU-MUG", CUSTOMER,
+                           "demo-a", "turn one", "second message", "get_"):
                 self.assertNotIn(secret, observation_id)
         for observation in record.observations:
             self.assertEqual(observation.result.trace["observation_id"],
                              observation.observation_id)
             for item in observation.result.evidence:
                 self.assertEqual(item.metadata["observation_id"], observation.observation_id)
+
+
+
+# --------------------------------------------------------------------------
+# Eval case identity never reaches the policy
+# --------------------------------------------------------------------------
+
+
+def with_case_id(case, case_id):
+    case = copy.deepcopy(case)
+    case["case_id"] = case_id
+    return case
+
+
+def policy_view(state):
+    """Everything a policy can read from one state, as plain data - read from the
+    live objects it holds (ToolResult, trace, every evidence item), not from the
+    run record's snapshot."""
+    view = {name: list(value) if isinstance(value, tuple) else value
+            for name, value in ((f.name, getattr(state, f.name))
+                                for f in dataclasses.fields(ControlState))
+            if name not in ("user_messages", "observations")}
+    view["user_messages"] = [[m.turn_index, m.text] for m in state.user_messages]
+    observations = []
+    for observation in state.observations:
+        entry = {f.name: getattr(observation, f.name)
+                 for f in dataclasses.fields(observation)
+                 if f.name not in ("arguments", "result", "_result_dict")}
+        entry["type"] = type(observation).__name__
+        entry["arguments"] = dict(observation.arguments)
+        if type(observation) is ToolObservation:
+            entry["result"] = observation.result.to_dict()
+            entry["trace"] = dict(observation.result.trace)
+            entry["evidence"] = [item.to_dict() for item in observation.result.evidence]
+        observations.append(entry)
+    view["observations"] = observations
+    return view
+
+
+def identity_script():
+    return (get_order(), Clarify(slots=("order_id",)), get_logistics(), get_inventory(),
+            Finish(disposition="refuse"))
+
+
+def identity_case(case_id):
+    return with_case_id(make_case(conditional=((("order_id",), ORDER),),
+                                  faults=[fault("get_logistics", "malformed"),
+                                          fault("get_inventory", "error")]), case_id)
+
+
+class CaseIdentityTests(RunnerTestCase):
+    def test_case_id_never_reaches_the_policy(self):
+        policy = ScriptedPolicy(*identity_script())
+        record = run(identity_case(SECRET_CASE_ID), policy)
+        self.assertEqual(record.termination, "finished")
+        first = policy.states[0]
+        self.assertFalse(hasattr(first, "case_id"))
+        self.assertNotIn(SECRET_CASE_ID, repr(first))
+        # The last state holds every observation kind: ok, contract failure, error.
+        self.assertEqual([type(o).__name__ for o in policy.states[-1].observations],
+                         ["ToolObservation", "ToolContractFailure", "ToolObservation"])
+        self.assertIs(policy.states[-1].observations[-1].result.status, ToolStatus.ERROR)
+        for state in policy.states:
+            self.assertFalse(hasattr(state, "case_id"))
+            for text in (repr(state), json.dumps(policy_view(state), ensure_ascii=False)):
+                for secret in (SECRET_CASE_ID, "SECRET-EVAL", "A01"):
+                    self.assertNotIn(secret, text)
+            for observation in state.observations:
+                self.assertNotIn(SECRET_CASE_ID, observation.observation_id)
+                if type(observation) is ToolObservation:
+                    self.assertNotIn(SECRET_CASE_ID, repr(observation.result.trace))
+                    for item in observation.result.evidence:
+                        self.assertNotIn(SECRET_CASE_ID,
+                                         json.dumps(item.to_dict(), ensure_ascii=False))
+        # The raw record keeps the case identity.
+        self.assertEqual(record.case_id, SECRET_CASE_ID)
+        self.assertEqual(record.to_dict()["case_id"], SECRET_CASE_ID)
+
+    def test_policy_visible_states_do_not_depend_on_case_id(self):
+        plain, secret = ScriptedPolicy(*identity_script()), ScriptedPolicy(*identity_script())
+        plain_record = run(identity_case(CASE_ID), plain)
+        secret_record = run(identity_case(SECRET_CASE_ID), secret)
+        self.assertEqual(len(plain.states), 5)
+        self.assertEqual([policy_view(s) for s in plain.states],
+                         [policy_view(s) for s in secret.states])
+        self.assertEqual(plain.states, secret.states)
+        # Only the raw record's own identity differs, and it must stay.
+        plain_dict, secret_dict = plain_record.to_dict(), secret_record.to_dict()
+        self.assertEqual((plain_dict.pop("case_id"), secret_dict.pop("case_id")),
+                         (CASE_ID, SECRET_CASE_ID))
+        self.assertEqual(plain_dict, secret_dict)
+        self.assertNotEqual(control_run_sha256(plain_record), control_run_sha256(secret_record))
 
 
 # --------------------------------------------------------------------------
@@ -932,6 +1028,27 @@ class StaticBoundaryTests(unittest.TestCase):
         self.assertEqual(len(subscripts), 1)
         self.assertEqual(ast.unparse(subscripts[0].value), "schema['properties']")
 
+    def test_case_id_is_not_part_of_observation_ids(self):
+        self.assertEqual(tuple(inspect.signature(observation_id_for).parameters),
+                         ("turn_index", "tool_step"))
+        self.assertEqual(observation_id_for(1, 1), "turn:1:tool:1")
+        _, tree = self.trees()["runner"]
+        function = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                        and node.name == "observation_id_for")
+        self.assertNotIn("case", ast.unparse(function.body[-1]))
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name) and node.func.id == "observation_id_for"]
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("case", ast.unparse(calls[0]))
+        # The runner reads the case id for the raw record only.
+        readers = {function.name for function in ast.walk(tree)
+                   if isinstance(function, ast.FunctionDef)
+                   for node in ast.walk(function)
+                   if isinstance(node, ast.Attribute) and node.attr == "_case_id"}
+        self.assertEqual(readers, {"__init__", "record"})
+        control_source, _ = self.trees()["control"]
+        self.assertNotIn("case_id", control_source)
+
     def test_package_exports(self):
         for name in ("ControlPolicy", "ControlState", "ToolCall", "Clarify", "Finish",
                      "ControlPolicyContractError", "CaseRunRecord", "ToolObservation",
@@ -964,7 +1081,7 @@ class _BypassesGatewayWhenFaultFree(_KeepsRuntime):
             return super()._call_tool(step, action)
         self._tool_step += 1
         turn = len(self._messages)
-        observation_id = runner.observation_id_for(self._case_id, turn, self._tool_step)
+        observation_id = runner.observation_id_for(turn, self._tool_step)
         result = execute_observation(self._runtime, action.tool_name, action.arguments,
                                      observation_id=observation_id)
         self._observations.append(ToolObservation(
@@ -1014,6 +1131,15 @@ class _Stop(Exception):
     pass
 
 
+class _CaseIdInObservationIds(runner._CaseRun):
+    def _call_tool(self, step, action):
+        def case_scoped(turn_index, tool_step):
+            return ("case:" + self._case_id + ":turn:" + str(turn_index)
+                    + ":tool:" + str(tool_step))
+        with mock.patch.object(runner, "observation_id_for", case_scoped):
+            return super()._call_tool(step, action)
+
+
 class _SwallowsEveryValueError(runner._CaseRun):
     def _injected_malformed(self, before, observation_id):
         return True
@@ -1048,7 +1174,7 @@ def _to_dict_with_labels(self):
 _REAL_TO_DICT = CaseRunRecord.to_dict
 
 
-def _uuid_observation_id(case_id, turn_index, tool_step):
+def _uuid_observation_id(turn_index, tool_step):
     return "obs-" + uuid.uuid4().hex
 
 
@@ -1064,6 +1190,8 @@ MUTANTS = (
     ("uuid_observation_ids",
      lambda: mock.patch.object(runner, "observation_id_for", _uuid_observation_id),
      ObservationIdTests.test_ids_are_structural_and_stable),
+    ("case_id_in_observation_ids", lambda: _patch_case_run(_CaseIdInObservationIds),
+     CaseIdentityTests.test_case_id_never_reaches_the_policy),
     ("future_turns_visible", lambda: _patch_case_run(_FutureTurnsVisible),
      ControlStateTests.test_first_state_sees_only_turn_zero),
     ("conditional_turn_reused", lambda: _patch_case_run(_ConditionalReused),

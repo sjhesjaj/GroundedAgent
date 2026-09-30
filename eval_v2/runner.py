@@ -28,10 +28,12 @@ Clarification
     not an error. The policy's wording plays no part: there is none.
 
 Observation ids
-    Generated here, structurally: case:<case_id>:turn:<TURN>:tool:<STEP>, where
+    Generated here, structurally and run-local: turn:<TURN>:tool:<STEP>, where
     TURN is the latest delivered user message (from 1) and STEP counts tool
-    calls across the whole case-run (from 1). No tool name, argument, user
-    text, identity, UUID, random value, or clock reading.
+    calls across the whole case-run (from 1). Unique within one case-run; the
+    run record is the outer namespace. No case id (not even hashed - the
+    policy sees every observation id), tool name, argument, user text,
+    identity, UUID, random value, or clock reading.
 
 Malformed results
     A malformed fault leaves no ToolResult: the executor raises ValueError. The
@@ -89,9 +91,9 @@ TERMINATIONS = (TERMINATION_FINISHED, TERMINATION_UNANSWERED_CLARIFICATION,
                 TERMINATION_MAX_STEPS_EXCEEDED)
 
 
-def observation_id_for(case_id: str, turn_index: int, tool_step: int) -> str:
-    """The structural id of one tool call. Nothing but these three values."""
-    return "case:" + case_id + ":turn:" + str(turn_index) + ":tool:" + str(tool_step)
+def observation_id_for(turn_index: int, tool_step: int) -> str:
+    """The run-local id of one tool call. Nothing but these two counters."""
+    return "turn:" + str(turn_index) + ":tool:" + str(tool_step)
 
 
 def text_sha256(text: str) -> str:
@@ -226,7 +228,7 @@ class _CaseRun:
         self._gateway = gateway
         self._policy = policy
         self._max_steps = max_steps
-        self._case_id = runtime.case_id
+        self._case_id = runtime.case_id  # for the raw record only; never policy-visible
         self._virtual_now = case["virtual_now"]  # the authored instant the FixedClock holds
         self._persona_id = runtime.context.persona.persona_id
         self._allowed_tools = tuple(runtime.registry.names())
@@ -267,7 +269,6 @@ class _CaseRun:
 
     def _state(self, step: int) -> ControlState:
         return ControlState(
-            case_id=self._case_id,
             virtual_now=self._virtual_now,
             persona_id=self._persona_id,
             allowed_tools=self._allowed_tools,
@@ -313,7 +314,7 @@ class _CaseRun:
     def _call_tool(self, step: int, action: ToolCall) -> None:
         self._tool_step += 1
         turn_index = len(self._messages)
-        observation_id = observation_id_for(self._case_id, turn_index, self._tool_step)
+        observation_id = observation_id_for(turn_index, self._tool_step)
         before = len(self._gateway.records)
         common = dict(control_step=step, turn_index=turn_index, tool_step=self._tool_step,
                       observation_id=observation_id, tool_name=action.tool_name,

@@ -11,12 +11,13 @@ So the only experimental variable between two policies is the policy.
 
 What a policy sees
     `ControlState` holds what is really visible at run time and nothing more:
-    the case id, the virtual instant, the persona id, the tool names, the step
-    budget, the user messages actually delivered so far, and the observations
-    of the tool calls made so far. Never the case dict, its expected_* labels,
-    its archetype, its fixture or fault declarations, the trusted customer id,
-    or the runtime / connection / registry. A conditional user turn is not in
-    the state until a clarification has delivered it.
+    the virtual instant, the persona id, the tool names, the step budget, the
+    user messages actually delivered so far, and the observations of the tool
+    calls made so far. Never the case id (eval bookkeeping, not business
+    meaning - it stays in the raw run record only), the case dict, its
+    expected_* labels, its archetype, its fixture or fault declarations, the
+    trusted customer id, or the runtime / connection / registry. A conditional
+    user turn is not in the state until a clarification has delivered it.
 
 What a policy returns
     Frozen actions, checked when built and again by the runner:
@@ -306,7 +307,6 @@ class ControlState:
     last allowed decision sees 1.
     """
 
-    case_id: str
     virtual_now: str
     persona_id: str
     allowed_tools: tuple[str, ...]
