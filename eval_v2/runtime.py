@@ -16,9 +16,10 @@ environment:
     -> direct tool observation through the existing executor
     -> complete get_logistics observation gate
 
-This is foundation only. There is no Planner, no LLM, no scorer, no dataset, and
-no fault injection here: a case that declares faults can be built, but it cannot
-be executed until a fault gateway exists (`FaultGatewayRequired`).
+This is foundation only. There is no Planner, no LLM, no scorer, and no dataset
+here. Fault injection lives in `eval_v2.faults`: a case that declares faults can
+be built here, but its tool calls must go through that case-run's single
+`FaultInjectingGateway`; the direct path refuses it (`FaultGatewayRequired`).
 
 Nothing here reads the system clock, generates an id, or depends on SQLite row
 order. The case contract is loaded by path so this package does not depend on
@@ -93,7 +94,7 @@ _INITIAL_STATE_KEYS = frozenset({"trusted_context", "faults"}) | frozenset(OVERL
 _PATCH_KEYS = {"insert": frozenset({"op", "row"}), "update": frozenset({"op", "set"}),
                "delete": frozenset({"op"})}
 
-FAULT_GATEWAY_MESSAGE = "fault gateway is not installed in Stage 4.4.0"
+FAULT_GATEWAY_MESSAGE = "faulted case must execute through FaultInjectingGateway"
 
 
 # --------------------------------------------------------------------------
@@ -122,7 +123,7 @@ class EvalRuntimeDrift(EvalRuntimeError):
 
 
 class FaultGatewayRequired(EvalRuntimeError):
-    """The case declares faults, and no fault gateway is installed."""
+    """The case declares faults, so its calls must go through its fault gateway."""
 
 
 class IncompleteLogisticsObservation(EvalRuntimeError):
@@ -455,6 +456,7 @@ class V2CaseRuntime:
         self._registry = registry
         self._initial_db_sha256 = initial_db_sha256
         self._faults = tuple(copy.deepcopy(case["initial_state"]["faults"]))
+        self._gateway_claimed = False
         self._closed = False
 
     @classmethod
@@ -528,6 +530,19 @@ class V2CaseRuntime:
         if self.database_sha256() != self._initial_db_sha256:
             raise DatabaseChanged("case database content changed since the fixture was built")
 
+    # -- tool gateway --------------------------------------------------------
+
+    def claim_tool_gateway(self) -> None:
+        """Bind this case-run to exactly one tool gateway.
+
+        Fault counters belong to the whole case-run. A second gateway would
+        start them again from zero, so a second claim is refused.
+        """
+        self.require_open()
+        if self._gateway_claimed:
+            raise EvalRuntimeError("case runtime already has a tool gateway")
+        self._gateway_claimed = True
+
     # -- lifecycle ---------------------------------------------------------
 
     def close(self) -> None:
@@ -558,7 +573,8 @@ def execute_observation(runtime: V2CaseRuntime, tool_name: str, arguments: Mappi
 
     `observation_id` is supplied by the caller (the future trace / control
     layer); it is never generated here. A case with faults is refused: running
-    it without the fault gateway would produce a fake result.
+    it without the fault gateway would produce a fake result, and a gateway
+    created here per call would restart its on_call counters.
     """
     if not isinstance(runtime, V2CaseRuntime):
         raise ValueError("runtime must be a V2CaseRuntime, got " + type(runtime).__name__)

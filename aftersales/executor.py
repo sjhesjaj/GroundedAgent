@@ -10,9 +10,10 @@ The Stage 4 path is read-only by construction, and the checks are hard:
   connection, or a cursor is touched.
 - **Identity, time, and data come from the context.** The executor has no
   parameter through which a caller could supply any of them.
-- **Failure is not absence.** A database fault or an unwired adapter becomes a
-  sanitized `ERROR` result, never `EMPTY`. Only the exception's class name
-  survives; its text could carry a query, a value, or a row.
+- **Failure is not absence.** A database fault, a timeout, or an unwired
+  adapter becomes a sanitized `ERROR` result, never `EMPTY`. Only the
+  exception's class name survives; its text could carry a query, a value, or a
+  row.
 - **Nothing private is published.** A handler's trace must carry no argument
   value, no identity, and no SQL; a business trace must match its pinned
   schema exactly; evidence must not carry the identity. A violation raises
@@ -43,12 +44,13 @@ from orchestration.contracts import (
 from .arguments import validate_arguments
 from .business_tools import BUSINESS_TRACE_FIELDS
 from .context import TrustedExecutionContext
-from .errors import SideEffectForbidden, ToolNotReady
+from .errors import SideEffectForbidden, ToolNotReady, ToolTimeout
 from .registry import ToolKind, ToolRegistry, ToolSpec
 
 # Stable taxonomy codes. Never an adapter's or an exception's own code.
 ERROR_CODE_TOOL_ERROR = "tool_error"
 ERROR_CODE_NOT_READY = "tool_not_ready"
+ERROR_CODE_TOOL_TIMEOUT = "tool_timeout"
 ERROR_CODE_TOOL_REPORTED = "tool_reported_error"
 
 TRACE_OBSERVATION_ID = "observation_id"
@@ -319,6 +321,12 @@ def execute_tool(
             # A contract violation between executor and handler is a programmer
             # error; it must not be laundered into "the data source was down".
             raise
+        if isinstance(exc, ToolTimeout):
+            # Before the generic branch: a timeout is its own class of failure.
+            return _error_result(
+                spec, ERROR_CODE_TOOL_TIMEOUT, spec.name + " timed out",
+                observation_id, "ToolTimeout",
+            )
         if isinstance(exc, ToolNotReady):
             return _error_result(
                 spec, ERROR_CODE_NOT_READY, spec.name + " is not available yet",

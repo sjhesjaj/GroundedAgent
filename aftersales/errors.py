@@ -15,6 +15,16 @@ class ToolNotReady(RuntimeError):
     """
 
 
+class ToolTimeout(RuntimeError):
+    """A tool call did not complete within its time budget.
+
+    A stable production type, not an eval device: whatever enforces the budget
+    raises it at the tool boundary, and the executor reports `tool_timeout`.
+    Like every class here, its message names the tool at most - never an
+    argument value, an identity, SQL, or a provider / database payload.
+    """
+
+
 class RecordIntegrityError(RuntimeError):
     """The data source returned something a valid source cannot return.
 
