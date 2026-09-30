@@ -1,4 +1,4 @@
-"""GroundedAgent V2 eval runtime (Stage 4.4: deterministic foundation + faults).
+"""GroundedAgent V2 eval runtime (Stage 4.4: foundation, faults, control-layer runner).
 
 Executes V2 eval cases. Kept apart from `eval/v2/`, which holds the frozen case
 contract and spec that the holdout author received; this package reuses that
@@ -9,6 +9,20 @@ Re-exports only. This package performs no work at import time.
 
 from __future__ import annotations
 
+from .control import (
+    Clarify,
+    ControlAction,
+    ControlPolicy,
+    ControlPolicyContractError,
+    ControlState,
+    Finish,
+    ToolCall,
+    ToolContractFailure,
+    ToolObservation,
+    UserMessage,
+    clarification_slots,
+    finish_dispositions,
+)
 from .faults import (
     DEFAULT_SIMULATED_TIMEOUT_MS,
     FaultCallRecord,
@@ -36,15 +50,34 @@ from .runtime import (
     derive_item_window_from_logistics_result,
     execute_observation,
 )
+from .runner import (
+    CONTROL_RUN_SCHEMA,
+    HARD_MAX_STEPS,
+    CaseRunRecord,
+    ClarificationRecord,
+    UserMessageRecord,
+    control_run_sha256,
+    observation_id_for,
+    run_case,
+)
 
 __all__ = [
+    "CONTROL_RUN_SCHEMA",
     "DEFAULT_SIMULATED_TIMEOUT_MS",
     "DELETE_ORDER",
     "EXPECTED_TOOL_NAMES",
     "FAULT_GATEWAY_MESSAGE",
+    "HARD_MAX_STEPS",
     "INSERT_ORDER",
     "OVERLAY_PRIMARY_KEYS",
     "UPDATE_ORDER",
+    "CaseRunRecord",
+    "ClarificationRecord",
+    "Clarify",
+    "ControlAction",
+    "ControlPolicy",
+    "ControlPolicyContractError",
+    "ControlState",
     "DatabaseChanged",
     "EvalCaseInvalid",
     "EvalFixtureError",
@@ -54,11 +87,22 @@ __all__ = [
     "FaultConfigurationError",
     "FaultGatewayRequired",
     "FaultInjectingGateway",
+    "Finish",
     "IncompleteLogisticsObservation",
     "InjectedToolError",
+    "ToolCall",
+    "ToolContractFailure",
+    "ToolObservation",
+    "UserMessage",
+    "UserMessageRecord",
     "V2CaseRuntime",
+    "clarification_slots",
     "complete_delivered_at_evidence",
+    "control_run_sha256",
     "database_content_sha256",
     "derive_item_window_from_logistics_result",
     "execute_observation",
+    "finish_dispositions",
+    "observation_id_for",
+    "run_case",
 ]

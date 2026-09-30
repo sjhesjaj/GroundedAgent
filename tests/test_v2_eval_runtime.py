@@ -154,10 +154,11 @@ class PackageBoundaryTests(unittest.TestCase):
         self.assertEqual(rt.case_contract().TOOL_ARGUMENTS, frozen.TOOL_ARGUMENTS)
 
     def test_package_reexports(self):
-        from eval_v2 import faults
+        from eval_v2 import control, faults, runner
         for name in eval_v2.__all__:
             with self.subTest(name=name):
-                source = rt if hasattr(rt, name) else faults
+                source = next(module for module in (rt, faults, control, runner)
+                              if hasattr(module, name))
                 self.assertIs(getattr(eval_v2, name), getattr(source, name))
 
 
