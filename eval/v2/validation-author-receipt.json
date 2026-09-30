@@ -1,0 +1,31 @@
+{
+  "schema": "v2-dataset-author-receipt/1",
+  "dataset": "validation",
+  "output_file": "validation.json",
+  "case_count": 40,
+  "validation_json_sha256": "50a0398d8e9f42afa3356cb89179b1b46c0fd00206a58046884ff75776575d2c",
+  "archetype_counts": {
+    "A01": 2, "A02": 2, "A03": 2, "A04": 2, "A05": 2,
+    "A06": 2, "A07": 2, "A08": 2, "A09": 2, "A10": 2,
+    "A11": 2, "A12": 2, "A13": 2, "A14": 2, "A15": 2,
+    "A16": 2, "A17": 2, "A18": 2, "A19": 2, "A20": 2,
+    "A21": 0, "A22": 0, "A23": 0
+  },
+  "final_counts": {
+    "answer": 30,
+    "refuse": 5,
+    "handoff": 2,
+    "boundary": 3
+  },
+  "persona_counts": {
+    "demo-a": 20,
+    "demo-b": 20
+  },
+  "distinct_virtual_now": 32,
+  "case_contract_errors": 0,
+  "foreign_key_errors": 0,
+  "input_content_digest": "7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8",
+  "input_file_count": 17,
+  "agent_runs": 0,
+  "external_sources_used": false
+}
