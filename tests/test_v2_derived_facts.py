@@ -68,9 +68,10 @@ DERIVED_KEYS = {
 }
 
 
-def delivered(value, *, observed_at=None, tracking_no="SF1001"):
+def delivered(value, *, observed_at=None, tracking_no="SF1001", order_id="ORD-1001"):
     kwargs = {} if observed_at is None else {"observed_at": observed_at}
-    return business_evidence("logistics", tracking_no, "delivered_at", value, **kwargs)
+    return business_evidence("logistics", tracking_no, "delivered_at", value,
+                             relations={"order_id": order_id}, **kwargs)
 
 
 def days(delivered_at: str, now: datetime) -> int:
@@ -341,7 +342,9 @@ class WindowEligibilityTests(unittest.TestCase):
         )
 
     def category(self, value, now=DEMO_VIRTUAL_NOW, item_id="OI-1001-1"):
-        return business_evidence("order_item", item_id, "category", value, observed_at=now.isoformat())
+        # Linked to the same order as `delivered()`, as get_order produces it.
+        return business_evidence("order_item", item_id, "category", value, observed_at=now.isoformat(),
+                                 relations={"order_id": "ORD-1001"})
 
     def test_inside_the_window(self):
         fact = self.eligibility(at(2026, 11, 8, 12))
@@ -688,7 +691,8 @@ class DeterminismTests(unittest.TestCase):
         clock = FixedClock(now)
         delivered_at = delivered("2026-11-05T14:30:00+08:00", observed_at=now.isoformat())
         category = business_evidence("order_item", "OI-1", "category", "服装",
-                                     observed_at=now.isoformat())
+                                     observed_at=now.isoformat(),
+                                     relations={"order_id": "ORD-1001"})
         inventory = business_evidence("inventory", "SKU-X", "available_qty", 0,
                                       observed_at=now.isoformat())
         order = business_evidence("order", "ORD-1", "status", "已发货", observed_at=now.isoformat())

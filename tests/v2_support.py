@@ -114,6 +114,7 @@ def business_evidence(
     freshness_contract: FreshnessContract = FreshnessContract.AUTHORITATIVE_ONLINE,
     source_as_of: str | None = None,
     observation_id: str | None = None,
+    relations: dict[str, str] | None = None,
 ) -> BusinessEvidence:
     """One hand-built business field, shaped exactly like a tool's output."""
     return BusinessEvidence(
@@ -136,6 +137,7 @@ def business_evidence(
         state_version=state_version,
         freshness_contract=freshness_contract,
         source_as_of=source_as_of,
+        relations={} if relations is None else relations,
     )
 
 

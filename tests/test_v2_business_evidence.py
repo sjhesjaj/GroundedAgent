@@ -26,7 +26,7 @@ V1_EVIDENCE_KEYS = {
     "content", "source_type", "source", "locator", "version", "observed_at",
     "authority", "confidence", "metadata",
 }
-V2_KEYS = {"record_updated_at", "state_version", "freshness_contract", "source_as_of"}
+V2_KEYS = {"record_updated_at", "state_version", "freshness_contract", "source_as_of", "relations"}
 
 
 def valid_evidence(**overrides) -> BusinessEvidence:
