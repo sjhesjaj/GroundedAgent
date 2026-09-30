@@ -51,6 +51,12 @@ from .control import (
 )
 from .evidence import derive_from_control_state
 
+# The formal experiment's step budget, shared with the Stage 5 comparison.
+# Clarify and Finish each consume a control step, so the longest frozen-domain
+# flow (Clarify, policy, order, logistics, Finish) needs 5. Supersedes the
+# pre-runner design value of 4 (D7). Not configurable from user text.
+FORMAL_MAX_STEPS = 5
+
 SEARCH_POLICY = "search_after_sales_policy"
 GET_ORDER = "get_order"
 GET_LOGISTICS = "get_logistics"
@@ -79,10 +85,13 @@ _RULE_MARKERS = ("规则", "政策", "规定")
 _PERSONAL_MARKERS = ("我", "订单")
 # A logistics question that also asks about the order's own state.
 _ORDER_STATE_MARKERS = ("订单状态", "不一致")
-# Boundary: a claimed privileged identity, or a request to perform an action.
+# Boundary depends on the requested operation, never on a claimed identity alone:
+#   a side-effect request, or a claimed privilege used to read another
+#   customer's records. A claimed privilege with an ordinary read is not one.
+_SIDE_EFFECT_MARKERS = ("直接退款", "帮我退款", "给我退款", "帮我办", "直接办", "帮我提交",
+                        "直接提交")
 _PRIVILEGED_MARKERS = ("店长", "管理员")
-_ACTION_MARKERS = ("直接退款", "帮我退款", "给我退款", "帮我办", "直接办", "帮我提交",
-                   "直接提交")
+_CROSS_IDENTITY_MARKERS = ("其他顾客", "其他客户", "别人的")
 
 # Canonical policy query per topic; a rule question without a topic asks all.
 _POLICY_TOPICS = ((RETURN, "退货"), (EXCHANGE, "换货"), (QUALITY, "质量争议"))
@@ -113,6 +122,10 @@ def _distinct(values: list[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))
 
 
+def _has(text: str, markers: tuple[str, ...]) -> bool:
+    return any(marker in text for marker in markers)
+
+
 @dataclass(frozen=True)
 class ParsedRequest:
     intents: frozenset[str]
@@ -135,7 +148,8 @@ def parse_request(texts: tuple[str, ...]) -> ParsedRequest:
         rule_question=any(marker in text for marker in _RULE_MARKERS),
         personal=any(marker in text for marker in _PERSONAL_MARKERS),
         order_state=any(marker in text for marker in _ORDER_STATE_MARKERS),
-        boundary=any(marker in text for marker in _PRIVILEGED_MARKERS + _ACTION_MARKERS),
+        boundary=(_has(text, _SIDE_EFFECT_MARKERS)
+                  or (_has(text, _PRIVILEGED_MARKERS) and _has(text, _CROSS_IDENTITY_MARKERS))),
     )
 
 
