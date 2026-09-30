@@ -340,6 +340,16 @@ def _reuse_allowed(cases, *, policy_factory, max_steps):
     return evaluations
 
 
+def _scope_free_rules_widen(category, selected, policies):
+    return sorted(ref for ref, targets in selected.items()
+                  if category in targets or not policies[ref].scope)
+
+
+def _general_joins_explicit(category, selected, policies):
+    return sorted(ref for ref, targets in selected.items()
+                  if category in targets or (None in targets and not policies[ref].scope))
+
+
 def _patch(owner, name, value):
     return lambda: mock.patch.object(owner, name, value)
 
@@ -372,6 +382,13 @@ MUTANTS = (
      (DatasetRunTests, "test_factory_is_called_once_per_case_without_arguments")),
     ("reused_instance_accepted", _patch(dataset, "run_dataset", _reuse_allowed),
      (DatasetRunTests, "test_reused_policy_instance_fails_loudly")),
+    ("scope_free_rule_widened", _patch(ev, "_applicable_window_refs", _scope_free_rules_widen),
+     (evidence_tests.GeneralSelectionFallbackTests,
+      "test_scope_free_rule_is_not_widened_without_an_observed_general_selection")),
+    ("general_joins_explicit_winner",
+     _patch(ev, "_applicable_window_refs", _general_joins_explicit),
+     (evidence_tests.GeneralSelectionFallbackTests,
+      "test_explicit_category_winner_overrides_the_general_selection")),
     ("labels_reach_policy", _patch(dataset, "evaluate_case", _labels_reach_the_policy),
      (EvaluateCaseTests, "test_evaluate_case_never_lets_labels_reach_the_policy")),
 )

@@ -34,8 +34,23 @@ Derivation families, in this fixed order
                               observed window rule declares
     item_window_eligibility   every order_item#category of get_order(order_id=X)
                               x the complete get_logistics(order_id=X) result x
-                              every observed window rule whose own evidence
-                              lists that category in selected_categories
+                              the observed window rules that apply to that
+                              category (see "Which rule applies to an item")
+
+Which rule applies to an item
+    The catalog already applied precedence when it answered the search; its
+    choice is read back from each observed rule's
+    metadata["selected_categories"]. A string target is an explicit selection
+    for that category; None is the catalog's general selection (category=None,
+    which only ever picks scope-free rules). For an item of category X and a
+    window rule type T, among observed rules only:
+
+        explicit  rules of type T selected for X          -> these only
+        else      scope-free rules of type T selected for None
+        else      no window fact
+
+    A scope-free rule is never widened on its own: without an observed None
+    selection it applies only to the categories it was selected for.
 
 NotDerivable is a diagnostic: it becomes a `not_derivable` DerivationRecord
 with its stable code and the other derivations go on. ValueError (and the eval
@@ -414,7 +429,7 @@ def _enrich(virtual_now: object, observations: object, *,
             value = category.metadata["value"]
             if not isinstance(value, str) or not value.strip():
                 raise EvalEvidenceError("order_item category must be a non-empty string")
-            refs = sorted(ref for ref, categories in selected.items() if value in categories)
+            refs = _applicable_window_refs(value, selected, policies)
             for shipment in logistics:
                 if _order_argument(shipment) != order_id:
                     continue
@@ -525,15 +540,18 @@ def _observed_policies(seen: list[_Seen]) -> dict[str, PolicyRecord]:
             if record.rule_type in WINDOW_RULE_TYPES}
 
 
-def _selected_categories(seen: list[_Seen],
-                         policies: dict[str, PolicyRecord]) -> dict[str, frozenset[str]]:
-    """Window-rule ref -> item categories its own observed evidence selected it for.
+def _selected_categories(seen: list[_Seen], policies: dict[str, PolicyRecord]
+                         ) -> dict[str, frozenset[str | None]]:
+    """Window-rule ref -> the targets its own observed evidence selected it for.
 
-    The catalog's precedence already chose the rule per category; this only
-    reads that choice back from metadata["selected_categories"]. Missing or
-    self-contradictory metadata raises.
+    A target is an item category, or None for the catalog's general selection.
+    The catalog's precedence already chose the rule per target; this only
+    reads that choice back from metadata["selected_categories"]. Missing,
+    self-contradictory or impossible metadata raises: None on a scoped rule, a
+    category outside a scoped rule's scope, or one (target, rule type) with
+    winners that disagree on priority or params.
     """
-    selected: dict[str, set[str]] = {ref: set() for ref in policies}
+    selected: dict[str, set[str | None]] = {ref: set() for ref in policies}
     for item in seen:
         per_ref: dict[str, str] = {}
         for entry in _policy_evidence(item):
@@ -552,18 +570,30 @@ def _selected_categories(seen: list[_Seen],
                                         "selected_categories")
             record = policies[ref]
             for category in categories:
-                if category is None:
-                    continue
-                if record.scope and category not in record.scope:
+                if category is None and record.scope:
+                    raise EvalEvidenceError("general selection names a scoped rule")
+                if category is not None and record.scope and category not in record.scope:
                     raise EvalEvidenceError("selected category lies outside the rule's scope")
                 selected[ref].add(category)
-    # One (category, rule type) must never resolve to disagreeing rules.
-    chosen: dict[tuple[str, object], tuple[int, str]] = {}
+    # One (target, rule type) must never resolve to disagreeing rules.
+    chosen: dict[tuple[str | None, object], tuple[int, str]] = {}
     for ref in sorted(selected):
         record = policies[ref]
         signature = (record.priority, canonical_json(dict(record.params)))
-        for category in selected[ref]:
-            if chosen.setdefault((category, record.rule_type), signature) != signature:
+        for target in selected[ref]:
+            if chosen.setdefault((target, record.rule_type), signature) != signature:
                 raise EvalEvidenceError("observed policies select disagreeing rules for "
-                                        "one category")
-    return {ref: frozenset(categories) for ref, categories in selected.items()}
+                                        "one target")
+    return {ref: frozenset(targets) for ref, targets in selected.items()}
+
+
+def _applicable_window_refs(category: str, selected: dict[str, frozenset[str | None]],
+                            policies: dict[str, PolicyRecord]) -> list[str]:
+    """Observed rules for one item category: explicit winner > general fallback > none."""
+    refs: list[str] = []
+    for rule_type in sorted(WINDOW_RULE_TYPES, key=lambda member: member.value):
+        of_type = [ref for ref in sorted(selected) if policies[ref].rule_type is rule_type]
+        explicit = [ref for ref in of_type if category in selected[ref]]
+        general = [ref for ref in of_type if None in selected[ref] and not policies[ref].scope]
+        refs.extend(explicit or general)
+    return sorted(refs)

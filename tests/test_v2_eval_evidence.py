@@ -13,7 +13,7 @@ import inspect
 import json
 import sqlite3
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -70,6 +70,7 @@ USER_TEXT = "SECRET-USER-TEXT-SENTINEL"
 PROMO = "policy:november-promo-return@1#build-0001"
 STANDARD_RETURN = "policy:standard-return@1#build-0001"
 APPAREL_EXCHANGE = "policy:apparel-exchange@1#build-0001"
+STANDARD_EXCHANGE = "policy:standard-exchange@1#build-0001"
 
 
 # --------------------------------------------------------------------------
@@ -535,6 +536,143 @@ class PolicyProvenanceTests(unittest.TestCase):
         observed = {item.metadata["policy_ref"] for item in record.observations[0].result.evidence}
         self.assertIn(PROMO, observed)
         self.assertEqual(set(looked_up), observed)
+
+
+# --------------------------------------------------------------------------
+# Explicit category winner > observed general (None) selection > nothing
+# --------------------------------------------------------------------------
+
+
+def recategorized(**categories):
+    """An order_items overlay setting item categories, e.g. OI_1001_1="家居"."""
+    return {"order_items": {key.replace("_", "-"): {"op": "update", "set": {"category": value}}
+                            for key, value in categories.items()}}
+
+
+def item_window_records(state, item):
+    return [(r.fact_key, r.status, r.code, r.policy_refs)
+            for r in records_of(state, "item_window_eligibility")
+            if r.subject == "order_item:" + item]
+
+
+def observed_selection(state):
+    """policy_ref -> selected_categories, as the search observations reported them."""
+    return {item.evidence.metadata["policy_ref"]: item.evidence.metadata["selected_categories"]
+            for item in state.evidence_items if item.producer == "search_after_sales_policy"}
+
+
+def forged_policy_evidence(ref, *, as_of, selected_categories):
+    """Structurally valid evidence for a real catalog rule, rendered as the adapter does."""
+    snapshot = policy_catalog.PublishedPolicyCatalog().snapshot()
+    record = snapshot.lookup(ref)
+    versions = {doc: (version, digest) for doc, version, digest in snapshot.source_versions}
+    version, digest = versions[record.source_doc]
+    return policy_catalog.policy_evidence(
+        record, as_of=datetime.fromisoformat(as_of), source_version=version,
+        source_digest=digest, provenance=json.loads(dict(snapshot.provenance)[record.policy_id]),
+        selected_categories=selected_categories)
+
+
+def with_categories(ref, categories):
+    def edit(items):
+        for item in items:
+            if item.metadata["policy_ref"] == ref:
+                item.metadata["selected_categories"] = list(categories)
+        return items
+    return edit
+
+
+GENERAL_RETURN = (search("退货"), get_order(), get_logistics())
+GENERAL_EXCHANGE = (search("换货"), get_order(), get_logistics())
+
+
+class GeneralSelectionFallbackTests(unittest.TestCase):
+    def test_general_return_rule_applies_to_an_unscoped_category(self):
+        state = scenario_state((recategorized(OI_1001_1="家居"), GENERAL_RETURN),
+                               virtual_now=AFTER_PROMO)
+        self.assertEqual(observed_selection(state)[STANDARD_RETURN], [None, "定制", "服装"])
+        window = facts(state, "within_return_window", "order_item:OI-1001-1")
+        self.assertEqual([(f.value, f.policy_refs) for f in window],
+                         [(False, (STANDARD_RETURN,))])
+        self.assertEqual(window[0].details["category"], "家居")
+        self.assertEqual(window[0].details["days_since_delivery"], 35)
+
+    def test_general_exchange_rule_applies_to_unscoped_categories(self):
+        state = scenario_state((recategorized(OI_1001_1="家居", OI_1001_2="数码"),
+                                GENERAL_EXCHANGE))
+        self.assertEqual(observed_selection(state)[STANDARD_EXCHANGE], [None, "定制"])
+        for item, category in (("OI-1001-1", "家居"), ("OI-1001-2", "数码")):
+            with self.subTest(category=category):
+                window = facts(state, "within_exchange_window", "order_item:" + item)
+                self.assertEqual([(f.value, f.policy_refs, f.details["category"])
+                                  for f in window], [(True, (STANDARD_EXCHANGE,), category)])
+        self.assertEqual(facts(state, "within_return_window"), [])
+
+    def test_explicit_category_winner_overrides_the_general_selection(self):
+        state = scenario_state((dict(), GENERAL_EXCHANGE))
+        selection = observed_selection(state)
+        self.assertEqual(selection[STANDARD_EXCHANGE], [None, "定制"])
+        self.assertEqual(selection[APPAREL_EXCHANGE], ["服装"])
+        # 服装: the apparel winner only - no second fact from the general rule.
+        self.assertEqual(item_window_records(state, "OI-1001-1"),
+                         [("within_exchange_window", "produced", None, (APPAREL_EXCHANGE,))])
+        apparel = facts(state, "within_exchange_window", "order_item:OI-1001-1")
+        self.assertEqual([(f.value, f.policy_refs, f.details["window_days"]) for f in apparel],
+                         [(True, (APPAREL_EXCHANGE,), 30)])
+        # 贴身衣物 has no explicit winner: the observed general selection applies.
+        self.assertEqual(item_window_records(state, "OI-1001-2"),
+                         [("within_exchange_window", "produced", None, (STANDARD_EXCHANGE,))])
+
+    def test_general_fallback_keeps_catalog_precedence(self):
+        state = scenario_state((recategorized(OI_1001_1="家居"), GENERAL_RETURN))
+        self.assertNotIn(STANDARD_RETURN, observed_selection(state))
+        window = facts(state, "within_return_window", "order_item:OI-1001-1")
+        self.assertEqual([(f.value, f.policy_refs, f.details["window_days"]) for f in window],
+                         [(True, (PROMO,), 15)])
+        for record in state.derivation_records:
+            self.assertNotIn(STANDARD_RETURN, record.policy_refs)
+
+    def test_scope_free_rule_is_not_widened_without_an_observed_general_selection(self):
+        state = scenario_state((recategorized(OI_1001_1="家居"),
+                                (search("退货 服装"), get_order(), get_logistics())))
+        self.assertEqual(observed_selection(state)[PROMO], ["服装"])
+        self.assertEqual(item_window_records(state, "OI-1001-1"), [])
+        self.assertEqual(facts(state, subject="order_item:OI-1001-1"), [])
+        self.assertEqual(facts(state, subject="order_item:OI-1001-2"), [])
+
+    def test_general_fallback_still_meets_the_multi_package_gate(self):
+        state = scenario_state((dict(), (search("退货"), get_order("ORD-1004"),
+                                         get_logistics("ORD-1004"))))
+        self.assertEqual(facts(state, "within_return_window"), [])
+        for item in ("OI-1004-1", "OI-1004-2"):  # 家居, 家电: general fallback
+            with self.subTest(item=item):
+                self.assertEqual(item_window_records(state, item), [
+                    ("within_return_window", "not_derivable", "item_package_link_ambiguous",
+                     (PROMO,))])
+
+    def test_general_selection_on_a_scoped_rule_fails_loudly(self):
+        record = scenario_record((dict(), GENERAL_EXCHANGE))
+        edited = edited_policy_result(record, 0, with_categories(APPAREL_EXCHANGE,
+                                                                 [None, "服装"]))
+        with self.assertRaises(EvalEvidenceError):
+            derive_evidence_state(edited)
+
+    def test_disagreeing_winners_for_one_category_fail_loudly(self):
+        record = scenario_record((dict(), GENERAL_EXCHANGE))
+        edited = edited_policy_result(record, 0, with_categories(STANDARD_EXCHANGE,
+                                                                 [None, "定制", "服装"]))
+        with self.assertRaises(EvalEvidenceError) as raised:
+            derive_evidence_state(edited)
+        self.assertIn("disagreeing", str(raised.exception))
+
+    def test_disagreeing_general_winners_fail_loudly(self):
+        record = scenario_record((dict(), GENERAL_RETURN))
+        standard = forged_policy_evidence(STANDARD_RETURN, as_of=NOW, selected_categories=[None])
+        # The forged rule passes provenance validation; the None target is what breaks.
+        edited = edited_policy_result(record, 0, lambda items: items + list(standard))
+        with self.assertRaises(EvalEvidenceError) as raised:
+            derive_evidence_state(edited)
+        self.assertIn("disagreeing", str(raised.exception))
 
 
 # --------------------------------------------------------------------------
