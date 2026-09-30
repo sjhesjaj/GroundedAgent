@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import copy
 import dataclasses
+import hashlib
 import inspect
 import json
 import re
@@ -67,6 +68,11 @@ CUSTOMER = "CUST-001"
 ORDER = "ORD-1001"
 SKU = "SKU-TSHIRT-M"
 SENTINEL = "SECRET-USER-TURN-SENTINEL"
+# Independently authored evaluation sets (eval/v2), pinned by raw-byte SHA-256.
+EXPECTED_DATASET_SHA256 = {
+    "dev.json": "dc8e00405afb9ef9e0dd2f14f1fc5b91b1a5f5dd45812fdcb4a798e97a93f5ab",
+    "validation.json": "50a0398d8e9f42afa3356cb89179b1b46c0fd00206a58046884ff75776575d2c",
+}
 LABEL_KEYS = ("expected_capabilities", "expected_evidence", "expected_answerability",
               "expected_action", "expected_final_state", "archetype")
 
@@ -1059,9 +1065,14 @@ class StaticBoundaryTests(unittest.TestCase):
                 source = control if hasattr(control, name) else runner
                 self.assertIs(getattr(eval_v2, name), getattr(source, name))
 
-    def test_no_dataset_files(self):
-        for name in ("dev.json", "validation.json"):
-            self.assertFalse((ROOT / "eval" / "v2" / name).exists())
+    def test_evaluation_datasets_match_authored_bytes(self):
+        # The formal datasets exist and stay byte-identical to the independently
+        # authored artifacts: raw bytes, no JSON parsing, no line-ending changes.
+        for name, expected in EXPECTED_DATASET_SHA256.items():
+            with self.subTest(dataset=name):
+                path = ROOT / "eval" / "v2" / name
+                self.assertTrue(path.is_file())
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), expected)
 
 
 # --------------------------------------------------------------------------
