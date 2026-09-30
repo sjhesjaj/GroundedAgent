@@ -1536,3 +1536,86 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
   - 未来 Stage 5 Tool Loop：同一次 case-run 中完全相同的 (tool_name, canonical arguments) 最多尝试 3 次。不得根据 dev / validation 表现调整。
   - Stage 4 只以 control-layer 指标关闭；共享的端到端生成对比推迟到 Stage 5（同一个 generator、同一组参数、同一个 generation / citation evaluator 同时用于冻结的 Baseline 与 Tool Loop）。
 - **状态**：holdout 仍封存（`eval/v2/holdout.json`、`holdout.receipt.json` 不在仓库内，未执行 unseal）；formal agent_runs = 0；尚未观察任何正式 dev / validation 结果。
+
+## 18. GroundedAgent V2 Stage 4：正式 Baseline 结果与关闭
+
+### Freeze
+
+- PR #19 merge commit：`f99d5c307e13d15626335bfeca06dbf7ee624fd5`（parents `d0358ed` / `673b917`）。
+- annotated tag：`v2-stage4-baseline`（tag object `a242e08bfe416551aa89b9ede18df9e18d18d47e`，peel 到 `f99d5c3`），在任何正式数据集运行之前创建。
+- baseline source SHA-256（`eval_v2/baseline.py` 提交字节）：`7b8a7753045777d84d6ac9118dcaa12e37592630738dc5946265d4a9dc71fc04`。
+- `FORMAL_MAX_STEPS = 5`。
+- Stage 4 Baseline（`eval_v2.baseline.Stage4BaselinePolicy`）：确定性、规则式、不调用 LLM、不重试、不做 observation → argument 串联。
+- 正式运行方式：`run_dataset(cases, policy_factory=Stage4BaselinePolicy, max_steps=FORMAL_MAX_STEPS)`，无过滤、无打乱、无并行、无自定义评分。
+
+### Formal DEV
+
+- 3 次完全相同的 trial × 40 cases（120 个 case-run）。
+- DatasetRun SHA：`1c8b0f731ed362aa4ad7fe6c5a0956eea587399fec1ede7f1dc799a60d578b20`（3/3 一致）。
+- 结果文件：`eval/v2/results/stage4-baseline-dev.json`（SHA-256 `b8077df3bc2bc206f469cd293882a271e0c444259c873daefea43460d419523a`），`stage4-baseline-dev.meta.json`（`84bce6723eb654486f79f730822f3a103890fd7e2156e7feb884ce4f0963a224`）。
+
+| 指标 | 结果 |
+|---|---|
+| control_success | 30/40 = 0.75 |
+| capabilities_ok | 31/40 = 0.775 |
+| clarification_ok | 39/40 = 0.975 |
+| evidence_ok | 33/40 = 0.825 |
+| final_ok | 37/40 = 0.925 |
+| db_ok | 40/40 = 1.0 |
+| average_control_steps | 3.4 |
+| termination | 40 finished / 0 unanswered_clarification / 0 max_steps_exceeded |
+| forbidden_evidence_present_count | 1 |
+
+- 数据库不变量：120/120 unchanged。
+
+### dev-A11-01 的解释
+
+- dev-A11-01 是一个 boundary false negative，即安全相关的分类弱点：冻结的 Baseline 选错了最终 disposition。
+- 它保留在官方 30/40 结果里。冻结后没有修复，因为：
+  - Stage 4 没有任何有副作用的工具，没有发生写入；
+  - 受信任身份没有改变；
+  - 没有绕过工具授权；
+  - 没有违反 runtime / runner 契约。
+- 因此它作为冻结的确定性 control policy 的一个已观察到的弱点被保留。没有创建 `v2-stage4-baseline.1` tag。
+
+### Formal VALIDATION
+
+- 3 次完全相同的 trial × 40 cases（120 个 case-run）。
+- DatasetRun SHA：`e4a6eb1023b1e95394874fe53b430ea5bd62103f39aeb0cfb5854f898600f039`（3/3 一致）。
+- 结果文件：`eval/v2/results/stage4-baseline-validation.json`（SHA-256 `ed988fe2b41fe34979432ac3301d462927c36ff1e8bba2db3070efd1ef9886c8`），`stage4-baseline-validation.meta.json`（`edbb4ec11af9f40cfb9e716d31c05e6a4051fb45eff44fef85178571097e5198`）。
+
+| 指标 | 结果 |
+|---|---|
+| control_success | 28/40 = 0.70 |
+| capabilities_ok | 31/40 = 0.775 |
+| clarification_ok | 39/40 = 0.975 |
+| evidence_ok | 33/40 = 0.825 |
+| final_ok | 36/40 = 0.90 |
+| db_ok | 40/40 = 1.0 |
+| average_control_steps | 3.575 |
+| termination | 40 finished / 0 unanswered_clarification / 0 max_steps_exceeded |
+| forbidden_evidence_present_count | 3 |
+
+- 数据库不变量：120/120 unchanged。
+- validation 不是调优集：这里只记录汇总指标。
+
+### DEV → VALIDATION 对比（仅描述）
+
+| 指标 | DEV | VALIDATION |
+|---|---|---|
+| control_success | 0.75 | 0.70 |
+| capabilities_ok | 0.775 | 0.775 |
+| clarification_ok | 0.975 | 0.975 |
+| evidence_ok | 0.825 | 0.825 |
+| final_ok | 0.925 | 0.90 |
+| db_ok | 1.0 | 1.0 |
+
+### Stage 4 最终状态
+
+**STAGE 4 CLOSED.**
+
+- 不允许再根据 DEV 或 VALIDATION 修改 `Stage4BaselinePolicy`。以后的改进属于 Stage 5 Tool Loop。
+- Stage 4 只报告 control-layer 指标。
+- 共享的 DeepSeek generation / citation / end-to-end 对比在 Stage 5 实现，并以完全相同的方式同时用于冻结的 Stage 4 Baseline 和 Stage 5 Tool Loop。
+- Stage 5 正式的相同调用重试上限仍为：每次 case-run 中，每个完全相同的 (tool_name, canonical arguments) 最多 3 次尝试。
+- holdout 仍然封存，从未运行；只在 Stage 5 结束时开封一次，用于冻结 Baseline 与冻结 Tool Loop 的对比。

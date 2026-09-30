@@ -1,0 +1,13 @@
+{
+  "schema": "v2-stage4-baseline-dev-meta/1",
+  "baseline_tag": "v2-stage4-baseline",
+  "baseline_commit": "f99d5c307e13d15626335bfeca06dbf7ee624fd5",
+  "baseline_source_sha256": "7b8a7753045777d84d6ac9118dcaa12e37592630738dc5946265d4a9dc71fc04",
+  "dataset": "dev",
+  "dataset_sha256": "dc8e00405afb9ef9e0dd2f14f1fc5b91b1a5f5dd45812fdcb4a798e97a93f5ab",
+  "max_steps": 5,
+  "trial_count": 3,
+  "case_count_per_trial": 40,
+  "dataset_run_sha256": "1c8b0f731ed362aa4ad7fe6c5a0956eea587399fec1ede7f1dc799a60d578b20",
+  "reproducible": true
+}
