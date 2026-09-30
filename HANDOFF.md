@@ -1512,3 +1512,27 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 多包裹歧义（Stage 4.3.8）：schema 没有 order_item → tracking_no 映射，同订单不等于同包裹。明细级窗口必须经 `derive_item_window_eligibility`（传入该订单一次观测的全部 delivered_at）：1 个包裹才计算，多个包裹为 `item_package_link_ambiguous`，不任选包裹；Stage 4.4 / 5 不得绕过该入口直接用低层 `derive_window_eligibility` 做明细级判断。
 - 完整报告、schema、CLI、diff、冻结方案、fixture 变更与边界：`docs/v2/stage4.3-handoff.md`。
 - 未开始 Stage 4.4、Planner/Router、Eval/数据集/holdout、Tool Loop、主聊天 API 切 V2、frontend、业务写动作、Guard 或 approval。
+
+## 17. GroundedAgent V2 Stage 4：Eval 完成、独立数据集与 Baseline 冻结前状态
+
+本节取代 §16 末尾「未开始 Stage 4.4 …」一句。
+
+- **Stage 4.4 Eval 管线已合入 main**（PR #15–#18，main `d0358ed`）：runtime、fault gateway、确定性 case runner、label-free evidence enrichment、Evidence Policy bridge、`expected_evidence` matcher、control-layer scorer、dataset runner。
+- **PR #19（`stage4-baseline-freeze`）是 Stage 4 最终的冻结前 PR。**
+- **数据集独立编写**：dev / validation 分别由两个全新的隔离上下文编写，各自只拿到 17 个冻结 author input（digest `7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8`），不接触 Planner、Baseline 或运行结果。仓库内按原始字节提交（`.gitattributes` 对这四个文件设窄 `-text` 规则，避免 autocrlf 改写字节）：
+  - `eval/v2/dev.json` SHA-256 `dc8e00405afb9ef9e0dd2f14f1fc5b91b1a5f5dd45812fdcb4a798e97a93f5ab`
+  - `eval/v2/validation.json` SHA-256 `50a0398d8e9f42afa3356cb89179b1b46c0fd00206a58046884ff75776575d2c`
+  - 两个哈希由 `tests/test_v2_case_runner.py::test_evaluation_datasets_match_authored_bytes` 按原始字节钉住。
+  - validation 的 receipt 用 `validation_json_sha256` 而不是 `sha256` 记录数据集哈希；数据集哈希已独立重算并匹配，因此接受原 receipt，不重写。
+- **Baseline**：`eval_v2.baseline.Stage4BaselinePolicy`，在隔离 worktree 中从 `d0358ed` 编写（编写时仓库里没有数据集），review 通过后 cherry-pick 进 PR #19。
+  - 原始 commit：`93f8fc40750704c40307be2a7d3a11379d061a79`（feat: deterministic Stage 4 baseline policy）；修正 commit：`71b79bce980adce52fa023f842692297bfd53976`（fix: align baseline boundary and step budget）。
+  - V1 Planner / Executor 未修改。
+  - 确定性、规则式、不调用 LLM、不重试；工具参数只来自用户文本，不做 observation → argument 串联。
+  - `FORMAL_MAX_STEPS = 5`（原定 4，冻结前修订：Clarify(order_id) → search_after_sales_policy → get_order → get_logistics → Finish 恰好需要 5 个 control step；修订发生在 0 次 dev / validation / holdout 运行之前）。runner `HARD_MAX_STEPS = 64` 只是安全上限。
+  - pre-freeze baseline source SHA-256（`eval_v2/baseline.py` 提交的 LF 字节，即 `git show HEAD:eval_v2/baseline.py`）：`7b8a7753045777d84d6ac9118dcaa12e37592630738dc5946265d4a9dc71fc04`。本机 autocrlf 工作区副本（CRLF）的原始字节哈希为 `003188f0deec0afe1a150397b91c51b5468684009635f75acf8bffca6b1c10c6`，二者内容相同。
+  - 最终 tag 与 merge commit SHA 在 merge / tag 之后再记录。
+- **冻结的协议决定**（首次正式数据集运行之前）：
+  - Stage 4 Baseline 不重试。
+  - 未来 Stage 5 Tool Loop：同一次 case-run 中完全相同的 (tool_name, canonical arguments) 最多尝试 3 次。不得根据 dev / validation 表现调整。
+  - Stage 4 只以 control-layer 指标关闭；共享的端到端生成对比推迟到 Stage 5（同一个 generator、同一组参数、同一个 generation / citation evaluator 同时用于冻结的 Baseline 与 Tool Loop）。
+- **状态**：holdout 仍封存（`eval/v2/holdout.json`、`holdout.receipt.json` 不在仓库内，未执行 unseal）；formal agent_runs = 0；尚未观察任何正式 dev / validation 结果。

@@ -1,0 +1,44 @@
+{
+  "schema": "v2-dataset-author-receipt/1",
+  "dataset": "dev",
+  "case_count": 40,
+  "sha256": "dc8e00405afb9ef9e0dd2f14f1fc5b91b1a5f5dd45812fdcb4a798e97a93f5ab",
+  "archetype_counts": {
+    "A01": 2,
+    "A02": 2,
+    "A03": 2,
+    "A04": 2,
+    "A05": 2,
+    "A06": 2,
+    "A07": 2,
+    "A08": 2,
+    "A09": 2,
+    "A10": 2,
+    "A11": 2,
+    "A12": 2,
+    "A13": 2,
+    "A14": 2,
+    "A15": 2,
+    "A16": 2,
+    "A17": 2,
+    "A18": 2,
+    "A19": 2,
+    "A20": 2
+  },
+  "final_counts": {
+    "answer": 29,
+    "boundary": 2,
+    "handoff": 2,
+    "refuse": 7
+  },
+  "persona_counts": {
+    "demo-a": 20,
+    "demo-b": 20
+  },
+  "distinct_virtual_now": 12,
+  "case_contract_errors": 0,
+  "foreign_key_errors": 0,
+  "input_content_digest": "7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8",
+  "agent_runs": 0,
+  "external_sources_used": false
+}
