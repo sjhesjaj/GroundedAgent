@@ -1674,3 +1674,44 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
   - 另一个签收状态冲突的 case 已取得正确证据，但仍选错最终 disposition（answer 而不是 refuse）。
   - 一个新回归：一个较大的推测性批次耗尽了 finish 之前的工具步数，依赖观察结果的库存查询没有机会执行。
   - 已有售后单进度查询的过度 handoff 仍然存在，按计划有意未修复。
+
+### DEV Round 3（有效，3 / 3，最终开发轮次）
+
+- source commit：`03b1893579eb13fdd04bffa1729afda870eeb576`（分支 `stage5-dev-r3`，基于 `a077ba5`）。改动：通用的、考虑步数预算的最小批次规划；结构化状态冲突成为硬性停止的 refuse。
+- 运行设置与 Round 1 / 2 相同（1 次 trial × 40 cases，formal DeepSeek `deepseek-flash`，temperature 0，max_tokens 512，`max_steps = 5`）。
+- DatasetRun SHA：`1fd95bfa9b813eb67ac6148e36753e5da9d052d3365ab4e3e7cd73a782192f20`。
+- 结果文件：`eval/v2/results/stage5-tool-loop-dev-r3.json`（SHA-256 `6e4f0dc8cfe4c777a65d6a69c458efe3b1ab9cfad20e1c21237247552c132deb`），`stage5-tool-loop-dev-r3.meta.json`（`aefa8256bc0b312676f60df7b0c48329aa687538a0603e23b212c122bfbc3212`），`stage5-tool-loop-dev-r3.protocol.json`（`066ea7041300337600010552b4cb4983e4039cb8f5f2497a1df1e43abc04f720`）。
+
+| 指标 | Round 3 | Round 2 | Round 1 | Stage 4 Baseline DEV |
+|---|---|---|---|---|
+| control_success | 38/40 = 0.95 | 37/40 = 0.925 | 36/40 = 0.90 | 30/40 = 0.75 |
+| capabilities_ok | 39/40 = 0.975 | 39/40 = 0.975 | 38/40 = 0.95 | 31/40 = 0.775 |
+| clarification_ok | 40/40 = 1.0 | 40/40 = 1.0 | 39/40 = 0.975 | 39/40 = 0.975 |
+| evidence_ok | 39/40 = 0.975 | 39/40 = 0.975 | 38/40 = 0.95 | 33/40 = 0.825 |
+| final_ok | 39/40 = 0.975 | 38/40 = 0.95 | 36/40 = 0.90 | 37/40 = 0.925 |
+| db_ok | 40/40 = 1.0 | 40/40 = 1.0 | 40/40 = 1.0 | 40/40 = 1.0 |
+| average_control_steps | 3.675 | 3.85 | 3.425 | 3.4 |
+
+- 原生协议：model_calls 105；accepted_multi_runtime_batches 32（批次大小 2→25，3→4，4→3）；全部模型协议诊断码为 0；provider_errors = 0；`ToolLoopProtocolError` = 0。
+- tokens：prompt 576790，completion 7085。
+- 数据库不变量：40/40 unchanged。
+- 保留的已知 DEV 弱点：
+  1. 一个复杂的换货 / 库存 case 仍可能用一个过大的推测性 runtime 批次耗尽工具步数；
+  2. 一个已有售后单进度查询仍可能过度选择 handoff。
+
+### 候选选择与冻结
+
+**STAGE 5 CONTROL DEVELOPMENT CLOSED.**
+
+- 有效 DEV 轮次：**3 / 3**。
+- 选定候选：Round 3，`03b1893579eb13fdd04bffa1729afda870eeb576`。
+- 冻结 tag：annotated **`v2-stage5-tool-loop`**（tag object `18c051305e438ee1b63a67ee0c8f033b3b14a86a`），peel 到 `03b1893`（source 候选，而不是之后的评测记录 commit）。该 tag 永不移动。
+- 选择依据：
+  - 三个候选中 DEV control_success 最高；
+  - Round 3 修复了剩下的结构化签收冲突失败；
+  - 相对 Round 2 没有观察到回归；
+  - Round 3 的失败集合是 Round 2 失败集合的子集；
+  - 平均 control steps 低于 Round 2；
+  - 协议 / runtime 不变量保持干净。
+- 这里不声称任何 validation 或 holdout 表现。
+- 从此不得再基于 DEV、VALIDATION 或 HOLDOUT 修改 Tool Loop / prompt / 协议。
