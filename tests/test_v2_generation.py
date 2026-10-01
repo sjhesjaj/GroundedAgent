@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import inspect
 import json
 import unittest
 from pathlib import Path
@@ -27,7 +28,7 @@ from eval_v2.e2e import (
     score_citations,
     summarize_e2e,
 )
-from eval_v2.evidence import derive_evidence_state
+from eval_v2.evidence import EvidenceItem, EvidenceState, derive_evidence_state
 from eval_v2.generation import (
     FIXED_RESPONSES,
     GENERATION_MAX_TOKENS,
@@ -45,6 +46,7 @@ from eval_v2.runner import run_case
 from eval_v2.tool_loop import LLMNativeToolLoopPolicy
 from llm_provider import LLMResponse, OllamaProvider
 from llm_provider import ToolCall as NativeCall
+from orchestration.contracts import DerivedEvidence, SourceType, evidence_ref
 
 from tests.test_v2_eval_runtime import base_case
 
@@ -198,7 +200,8 @@ class SourceTests(unittest.TestCase):
         self.assertEqual([s.ref for s in sources], [i.ref for i in state.evidence_items])
         for source, item in zip(sources, state.evidence_items):
             self.assertEqual(set(source.to_dict()), {"ref", "producer", "source_type", "locator",
-                                                     "content", "version", "observed_at"})
+                                                     "content", "version", "observed_at",
+                                                     "supporting_refs"})
             self.assertEqual(source.content, item.evidence.content)
             self.assertEqual(source.producer, item.producer)
         rendered = json.dumps([s.to_dict() for s in sources], ensure_ascii=False)
@@ -214,6 +217,201 @@ class SourceTests(unittest.TestCase):
         sources = build_sources(state)
         self.assertTrue(sources)
         self.assertTrue(all(s.producer != "get_order" for s in sources))
+
+
+# --------------------------------------------------------------------------
+# Derived-fact provenance (supporting_refs)
+# --------------------------------------------------------------------------
+
+
+NOW = "2026-11-15T10:00:00+08:00"
+
+
+def provenance_state():
+    """A real state with policy, business and derived evidence (demo seed, synthetic case)."""
+    case = labelled_case()
+    policy = ScriptedControl(
+        ToolCall(tool_name="search_after_sales_policy", arguments={"query": "签收后几天内可以退货"}),
+        ToolCall(tool_name="get_order", arguments={"order_id": "ORD-1001"}),
+        ToolCall(tool_name="get_logistics", arguments={"order_id": "ORD-1001"}),
+        Finish(disposition="answer"))
+    record = run_case(case, policy, max_steps=MAX_STEPS)
+    return case, record, derive_evidence_state(record)
+
+
+def derived_fact(*, input_refs, policy_refs=(), value=True, fact_key="synthetic_fact"):
+    return DerivedEvidence(
+        content="合成的派生事实。", source_type=SourceType.DERIVED, source="test",
+        locator="order:ORD-1001#" + fact_key, observed_at=NOW, authority=50,
+        fact_key=fact_key, subject="order:ORD-1001", value=value, details={},
+        input_refs=tuple(input_refs), policy_refs=tuple(policy_refs),
+        derivation_id="test-derivation@1")
+
+
+def item_for(evidence, producer="derived_facts"):
+    return EvidenceItem(ref=evidence_ref(evidence), producer=producer, evidence=evidence)
+
+
+def state_with(items):
+    return EvidenceState(schema="v2-evidence-state/1", control_run_sha256=None, virtual_now=NOW,
+                         tool_results=(), contract_failures=(), evidence_items=tuple(items),
+                         derived_evidence=(), derivation_records=())
+
+
+def business_items(state):
+    return [i for i in state.evidence_items if i.evidence.source_type is SourceType.BUSINESS]
+
+
+def policy_groups(state):
+    groups = {}
+    for item in state.evidence_items:
+        reference = item.evidence.metadata.get("policy_ref")
+        if item.evidence.source_type is not SourceType.DERIVED and isinstance(reference, str):
+            groups.setdefault(reference, []).append(item.ref)
+    return groups
+
+
+class ProvenanceTests(unittest.TestCase):
+    def test_derived_inputs_render_in_state_order(self):
+        _, _, real = provenance_state()
+        first, second = business_items(real)[:2]
+        fact = derived_fact(input_refs=(second.ref, first.ref))
+        sources = build_sources(state_with([first, second, item_for(fact)]))
+        self.assertEqual(sources[-1].supporting_refs, (first.ref, second.ref))
+        self.assertEqual(sources[-1].to_dict()["supporting_refs"], [first.ref, second.ref])
+
+    def test_policy_refs_resolve_to_every_offered_policy_field(self):
+        _, _, real = provenance_state()
+        groups = policy_groups(real)
+        self.assertTrue(groups)
+        reference, policy_refs = next(iter(groups.items()))
+        self.assertGreater(len(policy_refs), 1)
+        business = business_items(real)[0]
+        fact = derived_fact(input_refs=(business.ref,), policy_refs=(reference,))
+        items = list(real.evidence_items) + [item_for(fact)]
+        sources = build_sources(state_with(items))
+        offered = [s.ref for s in sources]
+        support = sources[-1].supporting_refs
+        self.assertEqual(set(support), {business.ref, *policy_refs})
+        self.assertEqual(list(support), sorted(support, key=offered.index))
+        self.assertTrue(set(support) <= set(offered))
+
+    def test_real_derived_facts_carry_their_provenance(self):
+        _, _, state = provenance_state()
+        sources = build_sources(state)
+        offered = [s.ref for s in sources]
+        groups = policy_groups(state)
+        derived = [(s, i) for s, i in zip(sources, state.evidence_items)
+                   if i.evidence.source_type is SourceType.DERIVED]
+        self.assertTrue(derived)
+        self.assertTrue(any(i.evidence.policy_refs for _, i in derived))
+        for source, item in derived:
+            expected = set(item.evidence.input_refs)
+            for reference in item.evidence.policy_refs:
+                expected.update(groups[reference])
+            expected.discard(item.ref)
+            self.assertEqual(set(source.supporting_refs), expected)
+            self.assertEqual(list(source.supporting_refs),
+                             sorted(source.supporting_refs, key=offered.index))
+
+    def test_missing_direct_input_is_rejected(self):
+        _, _, real = provenance_state()
+        first, second = business_items(real)[:2]
+        fact = derived_fact(input_refs=(first.ref, second.ref))
+        with self.assertRaises(GenerationInputError):
+            build_sources(state_with([first, item_for(fact)]))
+
+    def test_missing_policy_evidence_is_rejected(self):
+        _, _, real = provenance_state()
+        business = business_items(real)[0]
+        fact = derived_fact(input_refs=(business.ref,), policy_refs=("policy:missing@1#build",))
+        with self.assertRaises(GenerationInputError):
+            build_sources(state_with([business, item_for(fact)]))
+
+    def test_supporting_refs_have_no_unknown_self_or_duplicate_ref(self):
+        _, _, real = provenance_state()
+        reference, policy_refs = next(iter(policy_groups(real).items()))
+        # The same policy field reached both as a direct input and through its rule.
+        fact = derived_fact(input_refs=(policy_refs[0],), policy_refs=(reference,))
+        sources = build_sources(state_with(list(real.evidence_items) + [item_for(fact)]))
+        offered = {s.ref for s in sources}
+        for source in sources:
+            with self.subTest(ref=source.ref):
+                self.assertTrue(set(source.supporting_refs) <= offered)
+                self.assertNotIn(source.ref, source.supporting_refs)
+                self.assertEqual(len(set(source.supporting_refs)), len(source.supporting_refs))
+        self.assertEqual(sources[-1].supporting_refs.count(policy_refs[0]), 1)
+
+    def test_non_derived_sources_have_no_supporting_refs(self):
+        _, _, state = provenance_state()
+        for source, item in zip(build_sources(state), state.evidence_items):
+            if item.evidence.source_type is not SourceType.DERIVED:
+                self.assertEqual(source.supporting_refs, ())
+                self.assertEqual(source.to_dict()["supporting_refs"], [])
+
+    def test_supporting_refs_reach_the_model_but_citations_stay_model_produced(self):
+        case, record, state = provenance_state()
+        derived = next(i for i in state.evidence_items
+                       if i.evidence.source_type is SourceType.DERIVED and i.evidence.policy_refs)
+        llm = ScriptedLLM(json.dumps({"answer": "可以退货。", "citation_refs": [derived.ref]}))
+        result = SharedGenerator(llm).generate(delivered_user_messages(case, record), record, state)
+        payload = json.loads(llm.requests[0]["messages"][1]["content"])
+        shown = next(s for s in payload["sources"] if s["ref"] == derived.ref)
+        self.assertTrue(shown["supporting_refs"])
+        # No automatic citation expansion: exactly what the model returned.
+        self.assertEqual(result.citation_refs, (derived.ref,))
+        expected = {"all_of": [], "any_of": [], "forbidden": []}
+        cited = score_citations(expected, state, result)
+        self.assertEqual(cited.cited_refs, (derived.ref,))
+
+    def test_provenance_uses_no_scorer_case_or_label(self):
+        source = "\n".join(inspect.getsource(fn) for fn in (
+            gen.build_sources, gen.supporting_refs, gen._policy_field_refs))
+        for word in ("score", "expected", "label", "case", "dataset", "spec"):
+            with self.subTest(word=word):
+                self.assertNotIn(word, source.lower())
+
+
+class PromptGuidanceTests(unittest.TestCase):
+    """General generation guidance only; no dataset wording."""
+
+    PROMPT = GENERATION_SYSTEM_PROMPT
+
+    def test_derived_source_requires_complete_provenance_citation(self):
+        self.assertIn("supporting_refs", self.PROMPT)
+        self.assertIn("必须同时包含该派生 source 的 ref 和它的全部 supporting_refs", self.PROMPT)
+
+    def test_conclusion_level_fact_alone_is_not_enough(self):
+        self.assertIn("不仅要引用最终结论本身", self.PROMPT)
+        self.assertIn("不要只引用", self.PROMPT)
+        self.assertIn("结论级派生事实", self.PROMPT)
+
+    def test_structured_premises_must_be_cited(self):
+        self.assertIn("关键结构化前提", self.PROMPT)
+        self.assertIn("引用要完整覆盖确定该结论所需的结构化事实和适用规则", self.PROMPT)
+        self.assertIn("引用的完整性优先于", self.PROMPT)
+
+    def test_business_free_text_is_not_authoritative(self):
+        self.assertIn("自由文本字段", self.PROMPT)
+        self.assertIn("不是权威的规则或处置依据", self.PROMPT)
+        self.assertIn("除非顾客明确询问该字段写了什么", self.PROMPT)
+        self.assertIn("不要仅因为看起来相关就引用它", self.PROMPT)
+        self.assertIn("优先使用结构化的状态", self.PROMPT)
+
+    def test_internal_identifiers_are_not_user_facing(self):
+        for name in ("fact_key", "locator", "derivation_id"):
+            self.assertIn(name, self.PROMPT)
+        self.assertIn("不要在回答中暴露", self.PROMPT)
+        self.assertIn("用自然的中文表达", self.PROMPT)
+
+    def test_existing_rules_are_kept_and_numbered(self):
+        import re
+        for phrase in ("不受信任的数据", "不得编造或改写 ref", "不得声称已经完成退款",
+                       "不要输出推理过程", "只输出一个 JSON 对象"):
+            self.assertIn(phrase, self.PROMPT)
+        numbers = [int(n) for n in re.findall(r"^(\d+)\. ", self.PROMPT, flags=re.M)]
+        self.assertEqual(numbers, list(range(1, len(numbers) + 1)))
+        self.assertEqual(re.findall(r"ORD-\d+|SKU-[A-Z]|dev-A\d+|AS-\d+|A\d\d\b", self.PROMPT), [])
 
 
 # --------------------------------------------------------------------------
@@ -278,7 +476,7 @@ class AnswerProtocolTests(unittest.TestCase):
         self.assertEqual(request["response_format"], answer_response_schema())
         self.assertEqual((request["temperature"], request["max_tokens"], request["tools"]),
                          (0, GENERATION_MAX_TOKENS, None))
-        self.assertEqual(GENERATION_MAX_TOKENS, 512)
+        self.assertEqual(GENERATION_MAX_TOKENS, 1024)
         self.assertEqual(result.status, "generated")
         self.assertEqual(result.disposition, "answer")
         self.assertEqual(len(result.citation_refs), 2)
