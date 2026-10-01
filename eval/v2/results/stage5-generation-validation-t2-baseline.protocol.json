@@ -1,0 +1,287 @@
+{
+  "schema": "v2-stage5-generation-validation-protocol/1",
+  "trial": 2,
+  "arm": "baseline",
+  "cases": [
+    {
+      "case_id": "val-A01-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 420,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A01-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 372,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A02-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 251,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A02-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 431,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A03-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 439,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A03-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 431,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A04-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 224,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A04-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 456,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A05-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 48,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A05-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 346,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A06-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 272,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A06-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 315,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A07-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A07-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A08-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 188,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A08-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 277,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A09-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 77,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A09-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 97,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A10-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A10-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A11-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 460,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A11-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 298,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A12-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 345,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A12-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A13-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 440,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A13-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 282,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A14-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A14-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 44,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A15-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 336,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A15-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 189,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A16-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 563,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A16-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 320,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A17-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 458,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A17-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 423,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A18-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 466,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A18-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 484,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A19-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 235,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A19-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 213,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A20-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 393,
+      "control_decisions": null
+    },
+    {
+      "case_id": "val-A20-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 626,
+      "control_decisions": null
+    }
+  ]
+}

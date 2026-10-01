@@ -1819,3 +1819,27 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - **`GENERATION_MAX_TOKENS`**：Round 1 为 512，冻结的 Round 2 为 **1024**。原因：Round 2 扩展后的来源引用契约会产生明显更长的合法 JSON 回复；DEV R2 有 6 个回复超过 512 completion tokens，观察到的最大值为 699。因此 1024 是冻结的 R2 generation 配置的一部分；**不得基于 VALIDATION 或 HOLDOUT 修改，以后也不再上调。**
 - DeepSeek 的 wire 格式仍为 `response_format = json_object`，加上 provider 注入的 JSON Schema 指令；这**不是**原生 JSON-Schema 约束解码。
 - 从此冻结：控制（`Stage4BaselinePolicy`、`LLMNativeToolLoopPolicy`、`max_steps = 5`）与 generation（`SharedGenerator`、generation prompt、`supporting_refs` 行为、固定的非 answer 渲染、citation 协议、citation 评分器、`GENERATION_MAX_TOKENS = 1024`、temperature 0、DeepSeek formal provider）。不得基于 validation 做任何源码修改。
+
+## 22. GroundedAgent V2 Stage 5：冻结 generation 的配对 VALIDATION
+
+- 冻结栈：控制 `v2-stage4-baseline`（`f99d5c3`）与 `v2-stage5-tool-loop`（`03b1893`）；generation `v2-stage5-generation`（`2ab48dc`）。运行时 HEAD `123ee21`（相对冻结 source 只多了评测记录）。
+- 运行：3 个配对 trial × 2 臂 × 40 cases = 240 个 case-run；同一个冻结的 `SharedGenerator(provider, formal=True)`；DeepSeek `deepseek-flash`，temperature 0，max_tokens 1024，thinking disabled，`max_steps = 5`。invalidated attempts = 0。
+- 3 个 trial 全部报告，不挑选、不平均掉任何 trial。
+
+| 指标 | Baseline T1 | T2 | T3 | Tool Loop T1 | T2 | T3 |
+|---|---|---|---|---|---|---|
+| 控制 control_success | 28/40 | 28/40 | 28/40 | 33/40 | 33/40 | 31/40 |
+| generation_ok | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 | 40/40 |
+| generation 协议错误 | 0 | 0 | 0 | 0 | 0 | 0 |
+| answer-only citation_grounding | 23/34 | 25/34 | 25/34 | 23/30 | 22/31 | 21/30 |
+| overall citation_grounding | 29/40 | 31/40 | 31/40 | 33/40 | 31/40 | 31/40 |
+| forbidden_citation_used | 0 | 0 | 0 | 2 | 2 | 2 |
+| e2e_grounded_success | 24/40 | 26/40 | 26/40 | 31/40 | 30/40 | 28/40 |
+
+- Tool Loop 的 forbidden citation 全部出现在控制层已经失败的 case 中（控制与 generation 都通过、却引用了 forbidden 证据的 case 在所有臂中都是 0）。
+- Baseline 三个 trial 的控制记录与冻结的 Stage 4 validation 记录逐 case 字节一致。
+- 硬性不变量：数据库 240/240 unchanged；provider 错误 0；`ToolLoopProtocolError` 0；`E2EIntegrityError` 0；无副作用；没有越过 allowed_tools 的调用到达 executor；没有身份参数到达 executor。
+- `citation_grounding_ok` 不等于语义正确性 / 事实准确性。没有做任何基于 validation 的调参。
+- 冻结的 1024 的验证结果：部分合法回复超过 512 completion tokens；最大值 Baseline 674 / 626 / 585，Tool Loop 718 / 719 / 718；没有回复达到 900；所有模型调用都正常结束。因此 `GENERATION_MAX_TOKENS = 1024` 保持冻结，holdout 不得修改。
+- e2e run SHA：Baseline t1 `4c141d971121c8a2413833aab3a1d1d86a19e820f070fa30d2cda7429c168c7d`，t2 `54b5f92717b93d04118266a964cb76218834bc0a09f826c79e7e1961d1415347`，t3 `b74ba11f4a2608d81b6d8880788477b6e4cce54548c9f05923535ff7c0886969`；Tool Loop t1 `06d6fa779784482e0d9640dd4aabcdda8604a55fce67c0a22b8c3af2a7f20583`，t2 `3cda7dcb3ed9d9feacd85c44ac18df02579294dc51496798b8638cbe8d399e3c`，t3 `c6bd6ca9326ae16f06580a0e51c603b190afef91f7d58f6fa6387413227350b9`。
+- 结果文件（`eval/v2/results/stage5-generation-validation-*`，13 个）及其 SHA-256 记录在 `stage5-generation-validation.meta.json`（`0adb4065a22ebc4e68c33b0a4ee33ef161c516cf6c33238e677c900e4718eabb`）所在 commit 中；validation 只报告汇总、archetype 与协议层面，不记录 case 文本。
