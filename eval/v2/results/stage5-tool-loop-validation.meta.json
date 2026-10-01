@@ -1,0 +1,256 @@
+{
+  "schema": "v2-stage5-tool-loop-validation-meta/1",
+  "tag": "v2-stage5-tool-loop",
+  "source_commit": "03b1893579eb13fdd04bffa1729afda870eeb576",
+  "run_head": "3da657d6a7d2715f18a9f0fddde0a0e0280e4d5b",
+  "tool_loop_source_sha256": "b687d663e9cb7fee90b7853a38ac13d349d4980f8dda5cd1690f48ee8ec9f14f",
+  "dataset": "validation",
+  "dataset_sha256": "50a0398d8e9f42afa3356cb89179b1b46c0fd00206a58046884ff75776575d2c",
+  "trial_count": 3,
+  "case_count_per_trial": 40,
+  "max_steps": 5,
+  "provider": "deepseek",
+  "base_url_host": "api.deepseek.com",
+  "model_requested": "deepseek-flash",
+  "models_reported": [
+    "deepseek-flash"
+  ],
+  "temperature": 0,
+  "max_tokens": 512,
+  "thinking": "disabled",
+  "trial_dataset_run_sha256": [
+    "e5b88073d2e328e8e4f7bd8571dee010dde543a21cd1f5b5df17b798a0d4cea5",
+    "0b2069028792b5f1074a92a1b5ba4936b081ad490abfeed5bcf3a412978c2e81",
+    "f4123d7603b72d1719537a4372884119eebaccffbd135607741c7569859d0974"
+  ],
+  "invalidated_trial_attempts": 0,
+  "database_unchanged_case_runs": 120,
+  "trial_summaries": [
+    {
+      "case_count": 40,
+      "control_success_count": 33,
+      "control_success_rate": 0.825,
+      "capabilities_ok_count": 38,
+      "capabilities_ok_rate": 0.95,
+      "clarification_ok_count": 39,
+      "clarification_ok_rate": 0.975,
+      "evidence_ok_count": 37,
+      "evidence_ok_rate": 0.925,
+      "final_ok_count": 37,
+      "final_ok_rate": 0.925,
+      "db_ok_count": 40,
+      "db_ok_rate": 1.0,
+      "average_control_steps": 3.625,
+      "termination_counts": {
+        "finished": 40,
+        "unanswered_clarification": 0,
+        "max_steps_exceeded": 0
+      },
+      "forbidden_evidence_present_count": 4
+    },
+    {
+      "case_count": 40,
+      "control_success_count": 33,
+      "control_success_rate": 0.825,
+      "capabilities_ok_count": 38,
+      "capabilities_ok_rate": 0.95,
+      "clarification_ok_count": 39,
+      "clarification_ok_rate": 0.975,
+      "evidence_ok_count": 37,
+      "evidence_ok_rate": 0.925,
+      "final_ok_count": 37,
+      "final_ok_rate": 0.925,
+      "db_ok_count": 40,
+      "db_ok_rate": 1.0,
+      "average_control_steps": 3.6,
+      "termination_counts": {
+        "finished": 40,
+        "unanswered_clarification": 0,
+        "max_steps_exceeded": 0
+      },
+      "forbidden_evidence_present_count": 4
+    },
+    {
+      "case_count": 40,
+      "control_success_count": 33,
+      "control_success_rate": 0.825,
+      "capabilities_ok_count": 38,
+      "capabilities_ok_rate": 0.95,
+      "clarification_ok_count": 40,
+      "clarification_ok_rate": 1.0,
+      "evidence_ok_count": 37,
+      "evidence_ok_rate": 0.925,
+      "final_ok_count": 36,
+      "final_ok_rate": 0.9,
+      "db_ok_count": 40,
+      "db_ok_rate": 1.0,
+      "average_control_steps": 3.625,
+      "termination_counts": {
+        "finished": 40,
+        "unanswered_clarification": 0,
+        "max_steps_exceeded": 0
+      },
+      "forbidden_evidence_present_count": 4
+    }
+  ],
+  "trial_protocol_summaries": [
+    {
+      "model_call_count": 101,
+      "diagnostic_counts": {
+        "no_tool_call": 0,
+        "multiple_tool_calls": 0,
+        "retry_cap_exceeded": 0,
+        "batch_exceeds_step_budget": 0,
+        "invalid_arguments": 0,
+        "identity_argument": 0,
+        "tool_not_allowed": 0,
+        "function_not_offered": 0,
+        "unknown_function": 0,
+        "invalid_ask_user_slots": 0,
+        "invalid_finish_disposition": 0
+      },
+      "other_diagnostic_counts": {},
+      "accepted_multi_runtime_batch_count": 34,
+      "batch_size_histogram": {
+        "2": 26,
+        "3": 6,
+        "4": 2
+      },
+      "returned_function_counts": {
+        "ask_user": 2,
+        "finish": 40,
+        "get_after_sales_case": 11,
+        "get_inventory": 6,
+        "get_logistics": 31,
+        "get_order": 33,
+        "search_after_sales_policy": 22
+      },
+      "multi_call_function_set_counts": {
+        "get_after_sales_case + get_logistics + get_order": 2,
+        "get_after_sales_case + get_logistics + get_order + search_after_sales_policy": 2,
+        "get_after_sales_case + get_order": 2,
+        "get_inventory + get_logistics + get_order": 3,
+        "get_inventory + get_order": 1,
+        "get_inventory + search_after_sales_policy": 1,
+        "get_logistics + get_order": 22,
+        "get_logistics + get_order + search_after_sales_policy": 1
+      },
+      "rejected_multi_call_returned_functions": [],
+      "provider_errors": 0,
+      "tool_loop_protocol_errors": 0,
+      "prompt_tokens_total": 582259,
+      "completion_tokens_total": 6901,
+      "latency_seconds_total": 134.943,
+      "latency_seconds_mean": 1.336,
+      "latency_seconds_median": 1.305,
+      "models_reported": [
+        "deepseek-flash"
+      ]
+    },
+    {
+      "model_call_count": 102,
+      "diagnostic_counts": {
+        "no_tool_call": 0,
+        "multiple_tool_calls": 0,
+        "retry_cap_exceeded": 0,
+        "batch_exceeds_step_budget": 0,
+        "invalid_arguments": 0,
+        "identity_argument": 0,
+        "tool_not_allowed": 0,
+        "function_not_offered": 0,
+        "unknown_function": 0,
+        "invalid_ask_user_slots": 0,
+        "invalid_finish_disposition": 0
+      },
+      "other_diagnostic_counts": {},
+      "accepted_multi_runtime_batch_count": 33,
+      "batch_size_histogram": {
+        "2": 26,
+        "3": 5,
+        "4": 2
+      },
+      "returned_function_counts": {
+        "ask_user": 2,
+        "finish": 40,
+        "get_after_sales_case": 11,
+        "get_inventory": 6,
+        "get_logistics": 31,
+        "get_order": 32,
+        "search_after_sales_policy": 22
+      },
+      "multi_call_function_set_counts": {
+        "get_after_sales_case + get_logistics + get_order": 2,
+        "get_after_sales_case + get_logistics + get_order + search_after_sales_policy": 2,
+        "get_after_sales_case + get_order": 1,
+        "get_inventory + get_logistics + get_order": 3,
+        "get_inventory + get_order": 1,
+        "get_inventory + search_after_sales_policy": 1,
+        "get_logistics + get_order": 23
+      },
+      "rejected_multi_call_returned_functions": [],
+      "provider_errors": 0,
+      "tool_loop_protocol_errors": 0,
+      "prompt_tokens_total": 588131,
+      "completion_tokens_total": 6847,
+      "latency_seconds_total": 140.513,
+      "latency_seconds_mean": 1.378,
+      "latency_seconds_median": 1.258,
+      "models_reported": [
+        "deepseek-flash"
+      ]
+    },
+    {
+      "model_call_count": 103,
+      "diagnostic_counts": {
+        "no_tool_call": 0,
+        "multiple_tool_calls": 0,
+        "retry_cap_exceeded": 0,
+        "batch_exceeds_step_budget": 0,
+        "invalid_arguments": 0,
+        "identity_argument": 0,
+        "tool_not_allowed": 0,
+        "function_not_offered": 0,
+        "unknown_function": 0,
+        "invalid_ask_user_slots": 0,
+        "invalid_finish_disposition": 0
+      },
+      "other_diagnostic_counts": {},
+      "accepted_multi_runtime_batch_count": 32,
+      "batch_size_histogram": {
+        "2": 24,
+        "3": 6,
+        "4": 2
+      },
+      "returned_function_counts": {
+        "ask_user": 3,
+        "finish": 40,
+        "get_after_sales_case": 11,
+        "get_inventory": 6,
+        "get_logistics": 31,
+        "get_order": 32,
+        "search_after_sales_policy": 22
+      },
+      "multi_call_function_set_counts": {
+        "get_after_sales_case + get_logistics + get_order": 2,
+        "get_after_sales_case + get_logistics + get_order + search_after_sales_policy": 2,
+        "get_after_sales_case + get_order": 1,
+        "get_inventory + get_logistics + get_order": 3,
+        "get_inventory + get_order": 1,
+        "get_inventory + search_after_sales_policy": 1,
+        "get_logistics + get_order": 21,
+        "get_logistics + get_order + search_after_sales_policy": 1
+      },
+      "rejected_multi_call_returned_functions": [],
+      "provider_errors": 0,
+      "tool_loop_protocol_errors": 0,
+      "prompt_tokens_total": 582770,
+      "completion_tokens_total": 7038,
+      "latency_seconds_total": 129.961,
+      "latency_seconds_mean": 1.262,
+      "latency_seconds_median": 1.242,
+      "models_reported": [
+        "deepseek-flash"
+      ]
+    }
+  ]
+}

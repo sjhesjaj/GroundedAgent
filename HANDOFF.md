@@ -1715,3 +1715,34 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
   - 协议 / runtime 不变量保持干净。
 - 这里不声称任何 validation 或 holdout 表现。
 - 从此不得再基于 DEV、VALIDATION 或 HOLDOUT 修改 Tool Loop / prompt / 协议。
+
+## 20. GroundedAgent V2 Stage 5：冻结 Tool Loop 的 VALIDATION
+
+- 冻结 source：`03b1893579eb13fdd04bffa1729afda870eeb576`；tag：`v2-stage5-tool-loop`（tag object `18c051305e438ee1b63a67ee0c8f033b3b14a86a`）。
+- 运行：3 次独立完整 trial × 40 cases（120 个 case-run），`LLMNativeToolLoopPolicy(provider, formal=True)`，DeepSeek `deepseek-flash`，temperature 0，max_tokens 512，`max_steps = 5`，每个 case 一个新 policy；运行时 HEAD `3da657d`（相对 `03b1893` 只多了评测记录）。invalidated trial attempts = 0。
+- 3 个 trial 全部报告，不挑选、不平均掉任何 trial。
+
+| 指标 | T1 | T2 | T3 | Stage 4 Baseline validation |
+|---|---|---|---|---|
+| control_success | 33/40 = 0.825 | 33/40 = 0.825 | 33/40 = 0.825 | 28/40 = 0.70 |
+| capabilities_ok | 38/40 | 38/40 | 38/40 | 31/40 |
+| clarification_ok | 39/40 | 39/40 | 40/40 | 39/40 |
+| evidence_ok | 37/40 | 37/40 | 37/40 | 33/40 |
+| final_ok | 37/40 | 37/40 | 36/40 | 36/40 |
+| db_ok | 40/40 | 40/40 | 40/40 | 40/40 |
+| average_control_steps | 3.625 | 3.6 | 3.625 | 3.575 |
+
+- DatasetRun SHA：T1 `e5b88073d2e328e8e4f7bd8571dee010dde543a21cd1f5b5df17b798a0d4cea5`，T2 `0b2069028792b5f1074a92a1b5ba4936b081ad490abfeed5bcf3a412978c2e81`，T3 `f4123d7603b72d1719537a4372884119eebaccffbd135607741c7569859d0974`（均从 canonical DatasetRun 字节重新计算核对）。
+- 结果文件（`eval/v2/results/`）：`stage5-tool-loop-validation-t1.json`（`395af9fae4480e1349e93c3c03820a2df4a26ce193926915bda261b822912b51`），`-t1.protocol.json`（`5d34dd76c4f7e329ca6b8d08c041040827e4571e4b9abef926ceafd77a0f7b9e`），`-t2.json`（`f3866f01500eeb428aab04c3c8b931e8fb136a5e4dfda9d0606cd78ee7c8748d`），`-t2.protocol.json`（`72d6f79dee821180736f0b64b1f913968f9aa4203448cafcd34bbddc30022ee7`），`-t3.json`（`2f01c3d27acb03bc2d0e05122b4091b424ef0aa2636e6417acf4c863d1cf920e`），`-t3.protocol.json`（`3844bd5cac35ff66760df72e1deb2a276b3586ba89663a67c9c3732209934626`），`stage5-tool-loop-validation.meta.json`（`585d703d670652feaa69a2f04eec42c75753680518d90943647f8811b8bb1acf`）。
+- 原生协议（3 个 trial 合计）：model_calls 306；accepted_multi_runtime_batches 99（批次大小 2→76，3→17，4→6）；全部模型协议诊断码为 0；provider_errors = 0；`ToolLoopProtocolError` = 0。
+- 数据库不变量：120/120 unchanged；没有越过 allowed_tools 或携带身份参数的调用到达 executor。
+- 稳定性：
+  - 3 个 trial 的 control_success 都是 33/40；
+  - 12 个 archetype 6/6 稳定成功，8 个 archetype 结果混合，没有 archetype 是 0/6；
+  - 尽管总分相同，单个 trial 之间仍存在差异。
+- 描述性解读：
+  - Tool Loop 的 validation control_success 比冻结 Baseline 的 validation 多 5 个 case（+12.5 个百分点）。
+  - 最大的提升在 capability 选择（+7）和证据获取（+4）。
+  - DEV 38/40 → VALIDATION 33/40 作为冻结后的泛化差距保留并如实记录。
+  - 不允许任何 validation 之后的调参。
+- validation 不是调参集：这里只记录汇总、archetype 与协议层面的结果，不记录 validation case 文本。
