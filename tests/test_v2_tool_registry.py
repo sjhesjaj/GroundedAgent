@@ -46,6 +46,9 @@ STAGE6_ACTION_MODULES = frozenset({
     "guard_snapshot.py", "guard_state.py", "ids.py",
 })
 
+# The only eval modules that may name a Stage 6 action (Stage 6.3 control loop and runner).
+STAGE6_EVAL_MODULES = frozenset({"action_control.py", "action_loop.py", "action_runner.py"})
+
 
 class RuntimeRegistryTests(unittest.TestCase):
     def setUp(self):
@@ -114,7 +117,8 @@ class RuntimeRegistryTests(unittest.TestCase):
                    if path.name not in STAGE6_ACTION_MODULES]
         sources += sorted((REPO_ROOT / "orchestration").glob("*.py"))
         sources += sorted(REPO_ROOT.glob("*.py"))
-        sources += sorted((REPO_ROOT / "eval_v2").glob("*.py"))
+        sources += [path for path in sorted((REPO_ROOT / "eval_v2").glob("*.py"))
+                    if path.name not in STAGE6_EVAL_MODULES]
         for required in ("business_tools.py", "registry.py", "executor.py", "derived.py",
                          "policy.py", "policy_catalog.py"):
             self.assertIn(REPO_ROOT / "aftersales" / required, sources)
@@ -129,6 +133,8 @@ class RuntimeRegistryTests(unittest.TestCase):
     def test_stage6_action_modules_exist(self):
         for name in STAGE6_ACTION_MODULES:
             self.assertTrue((REPO_ROOT / "aftersales" / name).is_file(), name)
+        for name in STAGE6_EVAL_MODULES:
+            self.assertTrue((REPO_ROOT / "eval_v2" / name).is_file(), name)
 
 
 class Stage6ActionBoundaryTests(unittest.TestCase):
