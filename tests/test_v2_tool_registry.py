@@ -42,8 +42,8 @@ STAGE6_ACTIONS = ("create_return", "create_exchange", "escalate_to_human")
 # The only aftersales modules that may name a Stage 6 action.
 STAGE6_ACTION_MODULES = frozenset({
     "actions.py", "action_policy.py", "action_errors.py", "action_db.py", "action_store.py",
-    "action_gateway.py", "action_outcome.py", "capabilities.py", "guard.py", "guard_state.py",
-    "ids.py",
+    "action_gateway.py", "action_outcome.py", "approval.py", "capabilities.py", "guard.py",
+    "guard_snapshot.py", "guard_state.py", "ids.py",
 })
 
 

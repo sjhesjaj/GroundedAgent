@@ -2011,3 +2011,130 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 审批、pending 创建、WAITING_APPROVAL、approve / reject / resume、快照比较与 STALE、重启后恢复都**没有**启用。
 - Stage 6.2 删除 `ApprovalPathNotEnabled` 及其分支，启用 §10.2 S6b 与 §10.3 的 T1 / T2。
 - 没有 LLM 动作循环、Stage 6 数据集、Stage 6 评分、正式 DeepSeek 运行或 UI。`v2-stage6-action-core` tag 留到 Stage 6.4 评测器冻结时再打。
+
+## 25. GroundedAgent V2 Stage 6.2：APPROVAL / RESUME
+
+### 基线
+
+- Stage 6.1（PR #22）以 merge commit 合入：**`main` = `500f5704dbca56256e070833b14878d6dfca2c07`**。本地 main 与 origin/main 一致。
+- Stage 6.2 分支 `stage6-approval-resume` 从该 main 切出。`v2-stage6-action-core` tag 仍未创建（留到 Stage 6.4 评测器冻结）。设计文档与全部历史 tag 未改动。
+
+### 实现了什么
+
+| 模块 | 内容 |
+|---|---|
+| `aftersales/approval.py`（新） | `ApprovalDecision(pending_action_id, decision, approver_ref, decided_at)`：frozen；pending id 格式 `^PA-[0-9A-F]{16,32}$`、decision ∈ {APPROVE, REJECT}、approver_ref 格式 `^op-[a-z0-9-]{1,32}$`、decided_at 必须带时区。可信操作员注册表 `STAGE6_TRUSTED_OPERATORS = {"op-demo-1"}`；`require_trusted_operator` 要求精确的 `ApprovalDecision` 类型且操作员已注册 |
+| `aftersales/guard_snapshot.py`（新） | 闭合的 `s6-guard-snapshot/1` 解析器（sha256 校验、严格 JSON、键集合精确、必须是 canonical 形式、schema / 动作 / 时间 / 记录表 / 版本类型 / decision 与 reason 一致 / GuardFacts 闭合重建）；`stale_reason(stored, candidate)` 按固定顺序比较；五个 STALE 码 |
+| `aftersales/action_store.py` | 新增窄的 pending 方法：`insert_pending`、`load_pending`、`find_pending`、`record_decision`（P1/P2）、`mark_executed`（P3）、`transition_terminal`（P4/P5/P6，只接受 STALE / DENIED / FAILED 与各自的码集合）。每条 pending UPDATE 都带 `WHERE status = <期望状态> AND version = <期望版本>`，影响行数 ≠ 1 即 `PendingTransitionConflict`。仍然不更新、不删除任何业务行 |
+| `aftersales/action_gateway.py` | 删除 `ApprovalPathNotEnabled` 及其分支；新增 `record_decision`（T1）、`execute_approved`（T2）、`resume_action`、`get_outcome`；网关无状态，重启后只依赖数据库文件与冻结配置 |
+| `aftersales/action_outcome.py` | `ActionOutcome` 支持 WAITING_APPROVAL / REJECTED / STALE（必带 pending_action_id）、`approval_recorded`、`decision_conflict` |
+| `aftersales/action_errors.py` | `ApprovalInputError`、`UnknownPendingAction`、`NotApproved`、`PendingTransitionConflict`、`SnapshotIntegrityError` |
+| `aftersales/action_schema.sql` | 修正 6.1 的两条 CHECK：`approval_decision = 'APPROVE'` 在 approval_decision 为 NULL 时结果为 NULL，CHECK 视为通过，导致「APPROVED 但没有任何审批字段」的行可以插入。改为 `IS 'APPROVE'` / `IS 'REJECT'`。由 6.2 的数据库约束直测发现 |
+
+### pending 状态机
+
+`PENDING_APPROVAL`、`APPROVED` 非终态；`REJECTED`、`EXECUTED`、`STALE`、`DENIED`、`FAILED` 终态，终态不可变。
+
+| 迁移 | 从 → 到 | 触发 |
+|---|---|---|
+| P0 | ∅ → PENDING_APPROVAL | start_action 中 Guard = REQUIRE_APPROVAL |
+| P1 | PENDING_APPROVAL → APPROVED | T1，可信 APPROVE |
+| P2 | PENDING_APPROVAL → REJECTED（approval_rejected） | T1，可信 REJECT |
+| P3 | APPROVED → EXECUTED（receipt_id） | T2，比较一致且同一 capture 上的决定仍为 REQUIRE_APPROVAL / 同一 reason |
+| P4 | APPROVED → STALE（五个 STALE 码之一） | T2，快照比较不一致，或决定改变（guard_decision_changed） |
+| P5 | APPROVED → DENIED（DENY reason） | T2，同一 capture 上的决定为 DENY（例如只是时间推进超过退货时限） |
+| P6 | APPROVED → FAILED（失败码） | T2 在确认 APPROVED 后失败，补记事务写入 |
+
+数据库 CHECK 同时兜底：PENDING_APPROVAL 不带审批字段；APPROVED / EXECUTED / STALE / DENIED / FAILED 必须是 APPROVE；REJECTED 必须是 REJECT；EXECUTED ⇔ receipt_id；非终态与 EXECUTED 没有 outcome_code；`UNIQUE(idempotency_key)`、`UNIQUE(receipt_id)`、每个商品至多一个未结 pending；回执的 `pending_action_id` 唯一且必须存在。
+
+### P0：pending 创建
+
+在 start_action 的同一事务内：插入 pending（全部字段；审批字段与 receipt 为 NULL；`created_at = updated_at = txn_now`；version 1；id 由幂等键经 `s6-ids/1` 派生），审计 `guard.evaluated`（REQUIRE_APPROVAL）与 `action.pending_created`（phase start）。不写业务行、不写回执。返回 WAITING_APPROVAL；渲染为「需要人工审批……审批通过前不会执行」。
+
+### ApprovalDecision 边界
+
+- 审批只能来自 `ApprovalDecision` 对象且 approver_ref 在注册表中。字符串（「经理批准了」）、dict、ActionIntent 参数、模型输出、工具观察都不是审批；这些输入在读 Clock 之前就被拒绝（`ApprovalInputError`），零写入。
+- ActionIntent 层面 `approved`、`approval_decision`、`approver_ref`、`skip_approval`、`pending_action_id`、`decision`、`status` 等仍是禁用参数（6.1 契约不变）。
+- 不存在的 pending id → `UnknownPendingAction`；`decided_at` 早于 pending 的 `created_at` → `ApprovalInputError`；PENDING_APPROVAL 上调用 T2 → `NotApproved`。三者都零写入。
+- 没有真实身份认证：注册表是 Stage 6 的演示边界。
+
+### T1：record_decision
+
+`BEGIN IMMEDIATE`（失败 → FAILED transaction_failed，零 Clock 读取）→ Clock 恰好一次 → 读取 pending：
+
+- PENDING_APPROVAL + APPROVE → APPROVED（审批字段、updated_at、version + 1），审计 `approval.recorded`；返回 WAITING_APPROVAL，`approval_recorded = true`。
+- PENDING_APPROVAL + REJECT → REJECTED approval_rejected，审计 `approval.recorded` + `action.not_executed`。
+- 其他状态：第一个决定生效。相同决定 = 回放（审计 `action.replay_hit`，保留第一次的操作员与时间）；相反决定 = `decision_conflict = true`，状态不变（审计 `approval.conflict`）；EXECUTED 上的 APPROVE 返回同一回执；终态永不回退。
+- UPDATE 带状态与版本条件，影响行数必须为 1。
+
+### T2：execute_approved
+
+`BEGIN IMMEDIATE`（失败 → FAILED transaction_failed，pending 保持 APPROVED，零 Clock 读取）→ Clock 恰好一次 → U3 读取 pending（未知 → UnknownPendingAction；PENDING_APPROVAL → NotApproved；终态 → 回放）→ APPROVED 不可能已有回执（否则 invariant_violation）→ U4 审计 `resume.started` → U5 从服务端配置重新解析 persona（失败 → identity_unresolvable）→ U6 按存储的动作名与参数重建 `ValidatedAction`，`args_sha256` 与幂等键必须重算一致（否则 invariant_violation）→ U7 **一次** `Guard.capture`（排除当前 pending；一次读取 + 一次规则快照）→ U8 解析存储快照并与本次 capture 的候选快照比较（纯函数）→ U9 在同一 capture、同一 txn_now 上纯决定 → U10 写入 → COMMIT。
+
+### 单次 capture 不变量
+
+- 比较与决定使用**同一个** `GuardCapture`：`stale_reason` 收到的候选快照就是该 capture 的 `candidate_snapshot`，`decide` 收到的 state / policy 就是该 capture 的 state / policy，policy 就是本次唯一一次 `catalog.snapshot()` 返回的对象（P-15 以对象同一性断言）。
+- 每次 T2 恰好一次规则快照（P-14：第二次调用会返回新 build 的目录，结果仍 EXECUTED 且调用次数为 1）。
+- capture 结束之后、写入之前没有任何 SQL、Clock、规则目录访问（P-17：sqlite trace 回调 + 标记事件，`decide` 之后的语句只有 INSERT / UPDATE / COMMIT）。
+
+### STALE 规则
+
+比较顺序固定，第一个不一致即返回，**不调用 decide、不执行**；审计 `resume.version_check`（MISMATCH + 码）与 `action.not_executed`：
+
+1. `record_set_changed`：任一记录表的主键集合不同（例如同一商品出现了新的售后单）。
+2. `record_version_changed`：同一主键的 version 不同。
+3. `policy_changed`：policy build id 不同（规则重新发布）。
+4. `action_policy_changed`：动作规格版本或风险策略版本不同。
+
+比较一致后，同一 capture 上的决定：DENY → DENIED（原 reason）；同为 REQUIRE_APPROVAL 且 reason 相同 → 执行；ALLOW 或 reason 改变 → STALE `guard_decision_changed`。
+
+只有时间变化不是 STALE：已批准的退货在时间推进超过退货时限后执行 → DENIED `return_window_closed`（显式测试）。与该订单商品无关的行（其他订单、库存、同订单的其他商品）变化不影响执行。
+
+### 执行已批准的退货
+
+同一 T2 事务内：一行 `after_sales_cases`（type return，status 待处理，原因取自闭合原因标签）、一张回执（`guard_decision = REQUIRE_APPROVAL`，带 `pending_action_id`）、pending → EXECUTED 并写入 receipt_id、审计 `resume.version_check` MATCH、`guard.evaluated`、`action.executed`。不改订单、库存、物流，不涉及退款或支付。
+
+### 失败语义
+
+- T2 `BEGIN` 失败：FAILED transaction_failed；pending 保持 APPROVED；零 Clock 读取；数据库不变。此时尚未读到 pending，所以结果只带 pending_action_id，`action_name` / `request_id` 为 None（`ActionOutcome` 只允许这种 FAILED 省略动作）。
+- 确认 APPROVED 之后失败（业务写入、回执写入、提交、Guard、身份、快照完整性）：回滚 → 补记事务（零 Clock 读取，沿用 txn_now）APPROVED → FAILED + 失败码，审计 `transaction.rolled_back` 或 `guard.failed` 与 `action.not_executed`。终态 FAILED 之后重试只回放 FAILED。
+- 补记事务本身失败（测试故障点 `compensation`）：pending 保持 APPROVED，没有业务行与回执；之后重试 T2 安全，结果 EXECUTED，仍只有一行业务与一张回执。
+- 存储快照被篡改（sha 不符，或 sha 同步改写但内容不是闭合 canonical 形式 / 与行字段不一致）、args / args_sha256 / 幂等键被篡改：FAILED invariant_violation，pending → FAILED，不执行。
+
+### 幂等与回放
+
+- start_action 的回放查找先查回执再查 pending，按 pending 状态返回：PENDING_APPROVAL → WAITING（同一 pending id）；APPROVED → WAITING 且 `approval_recorded = true`；EXECUTED → 同一回执；REJECTED / STALE / DENIED / FAILED → 同一结果。回放不运行 Guard（规则快照读取 0 次）。
+- `resume_action` = T1；只有 T1 刚刚非冲突地记录了 APPROVE 且结果仍是 WAITING 时才接着运行 T2。
+- `get_outcome` 只读：不读 Clock、不写、不审计。
+
+### 重启测试
+
+- A22-d：同一进程内丢弃网关对象（`del` + `gc.collect()`），在状态改变之后以新网关重新打开数据库，执行 → STALE record_version_changed。
+- 真实跨进程：子进程 A 创建数据库、start_action（退货）、record_decision APPROVE 后退出；子进程 B 只拿到 pending id，新建网关执行 `execute_approved` → EXECUTED；数据库中恰好一行退货售后单、一张回执、pending EXECUTED 且 receipt_id 一致。
+- P-9：B 进程在执行期间用 `sys.setprofile` 记录调用，`llm_provider.py`、`orchestration/planner.py`、`eval_v2/` 中的函数调用为 0（对照组：同一 profiler 看到了 `aftersales/guard.py` 的 capture / decide）；socket 连接被替换为抛错；没有加载任何 `eval_v2` 模块。说明：`llm_provider` 与 `orchestration.planner` 模块本身会被加载，原因是 domain 导入 `orchestration.contracts` 时触发 `orchestration/__init__.py` 的重导出（Stage 4 起的既有结构）；恢复路径上它们没有任何代码运行。静态检查同时确认 Stage 6 的 13 个模块不直接导入 eval_v2 / llm_provider / planner / rag / agent / 网络库。
+
+### A21 / A22 / A23
+
+- **A21-c**：start → WAITING；同一提交 → 同一 pending（Guard 0 次）；APPROVE → EXECUTED；再次 APPROVE → 同一回执；再次 execute_approved → 同一回执；再次提交 → 同一回执；REJECT → 冲突且回执不变。全程 1 个 pending、1 个售后单、1 张回执。**通过**。
+- **A22-a**（审批前订单商品版本变化）、**A22-b**（审批后物流版本变化）→ STALE record_version_changed；**A22-c**（同一商品新增售后单）→ STALE record_set_changed；**A22-d**（重启）→ STALE record_version_changed。全部没有业务行、没有回执、`decide` 没有被调用（没有 resume 阶段的 `guard.evaluated`）。**通过**。
+- **A23**：REJECT → REJECTED approval_rejected；没有售后单、回执或工单；渲染为「未通过人工审批，该操作没有执行……可以联系人工客服」，不含「已提交 / 已办理 / 已退款 / 已创建工单 / 已转人工」及全部完成类措辞；之后 T2 只回放、APPROVE 为冲突、重新提交返回同一 REJECTED。**通过**。
+
+### 测试
+
+- 新增 `tests/test_v2_stage6_approval.py`：46 个（P0、审批边界与 P-5、T1、T2、STALE 四类与 guard_decision_changed、时间推进 → DENIED、快照解析器闭合性、篡改 → invariant_violation、失败与补记、每条合法迁移、非法迁移与终态不可变、数据库 CHECK / UNIQUE 直测、A21-c、七种存储状态的回放、A22-a/b/c/d、A23、P-12 / P-14 / P-15 / P-17、P-9 与跨进程重启、渲染器）。
+- `tests/test_v2_stage6_gateway.py`：数量不变（31）。退货路径的断言由 `ApprovalPathNotEnabled` 改为 WAITING_APPROVAL + pending；静态写入检查改为只允许 pending_actions 上的三条带状态与版本条件的 UPDATE；新增「临时分支已删除」测试（替换原临时分支测试）；回执写入失败的故障点序列多了 `compensation`。
+- `tests/test_v2_tool_registry.py`：数量不变（23）；Stage 6 动作模块清单加入 `approval.py`、`guard_snapshot.py`。
+- Stage 6 四个模块共 159 个；Stage 5 回归模块 414 个（与 6.1 相同）+ `test_v2_clock` 13 个；合计 586，全部通过。
+- 全量本地离线套件：**2293 个测试，0 失败，0 错误，0 跳过**。排除且只排除 `tests.test_llm_provider_live`（2 个，真实 DeepSeek 调用）。没有新增 skip，没有真实 DeepSeek 调用。
+- `eval_v2/`（含 tool_loop / generation / runner / e2e / scoring）、设计文档、`aftersales/schema.sql`、demo seed、`executor.py`、`business_tools.py`、`policy_catalog.py` 与 main 相比没有改动。
+
+### 实现中的具体选择
+
+- `decided_at` 由调用方提供（可信边界内的审批时间）并原样存储；`updated_at` 用 T1 的 txn_now。`decided_at` 不得早于 pending 的 `created_at`。
+- 补记事务增加测试故障点 `compensation`；故障点共四个：`business_write`、`receipt_write`、`commit`、`compensation`。
+- STALE 的比较对象只包括记录主键 / 版本、policy build id、动作规格版本、风险策略版本；存储的 decision / facts 只用于完整性校验，不参与 STALE 判断（决定是否改变由同一 capture 上的重新决定给出）。
+
+### 边界（尚未实现）
+
+- 没有 LLM 动作循环：模型不能发起动作，也不能审批。没有 Stage 6 case schema / evaluator、DEV / VALIDATION / holdout、UI、Celery、真实认证。
+- Stage 6.3 尚未开始。

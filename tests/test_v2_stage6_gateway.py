@@ -11,7 +11,7 @@ from pathlib import Path
 
 from aftersales.action_db import connect_writer, create_stage6_database
 from aftersales.action_errors import ActionCapabilityError, ActionContractError
-from aftersales.action_gateway import ActionGateway, ApprovalPathNotEnabled
+from aftersales.action_gateway import ActionGateway
 from aftersales.action_outcome import (
     COMPLETION_CLAIM_MARKERS,
     DENIED_EXPLANATIONS,
@@ -158,14 +158,19 @@ class WriteAndIdempotencyTests(GatewayCase):
         self.assertEqual(self.db.count("human_handoff_tickets"), 1)
         self.assertEqual(self.db.count("action_receipts"), 1)
 
-    def test_f_eligible_return_is_stage61_approval_path_not_enabled_with_zero_writes(self):
-        before = self.db.dump()
+    def test_f_eligible_return_waits_for_approval_without_executing(self):
+        # Stage 6.2 replaced the Stage 6.1 temporary ApprovalPathNotEnabled path with P0.
+        business_before = {table: self.db.rows("SELECT * FROM " + table + " ORDER BY 1")
+                           for table in BUSINESS_TABLES}
         clock, catalog = CountingClock(), CountingCatalog()
-        with self.assertRaises(ApprovalPathNotEnabled):
-            self.start("create_return", RETURN_ARGS, clock=clock, catalog=catalog)
-        self.assertEqual(self.db.dump(), before)  # including zero audit rows
-        self.assertEqual(self.db.count("action_audit_events"), 0)
-        self.assertEqual(self.db.count("pending_actions"), 0)
+        outcome = self.start("create_return", RETURN_ARGS, clock=clock, catalog=catalog)
+        self.assertIs(outcome.status, ActionStatus.WAITING_APPROVAL)
+        self.assertRegex(outcome.pending_action_id, r"^PA-[0-9A-F]{16}$")
+        self.assertIsNone(outcome.receipt)
+        self.assertEqual(self.db.count("pending_actions"), 1)
+        self.assertEqual(self.db.count("action_receipts"), 0)
+        self.assertEqual({table: self.db.rows("SELECT * FROM " + table + " ORDER BY 1")
+                          for table in BUSINESS_TABLES}, business_before)
         self.assertEqual((clock.calls, catalog.calls), (1, 1))
 
     def test_denied_writes_only_audit(self):
@@ -232,8 +237,8 @@ class TransactionTests(GatewayCase):
                 self.start(name, args, catalog=catalog, request_id="req-" + label)
                 self.assertEqual(catalog.calls, 1)
         catalog = CountingCatalog()
-        with self.assertRaises(ApprovalPathNotEnabled):
-            self.start("create_return", RETURN_ARGS, catalog=catalog)
+        waiting = self.start("create_return", RETURN_ARGS, catalog=catalog)
+        self.assertIs(waiting.status, ActionStatus.WAITING_APPROVAL)
         self.assertEqual(catalog.calls, 1)
         failing = CountingCatalog(error=RuntimeError("down"))
         outcome = self.start("create_exchange", EXCHANGE_ARGS, catalog=failing, request_id="req-down")
@@ -328,7 +333,8 @@ class FailureTests(GatewayCase):
         before = self.db.dump()
         hooks = Hooks(receipt_write=raiser(sqlite3.OperationalError("boom")))
         outcome = self.start("create_exchange", EXCHANGE_ARGS, fault_hooks=hooks)
-        self.assertEqual(hooks.seen, ["business_write", "receipt_write"])
+        # The failed attempt reaches both write points, then the compensating audit.
+        self.assertEqual(hooks.seen, ["business_write", "receipt_write", "compensation"])
         self.assert_failed_cleanly(outcome, "write_failed", before)
         self.assertEqual(len(self.new_cases()), 0)
 
@@ -552,17 +558,25 @@ class StaticBoundaryTests(unittest.TestCase):
         self.assertEqual(len(guard_sql), 8)
         self.assertTrue(all(statement.startswith("SELECT") for statement in guard_sql))
         store_sql = self.sql_statements(REPO_ROOT / "aftersales" / "action_store.py")
-        self.assertEqual(sorted(statement.split(" ", 1)[0] for statement in store_sql),
-                         ["INSERT", "INSERT", "INSERT", "INSERT", "SELECT", "SELECT"])
+        verbs = sorted(statement.split(" ", 1)[0] for statement in store_sql)
+        self.assertEqual(verbs.count("DELETE"), 0)
         for statement in store_sql:
-            self.assertNotIn("UPDATE ", statement)
-            self.assertNotIn("DELETE ", statement)
             self.assertNotIn("INVENTORY", statement)
+            if statement.startswith("UPDATE"):
+                # Only pending rows are ever updated, and only with status + version guards.
+                self.assertTrue(statement.startswith("UPDATE PENDING_ACTIONS SET"))
+                self.assertIn("WHERE PENDING_ACTION_ID = ? AND STATUS = '", statement)
+                self.assertTrue(statement.endswith("AND VERSION = ?"))
+        self.assertEqual(verbs.count("UPDATE"), 3)
 
-    def test_stage61_approval_branch_is_visibly_temporary(self):
-        source = (REPO_ROOT / "aftersales" / "action_gateway.py").read_text(encoding="utf-8")
-        self.assertGreaterEqual(source.count("STAGE 6.1 ONLY"), 3)
-        self.assertIn("delete in Stage 6.2", source)
+    def test_stage61_temporary_approval_branch_is_gone(self):
+        import aftersales.action_gateway as gateway_module
+        self.assertFalse(hasattr(gateway_module, "ApprovalPathNotEnabled"))
+        for path in sorted((REPO_ROOT / "aftersales").glob("*.py")):
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(module=path.name):
+                self.assertNotIn("ApprovalPathNotEnabled", source)
+                self.assertNotIn("STAGE 6.1 ONLY", source)
 
 
 if __name__ == "__main__":

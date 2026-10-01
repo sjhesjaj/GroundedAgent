@@ -49,20 +49,23 @@ from .guard import (
     GuardDecisionKind,
 )
 
+from .guard_snapshot import STALE_REASON_CODES
+
 APPROVAL_REJECTED = "approval_rejected"
-STALE_REASON_CODES = frozenset({
-    "record_set_changed", "record_version_changed", "policy_changed",
-    "action_policy_changed", "guard_decision_changed",
-})
 
 
 class ActionStatus(str, Enum):
     EXECUTED = "EXECUTED"
-    WAITING_APPROVAL = "WAITING_APPROVAL"   # frozen contract; produced from Stage 6.2
+    WAITING_APPROVAL = "WAITING_APPROVAL"
     DENIED = "DENIED"
-    REJECTED = "REJECTED"                   # frozen contract; produced from Stage 6.2
-    STALE = "STALE"                         # frozen contract; produced from Stage 6.2
+    REJECTED = "REJECTED"
+    STALE = "STALE"
     FAILED = "FAILED"
+
+
+# Statuses that only the approval path produces: they always name their pending action.
+_PENDING_STATUSES = frozenset({ActionStatus.WAITING_APPROVAL, ActionStatus.REJECTED,
+                               ActionStatus.STALE})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -86,9 +89,13 @@ class GuardView:
 
 @dataclass(frozen=True, kw_only=True)
 class ActionOutcome:
+    """`action_name` / `request_id` are None only when a resume could not even
+    load its pending row (its transaction never started): then the outcome is
+    FAILED and names the pending action alone."""
+
     status: ActionStatus
-    action_name: str
-    request_id: str
+    action_name: str | None
+    request_id: str | None
     idempotent_replay: bool = False
     decision_conflict: bool = False
     approval_recorded: bool = False
@@ -100,8 +107,16 @@ class ActionOutcome:
     def __post_init__(self) -> None:
         if not isinstance(self.status, ActionStatus):
             raise ValueError("ActionOutcome.status must be an ActionStatus")
-        if self.action_name not in ACTION_NAMES:
+        if self.action_name is None or self.request_id is None:
+            if not (self.action_name is None and self.request_id is None
+                    and self.status is ActionStatus.FAILED and self.pending_action_id is not None):
+                raise ValueError("only a FAILED resume of a known pending id may omit the action")
+        elif self.action_name not in ACTION_NAMES:
             raise ValueError("ActionOutcome.action_name is not a Stage 6 action")
+        if self.status in _PENDING_STATUSES and self.pending_action_id is None:
+            raise ValueError("an approval-path outcome names its pending action")
+        if self.approval_recorded and self.status is not ActionStatus.WAITING_APPROVAL:
+            raise ValueError("approval_recorded describes a WAITING_APPROVAL outcome only")
         if (self.status is ActionStatus.EXECUTED) != (self.receipt is not None):
             raise ValueError("an EXECUTED outcome, and only one, carries a receipt")
         if self.status is ActionStatus.DENIED:
