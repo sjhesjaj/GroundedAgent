@@ -1746,3 +1746,40 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
   - DEV 38/40 → VALIDATION 33/40 作为冻结后的泛化差距保留并如实记录。
   - 不允许任何 validation 之后的调参。
 - validation 不是调参集：这里只记录汇总、archetype 与协议层面的结果，不记录 validation case 文本。
+
+## 21. GroundedAgent V2 Stage 5：共享 generation / citation / E2E 的 DEV 迭代
+
+- 共享 generation 核心：PR #21 merge `221ef85692d81419a33a8c7338d11559c48ffbfb`（parents `81b35aa` / `5fc3033`）；设计见 `docs/v2/stage5-generation-design.md`。
+- 开发预算：最多 2 个有效 generation DEV 轮次；每轮是配对运行——同一份 DEV、同一个 `SharedGenerator(provider, formal=True)`，分别作用于冻结 Baseline（`v2-stage4-baseline`）与冻结 Tool Loop（`v2-stage5-tool-loop`）的**新鲜**控制运行。
+- generation 参数：DeepSeek `deepseek-flash`，temperature 0，max_tokens 512，thinking disabled。response_format：generator 传入 JSON Schema；`llm_provider` 对 DeepSeek 适配为 wire `{"type":"json_object"}` 加附在 system 消息后的固定 schema 指令——不是原生 JSON-Schema 约束解码。
+
+### INVALIDATED GENERATION DEV ATTEMPT
+
+- 原因：DeepSeek HTTP 402 Insufficient Balance（Tool Loop 臂）。
+- 消耗有效轮次：0。没有利用该不完整尝试做任何业务调参。
+- 之前已完整跑完的 Baseline 臂经元数据与哈希逐项核验后复用；充值后 Tool Loop 臂从第 1 个 case 重新完整运行。
+
+### Generation DEV Round 1（有效，1 / 2）
+
+- generation source：`221ef85`。
+- e2e run SHA：Baseline `bd43c882dec22c1002c41fe6b107e80e1793038f1e03a154c0594fb026147fed`，Tool Loop `c21312ec005d03e9b25cbfc11a13a68961deaca32ca3625b81a9c3f5fcbef71e`。
+- 结果文件（`eval/v2/results/`）：`stage5-generation-dev-r1-baseline.json`（`f971559dee10f1ff7d29790efbcd6a7202c7ac51cf10d80dc444e54dfa1c6c52`），`-baseline.meta.json`（`875592e208329c4a0f9b535e5444d95ac74eeddc6e72dd04480e33cab50d272c`），`-baseline.protocol.json`（`886d35233d8e0ea4681cd0320dc957b8b42c91a3300e33d5adb1d7e242ea9f71`），`stage5-generation-dev-r1-tool-loop.json`（`d26fa6ec224050c49a9fa530fa0b025b5fc3889276ffb65090904c737ca4a733`），`-tool-loop.meta.json`（`1e6df40d3c72e85d61b3e60003e5f40d0973f0f43f2f1670d878b2bc818dd0be`），`-tool-loop.protocol.json`（`7f922861591c30ce8bb0f1a28b4eb0ddcb9a29b7e72d5b4aa3b8a0b6aa349773`）。
+
+| 指标 | Baseline | Tool Loop |
+|---|---|---|
+| 新鲜控制 control_success | 30/40 | 36/40 |
+| generated / fixed / not_generated | 32 / 8 / 0 | 28 / 12 / 0 |
+| generation_ok | 40/40 | 40/40 |
+| answer-only citation_grounding | 18/32 = 0.5625 | 15/28 ≈ 0.536 |
+| overall citation_grounding | 26/40 = 0.65 | 27/40 = 0.675 |
+| forbidden_citation_used | 0 | 2 |
+| e2e_grounded_success | 23/40 = 0.575 | 25/40 = 0.625 |
+
+- 协议：generation 协议错误两臂均为 0；有效两臂的 generation provider 错误均为 0。
+- Baseline 的新鲜控制记录与冻结的 Stage 4 DEV 逐 case 字节一致；Tool Loop 的新鲜控制是 36/40（不同于历史 R3 的 38/40，LLM 控制不是字节确定的）。
+- 诊断：
+  - 控制层的提升延续到了 E2E，但只是部分延续；
+  - generation 层的主要失败是必需证据的引用覆盖不全；
+  - generator 常常引用结论级的派生事实，却遗漏结构化前提 / 规则证据；
+  - Tool Loop 有两个回答引用了售后单的自由文本 reason 证据；
+  - `citation_grounding_ok` 不等于语义上的回答正确性。

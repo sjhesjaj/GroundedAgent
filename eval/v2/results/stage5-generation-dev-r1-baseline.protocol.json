@@ -1,0 +1,247 @@
+{
+  "schema": "v2-stage5-generation-dev-protocol/1",
+  "round": 1,
+  "arm": "baseline",
+  "cases": [
+    {
+      "case_id": "dev-A01-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A01-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A02-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A02-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A03-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A03-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A04-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A04-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A05-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A05-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A06-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A06-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A07-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A07-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A08-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A08-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A09-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A09-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A10-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A10-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A11-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A11-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A12-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A12-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A13-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A13-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A14-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A14-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A15-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A15-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A16-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A16-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A17-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A17-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A18-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A18-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A19-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A19-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A20-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "dev-A20-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": null
+    }
+  ]
+}
