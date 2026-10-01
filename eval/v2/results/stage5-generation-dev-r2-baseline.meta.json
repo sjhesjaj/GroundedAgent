@@ -1,0 +1,137 @@
+{
+  "schema": "v2-stage5-generation-dev-meta/1",
+  "round": 2,
+  "arm": "baseline",
+  "generation_source_commit": "2ab48dc993429a4b10b3317a663362c2cf35e911",
+  "generation_source_sha256": {
+    "eval_v2/generation.py": "703d1b0b6fa3df9b1cf836de0941192c564321aa7d89c611f96cb2c1733f7fc2",
+    "eval_v2/e2e.py": "949e0257e976805ead7dbab44705cc657566def6305c2d2cc46f15055c1ad077"
+  },
+  "control_tag": "v2-stage4-baseline",
+  "control_commit": "f99d5c307e13d15626335bfeca06dbf7ee624fd5",
+  "dataset": "dev",
+  "dataset_sha256": "dc8e00405afb9ef9e0dd2f14f1fc5b91b1a5f5dd45812fdcb4a798e97a93f5ab",
+  "max_steps": 5,
+  "case_count": 40,
+  "e2e_run_sha256": "7d2ff6c129885ab94dd7e66d0b99977d8601f18fe7325713013c519eb76cfc77",
+  "valid_round": true,
+  "invalidated_attempts": 0,
+  "database_unchanged_count": 40,
+  "generation_provider": "deepseek",
+  "generation_model_requested": "deepseek-flash",
+  "generation_temperature": 0,
+  "generation_max_tokens": 1024,
+  "thinking": "disabled",
+  "generation_response_format": {
+    "requested_by_generator": "JSON Schema object (answer_response_schema)",
+    "wire": {
+      "type": "json_object"
+    },
+    "note": "llm_provider adapts the schema for DeepSeek: wire response_format json_object plus a fixed schema instruction appended to the system message (prompt adaptation schema_not_supported_by_json_object). Not native JSON-Schema constrained decoding."
+  },
+  "control_provider": null,
+  "control_model_requested": null,
+  "base_url_host": "api.deepseek.com",
+  "report": {
+    "arm": "baseline",
+    "case_count": 40,
+    "control_summary": {
+      "case_count": 40,
+      "control_success_count": 30,
+      "control_success_rate": 0.75,
+      "capabilities_ok_count": 31,
+      "capabilities_ok_rate": 0.775,
+      "clarification_ok_count": 39,
+      "clarification_ok_rate": 0.975,
+      "evidence_ok_count": 33,
+      "evidence_ok_rate": 0.825,
+      "final_ok_count": 37,
+      "final_ok_rate": 0.925,
+      "db_ok_count": 40,
+      "db_ok_rate": 1.0,
+      "average_control_steps": 3.4,
+      "termination_counts": {
+        "finished": 40,
+        "unanswered_clarification": 0,
+        "max_steps_exceeded": 0
+      },
+      "forbidden_evidence_present_count": 1
+    },
+    "e2e_summary": {
+      "case_count": 40,
+      "control_success_count": 30,
+      "control_success_rate": 0.75,
+      "generation_ok_count": 40,
+      "generation_ok_rate": 1.0,
+      "citation_grounding_ok_count": 28,
+      "citation_grounding_ok_rate": 0.7,
+      "forbidden_citation_used_count": 0,
+      "forbidden_citation_used_rate": 0.0,
+      "e2e_grounded_success_count": 25,
+      "e2e_grounded_success_rate": 0.625
+    },
+    "generation_status_counts": {
+      "generated": 32,
+      "fixed": 8,
+      "not_generated": 0,
+      "null": 0
+    },
+    "generation_protocol_error_counts": {
+      "malformed_json": 0,
+      "not_an_object": 0,
+      "invalid_keys": 0,
+      "empty_answer": 0,
+      "citation_refs_not_a_list": 0,
+      "invalid_citation_ref": 0,
+      "duplicate_citation_ref": 0,
+      "unknown_citation_ref": 0
+    },
+    "generation_provider_errors": 0,
+    "answer_only": {
+      "answer_case_count": 32,
+      "generated_ok_count": 32,
+      "generated_ok_rate": 1.0,
+      "citation_grounding_ok_count": 20,
+      "citation_grounding_ok_rate": 0.625,
+      "forbidden_citation_used_count": 0,
+      "generation_protocol_error_count": 0
+    },
+    "citation_diagnostics": {
+      "generated_answer_count": 32,
+      "citation_refs_per_answer": {
+        "mean": 13.625,
+        "median": 14.5,
+        "min": 0,
+        "max": 35
+      },
+      "required_evidence_cited_failures": 12,
+      "forbidden_cited_count": 0,
+      "unknown_citation_errors": 0,
+      "duplicate_citation_errors": 0
+    },
+    "decomposition": {
+      "A_control_failure": 10,
+      "B_generation_failure": 0,
+      "C_citation_grounding_failure": 5,
+      "D_e2e_grounded_success": 25
+    },
+    "generation_usage": {
+      "model_call_count": 32,
+      "prompt_tokens_total": 123988,
+      "completion_tokens_total": 10999,
+      "latency_seconds_total": 70.235,
+      "latency_seconds_mean": 2.195,
+      "latency_seconds_median": 2.261,
+      "models_reported": [
+        "deepseek-flash"
+      ],
+      "finish_reasons": {
+        "stop": 32
+      },
+      "prompt_adaptations": {
+        "schema_not_supported_by_json_object": 32
+      }
+    },
+    "invalidated_attempts": 0
+  }
+}

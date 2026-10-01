@@ -1,0 +1,1909 @@
+{
+  "schema": "v2-stage5-generation-dev-protocol/1",
+  "round": 2,
+  "arm": "tool-loop",
+  "cases": [
+    {
+      "case_id": "dev-A01-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1881,
+          "completion_tokens": 88,
+          "latency_seconds": 1.200237900018692
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4844,
+          "completion_tokens": 89,
+          "latency_seconds": 1.6562718000495806
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16212,
+          "completion_tokens": 38,
+          "latency_seconds": 1.5242422999581322
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A01-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1888,
+          "completion_tokens": 89,
+          "latency_seconds": 1.5075947999721393
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4861,
+          "completion_tokens": 85,
+          "latency_seconds": 1.276454700040631
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15880,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3039467999478802
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A02-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1897,
+          "completion_tokens": 85,
+          "latency_seconds": 1.366828800062649
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "search_after_sales_policy",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "search_after_sales_policy",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5842,
+          "completion_tokens": 89,
+          "latency_seconds": 1.4704653999069706
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 11809,
+          "completion_tokens": 38,
+          "latency_seconds": 1.1881729998858646
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A02-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1903,
+          "completion_tokens": 126,
+          "latency_seconds": 1.0842941000591964
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5196,
+          "completion_tokens": 56,
+          "latency_seconds": 1.1380737000145018
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 13402,
+          "completion_tokens": 38,
+          "latency_seconds": 1.4517095999326557
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A03-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1880,
+          "completion_tokens": 89,
+          "latency_seconds": 1.158034700085409
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4849,
+          "completion_tokens": 53,
+          "latency_seconds": 1.9413149000611156
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 18272,
+          "completion_tokens": 38,
+          "latency_seconds": 1.0822279000421986
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A03-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1887,
+          "completion_tokens": 90,
+          "latency_seconds": 1.2331054999958724
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4854,
+          "completion_tokens": 56,
+          "latency_seconds": 1.1936967999208719
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15874,
+          "completion_tokens": 38,
+          "latency_seconds": 1.5218967000255361
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A04-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1889,
+          "completion_tokens": 90,
+          "latency_seconds": 1.143494899966754
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4862,
+          "completion_tokens": 100,
+          "latency_seconds": 1.3876547999680042
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15299,
+          "completion_tokens": 38,
+          "latency_seconds": 1.5786071999464184
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A04-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1885,
+          "completion_tokens": 88,
+          "latency_seconds": 1.0517948999768123
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5828,
+          "completion_tokens": 100,
+          "latency_seconds": 1.490211799973622
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16269,
+          "completion_tokens": 38,
+          "latency_seconds": 1.4456991999177262
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A05-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_order"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_order",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1878,
+          "completion_tokens": 50,
+          "latency_seconds": 0.9688846000935882
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 1999,
+          "completion_tokens": 38,
+          "latency_seconds": 1.014723900007084
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A05-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1880,
+          "completion_tokens": 86,
+          "latency_seconds": 1.372844299999997
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 2112,
+          "completion_tokens": 38,
+          "latency_seconds": 1.0065287000034004
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A06-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1892,
+          "completion_tokens": 86,
+          "latency_seconds": 1.2809236999601126
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4820,
+          "completion_tokens": 52,
+          "latency_seconds": 1.3881893999641761
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A06-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1895,
+          "completion_tokens": 124,
+          "latency_seconds": 1.1499247000319883
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 5178,
+          "completion_tokens": 89,
+          "latency_seconds": 1.5026949999155477
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A07-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1888,
+          "completion_tokens": 88,
+          "latency_seconds": 1.1176760999951512
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4853,
+          "completion_tokens": 57,
+          "latency_seconds": 1.2118720000144094
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16218,
+          "completion_tokens": 38,
+          "latency_seconds": 1.215731899952516
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A07-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1887,
+          "completion_tokens": 87,
+          "latency_seconds": 1.218399400007911
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4832,
+          "completion_tokens": 87,
+          "latency_seconds": 1.4131177000235766
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A08-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "ask_user"
+          ],
+          "batch_functions": [],
+          "selected_function": "ask_user",
+          "action_kind": "clarify",
+          "diagnostic": null,
+          "prompt_tokens": 1880,
+          "completion_tokens": 60,
+          "latency_seconds": 1.4130593000445515
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1889,
+          "completion_tokens": 84,
+          "latency_seconds": 1.2714131999528036
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4822,
+          "completion_tokens": 86,
+          "latency_seconds": 1.6185099000576884
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A08-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "ask_user"
+          ],
+          "batch_functions": [],
+          "selected_function": "ask_user",
+          "action_kind": "clarify",
+          "diagnostic": null,
+          "prompt_tokens": 1878,
+          "completion_tokens": 76,
+          "latency_seconds": 1.1954290999565274
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1894,
+          "completion_tokens": 86,
+          "latency_seconds": 1.173036599997431
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4875,
+          "completion_tokens": 60,
+          "latency_seconds": 1.0435672999592498
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15635,
+          "completion_tokens": 38,
+          "latency_seconds": 1.0618155000265688
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A09-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1880,
+          "completion_tokens": 84,
+          "latency_seconds": 1.162791599985212
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 3603,
+          "completion_tokens": 64,
+          "latency_seconds": 1.062018399941735
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A09-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1892,
+          "completion_tokens": 89,
+          "latency_seconds": 1.4482634000014514
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5837,
+          "completion_tokens": 107,
+          "latency_seconds": 1.3093268999364227
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 17206,
+          "completion_tokens": 38,
+          "latency_seconds": 1.562090800027363
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A10-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 4,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1899,
+          "completion_tokens": 164,
+          "latency_seconds": 2.424830900039524
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 17787,
+          "completion_tokens": 39,
+          "latency_seconds": 1.2914421000750735
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A10-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 4,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1901,
+          "completion_tokens": 170,
+          "latency_seconds": 1.5473818000173196
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 14466,
+          "completion_tokens": 39,
+          "latency_seconds": 1.4089709999971092
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A11-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1890,
+          "completion_tokens": 122,
+          "latency_seconds": 0.9588382999645546
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 7232,
+          "completion_tokens": 39,
+          "latency_seconds": 1.0877507999539375
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A11-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1899,
+          "completion_tokens": 96,
+          "latency_seconds": 1.6586801999947056
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 2140,
+          "completion_tokens": 39,
+          "latency_seconds": 1.2777685000328347
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A12-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1896,
+          "completion_tokens": 89,
+          "latency_seconds": 1.0248701999662444
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 7041,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3570932000875473
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A12-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1895,
+          "completion_tokens": 93,
+          "latency_seconds": 1.1530079999938607
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_logistics"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_logistics",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 3593,
+          "completion_tokens": 61,
+          "latency_seconds": 1.2421402001054958
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 3660,
+          "completion_tokens": 92,
+          "latency_seconds": 1.614716799929738
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A13-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1881,
+          "completion_tokens": 58,
+          "latency_seconds": 1.0812390999635682
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4616,
+          "completion_tokens": 38,
+          "latency_seconds": 1.4407210000790656
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A13-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1884,
+          "completion_tokens": 92,
+          "latency_seconds": 1.0870438000420108
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 5959,
+          "completion_tokens": 137,
+          "latency_seconds": 1.6760127000743523
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A14-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1882,
+          "completion_tokens": 84,
+          "latency_seconds": 1.313267600024119
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 3631,
+          "completion_tokens": 64,
+          "latency_seconds": 1.5114519000053406
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A14-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1886,
+          "completion_tokens": 88,
+          "latency_seconds": 1.0979884999105707
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4610,
+          "completion_tokens": 63,
+          "latency_seconds": 1.4403565999818966
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A15-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1881,
+          "completion_tokens": 89,
+          "latency_seconds": 1.2932220000075176
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4846,
+          "completion_tokens": 92,
+          "latency_seconds": 1.328797800000757
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4987,
+          "completion_tokens": 50,
+          "latency_seconds": 1.1156169000314549
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4510,
+          "completion_tokens": 39,
+          "latency_seconds": 1.0275946999900043
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A15-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1879,
+          "completion_tokens": 58,
+          "latency_seconds": 0.9911657999036834
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 2002,
+          "completion_tokens": 45,
+          "latency_seconds": 0.8981787998927757
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 2125,
+          "completion_tokens": 45,
+          "latency_seconds": 1.3603675999911502
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 2248,
+          "completion_tokens": 39,
+          "latency_seconds": 1.362148700049147
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A16-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1884,
+          "completion_tokens": 87,
+          "latency_seconds": 1.2534543999936432
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5829,
+          "completion_tokens": 58,
+          "latency_seconds": 1.3799754000501707
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 17195,
+          "completion_tokens": 38,
+          "latency_seconds": 1.5225791000993922
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A16-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1879,
+          "completion_tokens": 88,
+          "latency_seconds": 1.0616665000561625
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4842,
+          "completion_tokens": 88,
+          "latency_seconds": 1.335164799937047
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16207,
+          "completion_tokens": 38,
+          "latency_seconds": 1.4121232000179589
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A17-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1892,
+          "completion_tokens": 89,
+          "latency_seconds": 1.1687655000714585
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4865,
+          "completion_tokens": 56,
+          "latency_seconds": 1.2512563999043778
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15885,
+          "completion_tokens": 38,
+          "latency_seconds": 1.209750699927099
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A17-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1879,
+          "completion_tokens": 88,
+          "latency_seconds": 1.1820345999440178
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4854,
+          "completion_tokens": 79,
+          "latency_seconds": 1.491535900044255
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 10784,
+          "completion_tokens": 38,
+          "latency_seconds": 1.377108999993652
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A18-01",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1889,
+          "completion_tokens": 57,
+          "latency_seconds": 1.437954599969089
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 3291,
+          "completion_tokens": 56,
+          "latency_seconds": 1.2525386000052094
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 10941,
+          "completion_tokens": 39,
+          "latency_seconds": 1.2218438000418246
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A18-02",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1893,
+          "completion_tokens": 57,
+          "latency_seconds": 0.9885799000039697
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 0,
+          "returned_functions": [],
+          "batch_functions": [],
+          "selected_function": null,
+          "action_kind": "finish",
+          "diagnostic": "no_tool_call",
+          "prompt_tokens": 3293,
+          "completion_tokens": 157,
+          "latency_seconds": 1.800548299914226
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A19-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1882,
+          "completion_tokens": 66,
+          "latency_seconds": 0.9974478000076488
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 13243,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3232359000248834
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A19-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1878,
+          "completion_tokens": 68,
+          "latency_seconds": 1.1840154000092298
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 14956,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3990150999743491
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A20-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1889,
+          "completion_tokens": 133,
+          "latency_seconds": 1.373939000070095
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 7231,
+          "completion_tokens": 55,
+          "latency_seconds": 0.968405699939467
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 12210,
+          "completion_tokens": 38,
+          "latency_seconds": 1.601617299951613
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A20-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1892,
+          "completion_tokens": 121,
+          "latency_seconds": 1.5168679999187589
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 6933,
+          "completion_tokens": 61,
+          "latency_seconds": 1.2595824000891298
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 17350,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3620818000053987
+        }
+      ]
+    }
+  ]
+}

@@ -1783,3 +1783,39 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
   - generator 常常引用结论级的派生事实，却遗漏结构化前提 / 规则证据；
   - Tool Loop 有两个回答引用了售后单的自由文本 reason 证据；
   - `citation_grounding_ok` 不等于语义上的回答正确性。
+
+### Generation DEV Round 2（有效，2 / 2，最终 generation 开发轮次）
+
+- generation source：`2ab48dc993429a4b10b3317a663362c2cf35e911`（分支 `stage5-generation-r2`）。改动：派生事实的 `supporting_refs`（仅来自 `DerivedEvidence.input_refs` 与 `policy_refs` 对应的规则证据）；完整来源引用、自由文本非权威、不暴露内部标识三条通用 prompt 规则；`GENERATION_MAX_TOKENS` 512 → 1024。评分器、e2e、标签均未改动；不自动扩展引用；不过滤证据。
+- e2e run SHA：Baseline `7d2ff6c129885ab94dd7e66d0b99977d8601f18fe7325713013c519eb76cfc77`，Tool Loop `7b7beadfe2104b36fb9d17b693a5863475a263895547f821e0cfe50774cc395c`。
+- 结果文件（`eval/v2/results/`）：`stage5-generation-dev-r2-baseline.json`（`0738f646846965786ef8720a9e00063c23f42a778d469c037370ef0eb770d23f`），`-baseline.meta.json`（`dd1d65b65ed62d9b2366387661aa4a951dd65d7b529b06fd41385c87b021acd9`），`-baseline.protocol.json`（`4d08a85981aa77e316278d0253f433d8d9f583e87163a716ba09510493c9965e`），`stage5-generation-dev-r2-tool-loop.json`（`7ed7481e7c7703fde2a9a5d66637b9d172107336702ccec508b759aff2bcbe14`），`-tool-loop.meta.json`（`9c5ffa951dfff17a74e5ad95484c0a35bea66a7a35cc60a8a1546c8df9124814`），`-tool-loop.protocol.json`（`5d9eab9484c98235567817258e6aafca9d1c2130d5210434715db1b2445a5d3d`）。
+
+| 指标 | Baseline R1 | Baseline R2 | Tool Loop R1 | Tool Loop R2 |
+|---|---|---|---|---|
+| 新鲜控制 control_success | 30/40 | 30/40 | 36/40 | 37/40 |
+| generation_ok | 40/40 | 40/40 | 40/40 | 40/40 |
+| answer-only citation_grounding | 18/32 | 20/32 = 0.625 | 15/28 | 22/28 ≈ 0.786 |
+| overall citation_grounding | 26/40 | 28/40 | 27/40 | 34/40 |
+| forbidden_citation_used | 0 | 0 | 2 | 0 |
+| e2e_grounded_success | 23/40 | 25/40 = 0.625 | 25/40 | 32/40 = 0.80 |
+
+- generation 协议错误两臂均为 0。
+- 规则（policy）前提的引用缺口降为 0。
+- Tool Loop 引用自由文本的 forbidden citation：2 → 0。
+- R2 回答中没有观察到原始的内部派生字段标识。
+- `citation_grounding_ok` 不等于语义上的正确性。
+- 已知仍存在的局限：
+  - 必需证据仍可能被遗漏；
+  - 没有通过 `supporting_refs` 连接的独立派生事实仍可能被漏引；
+  - 派生来源链之外的对象 / SKU 事实仍可能被漏引；
+  - 对被正确引用的证据的语义误用，`citation_grounding_ok` 检测不到。
+
+### Generation 冻结
+
+**GENERATION DEVELOPMENT CLOSED.** 有效 generation DEV 轮次：**2 / 2**。
+
+- 选定候选：Round 2，`2ab48dc993429a4b10b3317a663362c2cf35e911`。
+- 冻结 tag：annotated **`v2-stage5-generation`**（tag object `985a6f2df8436b8029f86b2e34a9e7b82329386e`），peel 到 source `2ab48dc`（不是之后的评测记录 commit）。该 tag 永不移动。
+- **`GENERATION_MAX_TOKENS`**：Round 1 为 512，冻结的 Round 2 为 **1024**。原因：Round 2 扩展后的来源引用契约会产生明显更长的合法 JSON 回复；DEV R2 有 6 个回复超过 512 completion tokens，观察到的最大值为 699。因此 1024 是冻结的 R2 generation 配置的一部分；**不得基于 VALIDATION 或 HOLDOUT 修改，以后也不再上调。**
+- DeepSeek 的 wire 格式仍为 `response_format = json_object`，加上 provider 注入的 JSON Schema 指令；这**不是**原生 JSON-Schema 约束解码。
+- 从此冻结：控制（`Stage4BaselinePolicy`、`LLMNativeToolLoopPolicy`、`max_steps = 5`）与 generation（`SharedGenerator`、generation prompt、`supporting_refs` 行为、固定的非 answer 渲染、citation 协议、citation 评分器、`GENERATION_MAX_TOKENS = 1024`、temperature 0、DeepSeek formal provider）。不得基于 validation 做任何源码修改。
