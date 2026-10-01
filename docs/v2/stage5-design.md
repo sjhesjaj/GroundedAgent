@@ -31,10 +31,20 @@
   策略代码不解析 observation 来填参数。
 - **对话重建只用 ControlState**：一条 system 消息 = 固定 prompt + 运行时上下文
   （`virtual_now / persona_id / step_number / remaining_steps` 的 canonical JSON）；随后按投递顺序给出每条
-  user 消息，以及该消息为最新时产生的 observation（按 sequence）。每个 observation 重建为一条合成的
-  assistant tool-call 消息（id = `obs-<observation_id>`，参数为 canonical JSON）加一条 tool 消息
-  （canonical ToolResult JSON；`ToolContractFailure` 为 `{"status":"malformed","tool_name":...}`，不伪造证据）。
+  user 消息，以及该消息为最新时产生的 observation（按 sequence）。每个 observation 重建为一条
+  assistant tool-call 消息加一条 tool 消息（canonical ToolResult JSON，取自 ControlState；
+  `ToolContractFailure` 为 `{"status":"malformed","tool_name":...}`，不伪造证据）。
   已经 Clarify 的动作本身不重建，投递的后续 user 消息即可。
+- **原生调用精确回放**：`llm_provider.ToolCall` 增加 `id` 与 `raw_arguments`（向后兼容）。策略实例内有一个私有
+  sidecar，按产生调用的 control step 只保存线协议信封（原生 id、函数名、原始 arguments 字符串）。回放时
+  assistant 消息使用原生 id 与原始 arguments，tool 消息的 `tool_call_id` 为同一 id，结果仍来自 ControlState。
+  sidecar 不保存 ToolResult、证据、用户文本或任何评测信息。
+  - **formal 路径**：ControlState 中存在本策略实例没有发出的运行时调用（或信封与 observation 不一致、
+    或 provider 没给原生 id）时，在调用模型之前抛出 `ToolLoopProtocolError`；这是集成/协议错误，
+    不是 `Finish("refuse")`，也绝不伪造 id。
+  - 非 formal 的独立重建（单元测试等）可回退到确定性的合成 id `obs-<observation_id>`。
+  - 预修复 smoke 中，当前 DeepSeek 端点接受了合成 `obs-*` id；改为原生 id 是协议保真 / 前向兼容加固，
+    不是修复已观测到的线上故障。
 
 ## 3. 安全与失败语义
 
@@ -44,6 +54,12 @@
 - **重试上限（冻结）**：同一 case-run 内，同一 `(tool_name, canonical arguments)` 最多尝试 **3** 次。
   计数包含此前所有匹配的 `ToolObservation` 与 `ToolContractFailure`，不因错误重置。第 4 次请求不返回
   ToolCall，fail closed 为 `Finish("refuse")`，诊断码 `retry_cap_exceeded`。
+- **正式控制协议：每次模型决策恰好一个原生函数调用**。一次 ControlPolicy 决策 = 一次模型请求 = 恰好一个
+  原生 function call，然后执行 → 观察 → 下一次决策。runner 不支持批量 ToolCall。模型一次返回多个调用
+  计为**协议失败**（`multiple_tool_calls` → `Finish("refuse")`），不会被静默规整：不执行其中任何一个、
+  不取第一个、不排队。不使用 `tool_choice="required"`，也不发送 DeepSeek Chat Completions 未文档化的
+  `parallel_tool_calls` 参数；单调用约束只体现在固定 system prompt 与协议校验中。
+  （预修复 smoke：3 条"看起来可并行"的合成请求全部返回 2 个原生调用——这是需要单独报告的协议遵从问题。）
 - **无效模型协议 fail closed**：0 个调用、多个调用、未知函数、不在 allowed_tools 的工具、未提供的函数、
   参数不符合 ToolSpec 闭合契约（含任何身份参数）、非法 slots、非法 disposition → `Finish("refuse")`，
   记录稳定诊断码。未知工具名不自动转为 boundary。
@@ -55,6 +71,11 @@
 - **正式 Stage 5 评测只用 DeepSeek**：`LLMNativeToolLoopPolicy(provider, formal=True)` 要求 `provider.name == "deepseek"`。
   Qwen/Ollama 可用于开发（`formal=False`），不能用于正式评测。
   （注：重建的历史 tool-call 采用 OpenAI 兼容形状，arguments 为 JSON 字符串；Ollama 原生接口上的多步运行未验证。）
+- **诊断分类报告规则**：正式 Stage 5 DEV 报告必须从 `ToolLoopDecisionRecord`（经评测 harness 捕获的策略实例）
+  分开计数至少以下几类，以区分「任务/控制失败」与「模型原生协议遵从失败」：
+  `no_tool_call`；`multiple_tool_calls`；`retry_cap_exceeded`；其余模型协议诊断码（合计并分码列出）；
+  provider / 协议执行错误（HTTP / 网络异常、`ToolLoopProtocolError`，由 harness 记录）。
+  不为此修改 `DatasetRun / CaseScore`。
 - **决策审计**：每次模型调用一条 `ToolLoopDecisionRecord`（控制步、provider、请求/返回模型、token 数、
   finish_reason、原生调用数、提供的函数、选中函数、动作类型、诊断码、latency），经 `policy.decision_records`
   取得。不含 API key、reasoning、用户文本或任何评测标签；**不进入** `CaseRunRecord / DatasetRun / CaseScore /

@@ -227,6 +227,16 @@ class OllamaProviderTests(unittest.TestCase):
         result, _ = self.call(body)
         self.assertEqual(result.tool_calls[0].name, "search_knowledge_base")
         self.assertEqual(result.tool_calls[0].arguments, {"query": "年假"})
+        # Ollama sends parsed arguments and may omit an id.
+        self.assertIsNone(result.tool_calls[0].id)
+        self.assertIsNone(result.tool_calls[0].raw_arguments)
+
+    def test_ollama_tool_call_id_is_kept_when_supplied(self):
+        body = ollama_body("", message_extra={"tool_calls": [
+            {"id": "call-o1", "function": {"name": "get_order", "arguments": {"order_id": "ORD-1001"}}}]})
+        result, _ = self.call(body)
+        self.assertEqual(result.tool_calls[0].id, "call-o1")
+        self.assertEqual(result.tool_calls[0].arguments, {"order_id": "ORD-1001"})
 
     def test_http_errors_propagate_as_request_exceptions(self):
         with patch.object(llm_provider.requests, "post", return_value=FakeResponse(status=500)):
@@ -336,6 +346,26 @@ class DeepSeekProviderTests(unittest.TestCase):
         self.assertEqual(result.content, "")
         self.assertEqual(result.tool_calls[0].arguments, {"query": "年假"})
         self.assertEqual(result.tool_calls[1].arguments, {})
+        # The unparsed original survives even when parsing fails.
+        self.assertEqual(result.tool_calls[1].raw_arguments, "{not json")
+        self.assertEqual([call.id for call in result.tool_calls], ["c1", "c2"])
+
+    def test_native_tool_call_identity_is_preserved(self):
+        raw = '{"order_id":"ORD-1001"}'
+        body = deepseek_body(None, tool_calls=[
+            {"id": "call-real-123", "type": "function",
+             "function": {"name": "get_order", "arguments": raw}}])
+        result, _ = self.call(body, tools=[{"type": "function"}])
+        call = result.tool_calls[0]
+        self.assertEqual(call.id, "call-real-123")
+        self.assertEqual(call.name, "get_order")
+        self.assertEqual(call.arguments, {"order_id": "ORD-1001"})
+        self.assertEqual(call.raw_arguments, raw)
+
+    def test_tool_call_stays_backward_compatible(self):
+        call = llm_provider.ToolCall(name="get_order", arguments={"order_id": "ORD-1001"})
+        self.assertEqual((call.id, call.raw_arguments), (None, None))
+        self.assertEqual(call, llm_provider.ToolCall("get_order", {"order_id": "ORD-1001"}))
 
     def test_http_error_carries_body_but_never_the_key(self):
         failing = FakeResponse(status=401, text='{"error":{"message":"Authentication Fails"}}')

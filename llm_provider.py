@@ -63,6 +63,13 @@ class LLMConfigError(ValueError):
 class ToolCall:
     name: str | None
     arguments: dict
+    # The provider's own call id, when it gives one (the OpenAI format always
+    # does; Ollama may not). Replaying it keeps a tool result linked to the
+    # exact call the model made.
+    id: str | None = None
+    # `function.arguments` exactly as returned, before JSON parsing, when the
+    # provider sends a string (OpenAI format). `arguments` is the parsed form.
+    raw_arguments: str | None = None
 
 
 @dataclass(frozen=True)
@@ -198,6 +205,7 @@ class OllamaProvider:
             ToolCall(
                 name=(call.get("function") or {}).get("name"),
                 arguments=(call.get("function") or {}).get("arguments") or {},
+                id=call.get("id") if isinstance(call.get("id"), str) else None,
             )
             for call in message.get("tool_calls") or []
         )
@@ -357,12 +365,16 @@ class OpenAICompatibleProvider:
         for call in message.get("tool_calls") or []:
             function = call.get("function") or {}
             arguments = function.get("arguments") or {}
+            raw_arguments = arguments if isinstance(arguments, str) else None
             if isinstance(arguments, str):
                 try:
                     arguments = json.loads(arguments) if arguments.strip() else {}
                 except json.JSONDecodeError:
                     arguments = {}
-            calls.append(ToolCall(name=function.get("name"), arguments=arguments))
+            call_id = call.get("id")
+            calls.append(ToolCall(name=function.get("name"), arguments=arguments,
+                                  id=call_id if isinstance(call_id, str) else None,
+                                  raw_arguments=raw_arguments))
         usage = data.get("usage") or {}
         return LLMResponse(
             content=content,

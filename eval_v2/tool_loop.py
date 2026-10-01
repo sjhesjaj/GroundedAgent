@@ -25,14 +25,30 @@ Conversation reconstruction
     One system message: a fixed prompt plus the runtime context (virtual_now,
     persona_id, step_number, remaining_steps) as canonical JSON. Then, in
     delivery order, each user message followed by the observations made while
-    it was the latest one (by sequence). Each observation becomes a synthetic
-    assistant tool-call message (call id "obs-<observation_id>", canonical
-    JSON arguments) and a tool-role message holding the canonical ToolResult
-    JSON, or {"status": "malformed", ...} for a ToolContractFailure. Tool
-    output and business-record text stay inside tool-role messages; nothing
-    from an observation is ever put into the system message. There is no
-    keyword filter: the prompt says the data is untrusted and the runtime
-    enforces the hard capability boundary.
+    it was the latest one (by sequence). Each observation becomes an assistant
+    tool-call message and a tool-role message holding the canonical ToolResult
+    JSON from the ControlState, or {"status": "malformed", ...} for a
+    ToolContractFailure. Tool output and business-record text stay inside
+    tool-role messages; nothing from an observation is ever put into the
+    system message. There is no keyword filter: the prompt says the data is
+    untrusted and the runtime enforces the hard capability boundary.
+
+Native replay
+    The assistant tool-call message replays the model's own call: its native
+    id, function name and raw argument string, from a private per-policy
+    sidecar keyed by the control step that produced the call. The sidecar
+    holds only that wire envelope - never a result, evidence, or text - so
+    business state still comes from the ControlState alone. Without an
+    envelope (a standalone state, or a provider that gave no id) a non-formal
+    policy falls back to the synthetic id "obs-<observation_id>" with
+    canonical arguments; a formal policy raises ToolLoopProtocolError before
+    calling the model and never fabricates an id.
+
+Single-call protocol
+    One decision = one model request = exactly one native function call, then
+    execute -> observe -> next decision. Several calls in one response are a
+    protocol failure (multiple_tool_calls): none is executed, none is queued,
+    and the batch is never reduced to its first member.
 
 Fail-closed model protocol
     Zero calls, several calls, an unknown or not-offered function, arguments
@@ -142,6 +158,28 @@ FINISH_DESCRIPTION = ("结束本次处理并给出处置：answer 直接给出�
 
 class FormalProviderError(ValueError):
     """A formal Stage 5 Tool Loop must run on the formal provider."""
+
+
+class ToolLoopProtocolError(RuntimeError):
+    """The formal native history cannot be replayed exactly.
+
+    An integration error, never a business outcome: it ends the case-run
+    instead of becoming Finish("refuse").
+    """
+
+
+@dataclass(frozen=True, kw_only=True)
+class NativeCallEnvelope:
+    """The wire envelope of one runtime call the model made. Nothing else.
+
+    `arguments_key` is the canonical JSON of the validated arguments, used only
+    to check that an observation belongs to this very call.
+    """
+
+    call_id: str
+    name: str
+    raw_arguments: str | None
+    arguments_key: str
 
 
 # --------------------------------------------------------------------------
@@ -257,9 +295,28 @@ def _observation_content(observation: Observation) -> str:
     return canonical_json({"tool_name": observation.tool_name, "status": observation.kind})
 
 
-def _observation_messages(observation: Observation) -> list[dict[str, object]]:
-    call_id = synthetic_call_id(observation)
-    arguments = {name: observation.arguments[name] for name in sorted(observation.arguments)}
+def _arguments_key(arguments: Mapping[str, str]) -> str:
+    return canonical_json({name: arguments[name] for name in sorted(arguments)})
+
+
+def _replay_envelope(observation: Observation,
+                     native_calls: Mapping[int, NativeCallEnvelope],
+                     formal: bool) -> tuple[str, str]:
+    """(call id, arguments string) for the assistant message of one observation."""
+    envelope = native_calls.get(observation.control_step)
+    if (envelope is not None and envelope.name == observation.tool_name
+            and envelope.arguments_key == _arguments_key(observation.arguments)):
+        raw = envelope.raw_arguments
+        return envelope.call_id, raw if raw is not None else envelope.arguments_key
+    if formal:
+        raise ToolLoopProtocolError(
+            "no native call of this policy produced the observation at control step "
+            + str(observation.control_step))
+    return synthetic_call_id(observation), _arguments_key(observation.arguments)
+
+
+def _observation_messages(observation: Observation, call_id: str,
+                          arguments: str) -> list[dict[str, object]]:
     return [
         {
             "role": "assistant",
@@ -267,8 +324,7 @@ def _observation_messages(observation: Observation) -> list[dict[str, object]]:
             "tool_calls": [{
                 "id": call_id,
                 "type": "function",
-                "function": {"name": observation.tool_name,
-                             "arguments": canonical_json(arguments)},
+                "function": {"name": observation.tool_name, "arguments": arguments},
             }],
         },
         {
@@ -280,8 +336,14 @@ def _observation_messages(observation: Observation) -> list[dict[str, object]]:
     ]
 
 
-def build_messages(state: ControlState) -> list[dict[str, object]]:
-    """The model-visible conversation, from the ControlState only."""
+def build_messages(state: ControlState,
+                   native_calls: Mapping[int, NativeCallEnvelope] | None = None,
+                   *, formal: bool = False) -> list[dict[str, object]]:
+    """The model-visible conversation; business content from the ControlState only.
+
+    `native_calls` supplies the wire envelopes to replay (see the module doc).
+    """
+    native_calls = {} if native_calls is None else native_calls
     runtime_context = canonical_json({
         "virtual_now": state.virtual_now,
         "persona_id": state.persona_id,
@@ -303,7 +365,8 @@ def build_messages(state: ControlState) -> list[dict[str, object]]:
         messages.append({"role": "user", "content": message.text})
         for observation in observations:
             if observation.turn_index == message.turn_index:
-                messages.extend(_observation_messages(observation))
+                call_id, arguments = _replay_envelope(observation, native_calls, formal)
+                messages.extend(_observation_messages(observation, call_id, arguments))
     return messages
 
 
@@ -484,6 +547,9 @@ class LLMNativeToolLoopPolicy:
         self._provider = provider
         self._formal = formal
         self._records: list[ToolLoopDecisionRecord] = []
+        # Private replay sidecar: control step -> wire envelope of the runtime
+        # call made at that step. Never results, evidence, or text.
+        self._native_calls: dict[int, NativeCallEnvelope] = {}
 
     @property
     def formal(self) -> bool:
@@ -493,11 +559,26 @@ class LLMNativeToolLoopPolicy:
     def decision_records(self) -> tuple[ToolLoopDecisionRecord, ...]:
         return tuple(self._records)
 
+    def _remember(self, step: int, action: ToolCall, native_call: object) -> None:
+        call_id = getattr(native_call, "id", None)
+        if not isinstance(call_id, str) or not call_id:
+            return  # nothing native to replay; a formal replay refuses to fabricate one
+        raw = getattr(native_call, "raw_arguments", None)
+        self._native_calls[step] = NativeCallEnvelope(
+            call_id=call_id,
+            name=action.tool_name,
+            raw_arguments=raw if isinstance(raw, str) else None,
+            arguments_key=_arguments_key(action.arguments),
+        )
+
     def next_action(self, state: ControlState) -> ControlAction:
         if not isinstance(state, ControlState):
             raise TypeError("state must be a ControlState")
+        if state.step_number == 1:
+            self._native_calls.clear()  # a case-run always starts at step 1
         offered = offered_functions(state)
-        messages = build_messages(state)
+        # On the formal path this raises ToolLoopProtocolError before any model call.
+        messages = build_messages(state, self._native_calls, formal=self._formal)
         # Provider / network errors propagate: an outage is not a business refuse.
         response = self._provider.chat(
             messages,
@@ -507,6 +588,8 @@ class LLMNativeToolLoopPolicy:
         )
         tool_calls = tuple(getattr(response, "tool_calls", None) or ())
         action, selected, diagnostic = translate(state, offered, tool_calls)
+        if type(action) is ToolCall:
+            self._remember(state.step_number, action, tool_calls[0])
         self._records.append(ToolLoopDecisionRecord(
             control_step=state.step_number,
             provider=self._provider.name,

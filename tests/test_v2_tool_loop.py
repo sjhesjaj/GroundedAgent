@@ -38,7 +38,9 @@ from eval_v2.tool_loop import (
     TOOL_LOOP_MAX_TOKENS,
     FormalProviderError,
     LLMNativeToolLoopPolicy,
+    NativeCallEnvelope,
     ToolLoopDecisionRecord,
+    ToolLoopProtocolError,
     build_messages,
     offered_functions,
     runtime_tool_specs,
@@ -71,9 +73,15 @@ def reply(*calls, provider="deepseek", model="deepseek-chat"):
     return LLMResponse(
         content="", prompt_tokens=321, completion_tokens=17, latency_seconds=0.25,
         provider=provider, model=model, reasoning=REASONING,
-        tool_calls=tuple(NativeCall(name=name, arguments=arguments)
-                         for name, arguments in calls),
+        tool_calls=tuple(call if isinstance(call, NativeCall)
+                         else NativeCall(name=call[0], arguments=call[1])
+                         for call in calls),
         finish_reason="tool_calls", raw_content="")
+
+
+def native(name, raw, call_id):
+    """A native call as the OpenAI-compatible provider normalizes it."""
+    return NativeCall(name=name, arguments=json.loads(raw), id=call_id, raw_arguments=raw)
 
 
 class ScriptedProvider:
@@ -575,6 +583,121 @@ class RunnerIntegrationTests(unittest.TestCase):
 # --------------------------------------------------------------------------
 # Formal gate, audit, source boundary
 # --------------------------------------------------------------------------
+
+
+class NativeReplayTests(unittest.TestCase):
+    """Exact replay of the model's own native calls (multi-round, never parallel)."""
+
+    def tool_pairs(self, messages):
+        """[(assistant call id, raw arguments, tool_call_id, tool content)] in order."""
+        pairs, pending = [], None
+        for message in messages:
+            if message["role"] == "assistant":
+                (call,) = message["tool_calls"]
+                pending = (call["id"], call["function"]["name"], call["function"]["arguments"])
+            elif message["role"] == "tool":
+                pairs.append(pending + (message["tool_call_id"], message["content"]))
+        return pairs
+
+    def test_native_id_and_raw_arguments_are_replayed(self):
+        raw = '{"order_id": "ORD-1001"}'  # not canonical: the exact string must survive
+        provider = ScriptedProvider(reply(native("get_order", raw, "call-real-123")),
+                                    reply((FINISH, {"disposition": "answer"})))
+        policy = LLMNativeToolLoopPolicy(provider, formal=True)
+        record = run_case(synthetic_case("ORD-1001 的订单"), policy, max_steps=MAX_STEPS)
+        self.assertEqual(record.final_disposition, "answer")
+        messages = provider.requests[1]["messages"]
+        assistant = next(m for m in messages if m["role"] == "assistant")
+        tool = next(m for m in messages if m["role"] == "tool")
+        self.assertEqual(assistant["tool_calls"][0]["id"], "call-real-123")
+        self.assertEqual(assistant["tool_calls"][0]["function"],
+                         {"name": "get_order", "arguments": raw})
+        self.assertEqual(tool["tool_call_id"], "call-real-123")
+        # The result itself still comes from the ControlState observation.
+        self.assertEqual(tool["content"], canonical_json(record.observations[0].to_dict()["result"]))
+        self.assertNotIn("obs-", json.dumps(messages))
+
+    def test_two_sequential_calls_are_both_replayed_natively(self):
+        order_raw, logistics_raw = '{"order_id":"ORD-1001"}', '{ "order_id" : "ORD-1001" }'
+        provider = ScriptedProvider(
+            reply(native("get_order", order_raw, "call-order")),
+            reply(native("get_logistics", logistics_raw, "call-logistics")),
+            reply((FINISH, {"disposition": "answer"})))
+        policy = LLMNativeToolLoopPolicy(provider, formal=True)
+        record = run_case(synthetic_case("ORD-1001 的物流"), policy, max_steps=MAX_STEPS)
+        self.assertEqual(len(provider.requests), 3)
+        results = [canonical_json(o.to_dict()["result"]) for o in record.observations]
+        self.assertEqual(self.tool_pairs(provider.requests[2]["messages"]), [
+            ("call-order", "get_order", order_raw, "call-order", results[0]),
+            ("call-logistics", "get_logistics", logistics_raw, "call-logistics", results[1])])
+        self.assertEqual(self.tool_pairs(provider.requests[1]["messages"]), [
+            ("call-order", "get_order", order_raw, "call-order", results[0])])
+
+    def test_sidecar_holds_only_the_wire_envelope(self):
+        self.assertEqual(set(NativeCallEnvelope.__dataclass_fields__),
+                         {"call_id", "name", "raw_arguments", "arguments_key"})
+
+    def test_non_formal_without_native_id_falls_back_to_synthetic_id(self):
+        provider = ScriptedProvider(reply(("get_order", {"order_id": "ORD-1001"})),
+                                    reply((FINISH, {"disposition": "answer"})))
+        run_case(synthetic_case("ORD-1001"), LLMNativeToolLoopPolicy(provider),
+                 max_steps=MAX_STEPS)
+        (pair,) = self.tool_pairs(provider.requests[1]["messages"])
+        self.assertEqual(pair[:3], ("obs-turn:1:tool:1", "get_order", '{"order_id":"ORD-1001"}'))
+
+    def test_formal_missing_native_history_raises_before_the_model_call(self):
+        obs = observation(1, "get_order", {"order_id": "ORD-1001"}, empty_result("get_order"))
+        provider = ScriptedProvider(reply((FINISH, {"disposition": "answer"})))
+        policy = LLMNativeToolLoopPolicy(provider, formal=True)
+        with self.assertRaises(ToolLoopProtocolError):
+            policy.next_action(control_state("ORD-1001", observations=[obs]))
+        self.assertEqual(provider.requests, [])
+        self.assertEqual(policy.decision_records, ())
+        failure = contract_failure(1, "get_order", {"order_id": "ORD-1001"})
+        with self.assertRaises(ToolLoopProtocolError):
+            policy.next_action(control_state("ORD-1001", observations=[failure]))
+
+    def test_formal_observation_must_match_the_native_call(self):
+        provider = ScriptedProvider(reply(native("get_order", '{"order_id":"ORD-1001"}', "call-1")))
+        policy = LLMNativeToolLoopPolicy(provider, formal=True)
+        policy.next_action(control_state("ORD-1001"))
+        other = observation(1, "get_order", {"order_id": "ORD-1002"}, empty_result("get_order"))
+        with self.assertRaises(ToolLoopProtocolError):
+            policy.next_action(control_state("ORD-1001", observations=[other]))
+
+    def test_formal_native_call_without_id_is_never_fabricated(self):
+        provider = ScriptedProvider(reply(("get_order", {"order_id": "ORD-1001"})))
+        with self.assertRaises(ToolLoopProtocolError):
+            run_case(synthetic_case("ORD-1001"), LLMNativeToolLoopPolicy(provider, formal=True),
+                     max_steps=MAX_STEPS)
+        self.assertEqual(len(provider.requests), 1)
+
+    def test_sidecar_restarts_with_each_case_run(self):
+        provider = ScriptedProvider(
+            reply(native("get_order", '{"order_id":"ORD-1001"}', "call-a")),
+            reply((FINISH, {"disposition": "answer"})),
+            reply((FINISH, {"disposition": "answer"})))
+        policy = LLMNativeToolLoopPolicy(provider, formal=True)
+        run_case(synthetic_case("ORD-1001"), policy, max_steps=MAX_STEPS)
+        run_case(synthetic_case("你好"), policy, max_steps=MAX_STEPS)
+        self.assertEqual(policy._native_calls, {})
+
+    def test_multiple_calls_execute_nothing_and_queue_nothing(self):
+        provider = ScriptedProvider(reply(native("get_order", '{"order_id":"ORD-1001"}', "call-o"),
+                                          native("get_logistics", '{"order_id":"ORD-1001"}',
+                                                 "call-l")))
+        policy = LLMNativeToolLoopPolicy(provider, formal=True)
+        record = run_case(synthetic_case("查一下 ORD-1001 的订单状态和物流情况"), policy,
+                          max_steps=MAX_STEPS)
+        self.assertEqual((record.termination, record.final_disposition),
+                         (TERMINATION_FINISHED, "refuse"))
+        self.assertEqual(record.observations, ())
+        self.assertEqual(record.fault_records, ())
+        (decision,) = policy.decision_records
+        self.assertEqual((decision.diagnostic, decision.native_tool_calls, decision.selected_function),
+                         ("multiple_tool_calls", 2, None))
+        self.assertEqual(policy._native_calls, {})
+        self.assertEqual(len(provider.requests), 1)
 
 
 class FormalGateTests(unittest.TestCase):
