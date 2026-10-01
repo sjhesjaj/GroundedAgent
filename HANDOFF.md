@@ -1619,3 +1619,30 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 共享的 DeepSeek generation / citation / end-to-end 对比在 Stage 5 实现，并以完全相同的方式同时用于冻结的 Stage 4 Baseline 和 Stage 5 Tool Loop。
 - Stage 5 正式的相同调用重试上限仍为：每次 case-run 中，每个完全相同的 (tool_name, canonical arguments) 最多 3 次尝试。
 - holdout 仍然封存，从未运行；只在 Stage 5 结束时开封一次，用于冻结 Baseline 与冻结 Tool Loop 的对比。
+
+## 19. GroundedAgent V2 Stage 5：LLM-native Tool Loop DEV 迭代
+
+协议见 `docs/v2/stage5-design.md` §6：最多 3 个有效 DEV 轮次；之后打 tag `v2-stage5-tool-loop` 冻结，再跑 VALIDATION；holdout 在 Stage 5 结束时一次性打开。
+
+### DEV Round 1（有效，1 / 3）
+
+- source commit：`fbf9c67c78bb4e121ebb54c875cac9c5549e63cd`（PR #20 merge，parents `6da5a28` / `912fbb0`）。
+- 运行：1 次 trial × 40 cases，`LLMNativeToolLoopPolicy(provider, formal=True)`，每个 case 一个新 policy；DeepSeek `deepseek-flash`，temperature 0，max_tokens 512，thinking disabled，`max_steps = 5`。
+- DatasetRun SHA：`e76ccaca4d922775dc317eea620c18d12e6ca6e13ff253e448ddf7d66bf1b5b3`。
+- 结果文件：`eval/v2/results/stage5-tool-loop-dev-r1.json`（SHA-256 `2b6e204b77048067f3e772ac480183253da98c4773585c51b2d4252c34c24afa`），`stage5-tool-loop-dev-r1.meta.json`（`14b761c2b3b652f9a0a05684b1a1833a29774095ce911ea331745addff26f3ee`），`stage5-tool-loop-dev-r1.protocol.json`（`08298d86330d1e4e583dcffca12c753314966f3d6cf03a6644a7f8cb2503aa9c`）。
+
+| 指标 | Round 1 | Stage 4 Baseline DEV |
+|---|---|---|
+| control_success | 36/40 = 0.90 | 30/40 = 0.75 |
+| capabilities_ok | 38/40 = 0.95 | 31/40 = 0.775 |
+| clarification_ok | 39/40 = 0.975 | 39/40 = 0.975 |
+| evidence_ok | 38/40 = 0.95 | 33/40 = 0.825 |
+| final_ok | 36/40 = 0.90 | 37/40 = 0.925 |
+| db_ok | 40/40 = 1.0 | 40/40 = 1.0 |
+| average_control_steps | 3.425 | 3.4 |
+
+- 原生协议：model_calls 99；accepted_multi_runtime_batches 31（批次大小 2→25，3→5，4→1）；`multiple_tool_calls` = 1，其余模型协议诊断码全为 0；provider_errors = 0；`ToolLoopProtocolError` = 0。
+- tokens：prompt 702690，completion 6414。
+- 数据库不变量：40/40 unchanged；没有越过 allowed_tools 或携带身份参数的调用到达 executor。
+- 失败分类（4 个）：planning / capability selection = 1；final disposition = 2；native protocol = 1。
+- 审计缺口：被拒绝的多调用响应没有记录函数名（Round 2 增加 `returned_functions` 仅作诊断）。

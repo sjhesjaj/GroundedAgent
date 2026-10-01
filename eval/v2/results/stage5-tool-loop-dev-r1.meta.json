@@ -1,0 +1,56 @@
+{
+  "schema": "v2-stage5-tool-loop-dev-meta/1",
+  "round": 1,
+  "tool_loop_commit": "fbf9c67c78bb4e121ebb54c875cac9c5549e63cd",
+  "tool_loop_source_sha256": "83b0436f5bf8fa8c977d0d1356d1cede9452c84587b429eb2f7ce29c29e67d38",
+  "dataset": "dev",
+  "dataset_sha256": "dc8e00405afb9ef9e0dd2f14f1fc5b91b1a5f5dd45812fdcb4a798e97a93f5ab",
+  "max_steps": 5,
+  "trial_count": 1,
+  "provider": "deepseek",
+  "base_url_host": "api.deepseek.com",
+  "model_requested": "deepseek-flash",
+  "models_reported": [
+    "deepseek-flash"
+  ],
+  "temperature": 0,
+  "max_tokens": 512,
+  "thinking": "disabled",
+  "case_count": 40,
+  "dataset_run_sha256": "e76ccaca4d922775dc317eea620c18d12e6ca6e13ff253e448ddf7d66bf1b5b3",
+  "valid_round": true,
+  "database_unchanged_count": 40,
+  "protocol_summary": {
+    "model_call_count": 99,
+    "diagnostic_counts": {
+      "no_tool_call": 0,
+      "multiple_tool_calls": 1,
+      "retry_cap_exceeded": 0,
+      "batch_exceeds_step_budget": 0,
+      "invalid_arguments": 0,
+      "identity_argument": 0,
+      "tool_not_allowed": 0,
+      "function_not_offered": 0,
+      "unknown_function": 0,
+      "invalid_ask_user_slots": 0,
+      "invalid_finish_disposition": 0
+    },
+    "other_diagnostic_counts": {},
+    "accepted_multi_runtime_batch_count": 31,
+    "batch_size_histogram": {
+      "2": 25,
+      "3": 5,
+      "4": 1
+    },
+    "provider_errors": 0,
+    "tool_loop_protocol_errors": 0,
+    "prompt_tokens_total": 702690,
+    "completion_tokens_total": 6414,
+    "latency_seconds_total": 134.207,
+    "latency_seconds_average": 1.356,
+    "latency_seconds_median": 1.292,
+    "models_reported": [
+      "deepseek-flash"
+    ]
+  }
+}
