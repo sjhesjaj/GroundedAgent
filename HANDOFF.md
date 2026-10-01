@@ -1924,3 +1924,90 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
   - Trace / Eval / 冻结的环境。
 - Stage 5 **不**包括（留到 Stage 6）：有副作用的业务工具；退款 / 退货 / 换货的执行；Policy Guard；WAITING_APPROVAL；人工审批；暂停 / 恢复；幂等写入。
 - 最终 tag：`v2-stage5-final` 指向本记录 commit，代表完整的 Stage 5 历史状态（含最终评测结果）；`v2-stage5-tool-loop` 与 `v2-stage5-generation` 仍是 source 冻结 tag，不移动。
+
+## 24. GroundedAgent V2 Stage 6.1：ACTION CORE
+
+### 设计冻结
+
+- Stage 6.0 设计 `docs/v2/stage6-design.md`：架构 review 第一轮 CONDITIONAL PASS，Stage 6.0.1 修正 Guard capture / 事务一致性契约后 PASS。
+- main 以 fast-forward 合入设计分支：`main` = `f287035d587087cfe55983e19ac81a5c05d59b12`。
+- annotated tag **`v2-stage6-design`**（tag 对象 `4a13304`）→ `f287035`，消息「Stage 6 guarded action architecture frozen before implementation」。永不移动。
+- Stage 6.1 严格按该 tag 上的设计实现；实现过程中没有修改设计文档。`v2-stage4-baseline`、`v2-stage5-tool-loop`、`v2-stage5-generation`、`v2-stage5-final` 均未改动。
+
+### 实现了什么
+
+| 模块 | 内容 |
+|---|---|
+| `aftersales/action_schema.sql` | §7.2 的 DDL：`sku_variants`、`human_handoff_tickets`、`pending_actions`、`action_receipts`、`action_audit_events` 与三个部分唯一索引。只由 Stage 6 数据库加载 |
+| `system_fixtures/aftersales_stage6_seed.sql` | 只有 `sku_variants`：`SKU-TSHIRT-M` / `SKU-TSHIRT-L` 同组 `TSHIRT`；其余五个 seed SKU 各自单独成组（组名即 SKU 本身） |
+| `aftersales/actions.py` | `s6-actions/1`：`ActionSpec`（kind 恒为 BUSINESS_ACTION、side_effect 恒为 True、没有 handler）、`ActionRegistry`、`build_action_registry()`（恰好三个动作）、闭合参数与枚举、`REASON_LABELS` / `REASON_HANDOFF_TRIGGER` / `HANDOFF_TRIGGERS`、`FORBIDDEN_ACTION_ARGUMENT_NAMES`、`ActionIntentValidator`（§5.1 的固定顺序）、`ValidatedAction` |
+| `aftersales/capabilities.py` | `CapabilityGate`：部署上限 = 五个读工具 + 三个动作；只能收缩；越界即 `CapabilityConfigurationError` |
+| `aftersales/action_policy.py` | `s6-risk/1`：退货 REQUIRE_APPROVAL，换货与转人工 ALLOW；没有金额阈值；没有运行时覆盖参数 |
+| `aftersales/ids.py` | `RequestIdentity`（request_id 格式 `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`）、`idempotency_key`（`s6-idempotency/1`，绑定 persona_id、request_id、动作名、canonical args，不含 customer_id）、`IdKind`（PA / AS6 / HT / RC）、`DeterministicIdProvider`（`s6-ids/1`，无状态）、`UuidIdProvider`（只用于将来的部署；formal 网关拒绝它） |
+| `aftersales/guard_state.py` | `GuardStateReader`：固定模板 R1–R8，只选结构化列，trusted customer_id 只作为绑定谓词；frozen 的 `GuardState` 与行类型；derived 需要的 BusinessEvidence 在 capture 中构造 |
+| `aftersales/guard.py` | `GuardDecisionKind`、闭合 reason 词表、`GuardSnapshot` / `GuardCapture` / `GuardFacts` / `GuardDecision`（全部 frozen）、`Guard.capture`、纯函数 `Guard.decide`（§6.4 完整矩阵 R-1…R-13、E-1…E-14、H-1…H-5）、`snapshot_document`（`s6-guard-snapshot/1`） |
+| `aftersales/action_store.py` | 只做四件事的持久化层：回放查找、声明的业务插入、回执插入、审计追加。不更新、不删除任何业务行；审计字段只接受闭合词表 |
+| `aftersales/action_db.py` | 创建文件型 Stage 6 数据库（WAL；schema → demo seed → action schema → Stage 6 seed）与写连接 |
+| `aftersales/action_outcome.py` | `ActionStatus`、`ActionOutcome`（不含 customer_id / SQL / 快照 / 异常文本）、确定性的 `ActionOutcomeRenderer`（§18 模板） |
+| `aftersales/action_gateway.py` | `ActionGateway.start_action`：唯一的写入方 |
+| `aftersales/action_errors.py` | §16 的基础设施失败码、§5.1 的校验诊断码与异常 |
+| `aftersales/registry.py` | 只增加 `ToolKind.BUSINESS_ACTION` 与 ToolSpec 的 kind 检查（ToolSpec 只能是读类 kind）；模块 docstring 中「没有任何动作代码」的过时说法改为指向 ActionSpec |
+
+### Guard 的 capture / decide 边界
+
+- `Guard.capture(action, context, catalog, *, txn_now, exclude_pending_id)`：一次 GuardStateReader 读取 + 恰好一次 `catalog.snapshot()` + 候选快照；不读 Clock、不做决定。ActionGateway 交给它的 `TrustedExecutionContext` 的 clock 是 `FixedClock(txn_now)`，注入的 Clock 在构造上就够不到。
+- `Guard.decide(action, state, policy, risk, txn_now)`：纯函数；不接收 context；derived 函数需要 clock 时传入内存中的 `FixedClock(txn_now)`；规则选择只在捕获的 `CatalogSnapshot` 上调用 `select_policies`。
+- `Guard` 实例以风险策略构造，用于候选快照的 `risk_policy_version`；`decide` 仍以显式参数接收同一个风险策略对象。
+- `GuardFacts` 是闭合的类型化记录：除闭合词表中的订单状态与经格式 / 成员校验的 policy ref 之外没有字符串；品类、SKU、商品名、原因、承运商、customer_id 都不能进入持久化的 facts。
+
+### start_action 事务（§10.2）
+
+事务外：能力集合检查（不满足 → `ActionCapabilityError`，不读 Clock、不跑 Guard、不写）→ 按闭合契约重新校验 → 解析 persona → 计算幂等键。
+事务内：`BEGIN IMMEDIATE`（失败 → `FAILED transaction_failed`，零 Clock 读取、零写入）→ `txn_now = clock.now()`（恰好一次）→ 回放查找 → `Guard.capture` → `Guard.decide` → 写入 → `COMMIT`。capture 之后没有任何读取。失败时回滚，然后用沿用 `txn_now` 的补记事务写审计（不读 Clock）。
+
+- ALLOW：审计 `guard.evaluated` + 业务行（换货：`after_sales_cases` 一行，type exchange，status 待处理；转人工：`human_handoff_tickets` 一行，status 待处理）+ 回执 + 审计 `action.executed`。不改库存、订单、物流，不涉及退款。
+- DENY：只写审计 `guard.evaluated` 与 `action.not_executed`。
+- 基础设施失败：FAILED + 闭合失败码；业务行与回执都不会在回滚后残留；补记 `guard.failed` 或 `transaction.rolled_back` 与 `action.not_executed`。
+
+### 幂等
+
+- 服务端幂等键；回放查找先于 Guard。已有回执 → 同一 EXECUTED 结果、`idempotent_replay = true`，不再运行 Guard（规则快照读取次数为 0）。
+- 新请求（不同 request_id）同一商品 → Guard `active_after_sales_case_exists` / `handoff_ticket_exists`。
+- 立即动作的 DENY / FAILED 不是锚点：同一请求重试会重新评估。
+- 数据库层：`UNIQUE(idempotency_key)` 与部分唯一索引是最终兜底。
+
+### Stage 6.1 临时行为（Stage 6.2 必须删除）
+
+- Guard 对 `create_return` 做完整评估；可执行时返回 `REQUIRE_APPROVAL risk_policy_requires_approval`。
+- Stage 6.1 不创建 pending：`ROLLBACK`，**零写入**（没有 pending、回执、业务行或任何审计行，也没有补记事务），抛出 `ApprovalPathNotEnabled`。该类与分支在 `action_gateway.py` 中标注「STAGE 6.1 ONLY - delete in Stage 6.2」。它是实现阶段的异常，不是用户可见的结果。
+
+### 有意替换的历史测试
+
+- `tests/test_v2_tool_registry.py::test_no_future_action_exists_anywhere_in_code` 断言的是 Stage 4 不变量「任何代码里都不存在 future action」，Stage 6 有意结束了它。原测试保留在 `v2-stage5-final` 上。
+- 替换为更强的 Stage 6 不变量：读注册表仍恰好五个只读工具且不含动作；动作名只出现在 Stage 6 动作模块中（`business_tools.py`、`registry.py`、`executor.py`、`derived.py`、`policy*.py`、`orchestration/`、根目录模块与全部 `eval_v2/` 模块中都没有）；ActionRegistry 恰好三个动作；ActionSpec 进不了 ToolRegistry；BUSINESS_ACTION 的 ToolSpec 构造失败；`execute_tool` 仍抛 `SideEffectForbidden`；读执行器无法调用任何动作名。
+
+### AGENTS.md
+
+「V1 is read-only」改写为：V1 与 V2 Stage 4/5 历史运行时仍然只读；V2 Stage 6 的副作用只能经 `ActionGateway` 与确定性 Guard。
+
+### 实现中的具体选择（均在冻结设计允许的范围内）
+
+- canonical args 复用 `aftersales.policy_source.canonical`，与 `eval_v2.control.canonical_json` 语义完全相同（测试固定两者相等）；domain 包不导入 eval 包。
+- R8 写作 `(? IS NULL OR pending_action_id <> ?)`：`<> NULL` 在 SQL 中永不为真。R1 或 R2 为空时 reader 不再继续读取。
+- 回放查找的数据库错误记为 `state_read_failed`；回放审计写入失败记为 `write_failed`。
+- 审计列的用法：`action.not_executed` 的 `decision` 存结果状态，`action.replay_hit` 的 `code` 存锚点（receipt / pending），`action.executed` 的 `code` 存资源类型。
+- 测试用的确定性故障点只有 `business_write`、`receipt_write`、`commit`；正式评测的 `action_faults` 属于 Stage 6.4。
+
+### 测试
+
+- 新增 113 个测试：`tests/test_v2_stage6_actions.py` 32（动作契约、枚举、禁用参数与身份参数、校验顺序、canonical args、Capability Gate、风险策略、RequestIdentity、幂等键、`s6-ids/1`、schema / seed / 部分唯一索引 / CHECK 约束）；`tests/test_v2_stage6_guard.py` 50（§6.4 每一行至少一个用例，覆盖全部 20 个 DENY 码与三个正向结果；P-1、P-2、P-4、P-8；P-16：`decide` 在 sqlite / 文件 / 规则目录 / Clock 全部被替换为抛错的环境中重跑得到相同结果；Guard 失败码）；`tests/test_v2_stage6_gateway.py` 31（写入与幂等 A–F；P-12 start 部分：每次尝试恰好一次 Clock，`BEGIN IMMEDIATE` 失败时零次；P-13：每次评估恰好一次规则快照，回放零次；Guard 在 `BEGIN IMMEDIATE` 之后运行；真实的双连接 TOCTOU 加锁测试；业务行 / 回执 / 提交失败全部回滚且不报 EXECUTED；失败审计只含闭合字段；P-6、P-7；跨进程确定性；渲染器）。
+- `tests/test_v2_tool_registry.py`：16 → 23（删除 1 个过时测试，新增 8 个 Stage 6 不变量测试）。
+- 针对 Stage 5 的回归模块（`test_v2_tool_registry`、`test_v2_tool_executor`、`test_v2_business_tools`、`test_v2_derived_facts`、`test_v2_policy_lifecycle`、`test_v2_policy_params`、`test_v2_tool_loop`、`test_v2_generation`）：414 个，全部通过。
+- 全量本地离线套件：**2247 个测试，0 失败，0 错误，0 跳过**。排除且只排除了需要真实 DeepSeek 调用的 `tests.test_llm_provider_live`（2 个：`test_plain_chat_returns_text_and_usage`、`test_schema_request_returns_parseable_json`）：该模块会显式读取 `.env` 并联网。没有新增 skip。
+- 所有 Stage 6 数据库都是仓库外临时目录中的文件，测试结束即删除。
+
+### Stage 6.2 边界（尚未实现）
+
+- 审批、pending 创建、WAITING_APPROVAL、approve / reject / resume、快照比较与 STALE、重启后恢复都**没有**启用。
+- Stage 6.2 删除 `ApprovalPathNotEnabled` 及其分支，启用 §10.2 S6b 与 §10.3 的 T1 / T2。
+- 没有 LLM 动作循环、Stage 6 数据集、Stage 6 评分、正式 DeepSeek 运行或 UI。`v2-stage6-action-core` tag 留到 Stage 6.4 评测器冻结时再打。
