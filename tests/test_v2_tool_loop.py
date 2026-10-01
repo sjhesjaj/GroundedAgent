@@ -929,6 +929,36 @@ class FormalGateTests(unittest.TestCase):
             LLMNativeToolLoopPolicy(ScriptedProvider(), formal="yes")
 
 
+class SystemPromptGuidanceTests(unittest.TestCase):
+    """General control guidance only; no dataset wording."""
+
+    PROMPT = tool_loop.SYSTEM_PROMPT
+
+    def test_no_longer_claims_exactly_one_function_per_response(self):
+        self.assertNotIn("必须且只能调用一个函数", self.PROMPT)
+        self.assertNotIn("只能调用一个", self.PROMPT)
+
+    def test_states_the_native_batch_protocol(self):
+        self.assertIn("同时调用多个彼此独立的只读查询工具", self.PROMPT)
+        self.assertIn("依赖前一个工具的结果", self.PROMPT)
+        self.assertIn("不要把它们放在同一批次", self.PROMPT)
+        self.assertIn("观察结果后再决定下一步", self.PROMPT)
+        self.assertIn("ask_user 必须单独调用", self.PROMPT)
+        self.assertIn("finish 也必须单独调用", self.PROMPT)
+
+    def test_states_the_structured_delivery_state_rule(self):
+        for phrase in ("签收时间", "退换货时限", "可信的签收状态", "get_order", "get_logistics",
+                       "不要只依据其中一条记录", "互相矛盾", "无法确立可信的签收时间",
+                       "disposition 为 refuse", "不要猜测签收日期",
+                       "不要根据矛盾或缺失的签收信息计算退换货时限"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.PROMPT)
+
+    def test_prompt_names_no_order_or_dataset_case(self):
+        import re
+        self.assertEqual(re.findall(r"ORD-\d+|SKU-[A-Z]|dev-A\d+|A\d\d\b", self.PROMPT), [])
+
+
 class AuditRecordTests(unittest.TestCase):
     def test_record_schema(self):
         _, policy, _ = decide(control_state("ORD-1001"), ("get_order", {"order_id": "ORD-1001"}))
@@ -939,11 +969,40 @@ class AuditRecordTests(unittest.TestCase):
             "model_reported": "deepseek-chat", "prompt_tokens": 321, "completion_tokens": 17,
             "finish_reason": "tool_calls", "native_tool_calls": 1,
             "offered_functions": list(EXPECTED_TOOL_NAMES) + [ASK_USER, FINISH],
+            "returned_functions": ["get_order"],
             "selected_function": "get_order", "batch_functions": [],
             "action_kind": "tool_call", "diagnostic": None,
             "latency_seconds": 0.25})
         with self.assertRaises(AttributeError):
             record.diagnostic = "x"
+
+    def test_rejected_mixed_response_keeps_every_returned_name(self):
+        action, policy, _ = decide(control_state("我想退货"),
+                                   (ASK_USER, {"slots": ["order_id"]}),
+                                   ("search_after_sales_policy", {"query": "退货规则"}))
+        self.assertEqual(action, REFUSE)
+        (record,) = policy.decision_records
+        self.assertEqual(record.diagnostic, "multiple_tool_calls")
+        self.assertEqual(record.returned_functions, (ASK_USER, "search_after_sales_policy"))
+        # Existing fields keep their meaning: nothing was selected or batched.
+        self.assertEqual((record.selected_function, record.batch_functions), (None, ()))
+        self.assertNotIn("退货规则", json.dumps(record.to_dict(), ensure_ascii=False))
+
+    def test_returned_functions_mask_unknown_names_and_keep_batches(self):
+        _, policy, _ = decide(control_state("ORD-1001"),
+                              ("get_order", {"order_id": "ORD-1001"}),
+                              ("free text " + USER_MARKER, {}), (None, {}))
+        record = policy.decision_records[0]
+        self.assertEqual(record.diagnostic, "unknown_function")
+        self.assertEqual(record.returned_functions,
+                         ("get_order", tool_loop.UNKNOWN_FUNCTION_NAME, tool_loop.UNKNOWN_FUNCTION_NAME))
+        self.assertNotIn(USER_MARKER, json.dumps(record.to_dict()))
+        _, policy, _ = decide(control_state("ORD-1001"),
+                              ("get_order", {"order_id": "ORD-1001"}),
+                              ("get_logistics", {"order_id": "ORD-1001"}))
+        record = policy.decision_records[0]
+        self.assertEqual(record.returned_functions, ("get_order", "get_logistics"))
+        self.assertEqual(record.batch_functions, ("get_order", "get_logistics"))
 
     def test_records_are_an_immutable_copy(self):
         _, policy, _ = decide(control_state("hi"), (FINISH, {"disposition": "answer"}))

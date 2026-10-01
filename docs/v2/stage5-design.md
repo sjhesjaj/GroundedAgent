@@ -154,3 +154,21 @@ Stage 5 与 Stage 4 的冻结策略不同：**DEV 是 Stage 5 Tool Loop 的开�
   以完全相同的方式应用于冻结的 Stage 4 Baseline 与冻结的 Stage 5 Tool Loop。
 - generation 层的开发只能使用 DEV / 规格说明，不得根据 validation 或 holdout 的单条 case 调优。
 - holdout 打开之前，generation / evaluator 也必须冻结。
+
+### 6.6 DEV 轮次记录
+
+- **Round 1**（有效）：source `fbf9c67`；control_success **36/40 = 0.90**（Stage 4 Baseline DEV 30/40）。
+  详细记录见 HANDOFF §19。
+- Round 1 暴露出两个**通用**问题，选为 Round 2 的改动：
+  1. system prompt 与已实现的原生批次协议不一致：prompt 仍要求「每轮只能调用一个函数」，而适配层已接受彼此独立的
+     只读 runtime 批次。Round 2 改为说明：独立只读查询可以成批；参数依赖前一结果的调用必须等观察后再发；
+     `ask_user` 与 `finish` 都必须单独调用。批次实现本身不变。
+  2. 对互相矛盾的结构化履约状态缺少明确指引：Round 2 增加一条通用规则——结论依赖签收状态、签收时间、
+     签收后天数或退换货时限时，须用结构化证据（可用且相关时核对 `get_order` 与 `get_logistics`）确立可信的
+     签收状态；记录互相矛盾或无法确立可信签收时间时 `finish(refuse)`，不挑选来源、不猜日期、不据此计算时限。
+- 没有加入任何 case-id / archetype 规则，也没有把 DEV 句子写进 prompt 或测试。
+- Round 1 还观察到一次对已有售后单进度查询的过度 handoff；**Round 2 有意不改动该行为**，由 Round 2 结果决定
+  是否需要 Round 3。
+- 仅审计（不是调参规则）：`ToolLoopDecisionRecord.returned_functions` 记录模型返回的全部函数名（已知函数名原样，
+  其他名字记为 `<unknown>`，从不记录参数），用于诊断被拒绝的多调用响应。
+- 本次运行之前已消耗的有效 DEV 轮次：**1 / 3**。
