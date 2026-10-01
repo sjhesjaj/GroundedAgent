@@ -1646,3 +1646,31 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 数据库不变量：40/40 unchanged；没有越过 allowed_tools 或携带身份参数的调用到达 executor。
 - 失败分类（4 个）：planning / capability selection = 1；final disposition = 2；native protocol = 1。
 - 审计缺口：被拒绝的多调用响应没有记录函数名（Round 2 增加 `returned_functions` 仅作诊断）。
+
+### DEV Round 2（有效，2 / 3）
+
+- source commit：`a78659ddd74129fdaed4e7e85f490604c90c79b8`（分支 `stage5-dev-r2`，基于 `69f18de`）。改动：prompt 与原生批次协议对齐；一条通用的结构化签收状态一致性规则；仅审计字段 `returned_functions`。
+- 运行设置与 Round 1 相同（1 次 trial × 40 cases，formal DeepSeek `deepseek-flash`，temperature 0，max_tokens 512，`max_steps = 5`）。
+- DatasetRun SHA：`69e675b610ad7d2ea621a9a841263739050e7d427de32e0a62e0088c48eee8a8`。
+- 结果文件：`eval/v2/results/stage5-tool-loop-dev-r2.json`（SHA-256 `4d628806b8385178b154239d5272e17d2bdfc963d9de6e886be587d0151f39ee`），`stage5-tool-loop-dev-r2.meta.json`（`b598749e22ca1ff650b087324a9ba50c6754ccb39d250d6cdfe624c337858ba0`），`stage5-tool-loop-dev-r2.protocol.json`（`b85a993f3224a9e5deb717c9c3a2421e1a699e521e7ebc0acb64c40a8259a5f3`）。
+
+| 指标 | Round 2 | Round 1 |
+|---|---|---|
+| control_success | 37/40 = 0.925 | 36/40 = 0.90 |
+| capabilities_ok | 39/40 = 0.975 | 38/40 = 0.95 |
+| clarification_ok | 40/40 = 1.0 | 39/40 = 0.975 |
+| evidence_ok | 39/40 = 0.975 | 38/40 = 0.95 |
+| final_ok | 38/40 = 0.95 | 36/40 = 0.90 |
+| db_ok | 40/40 = 1.0 | 40/40 = 1.0 |
+| average_control_steps | 3.85 | 3.425 |
+
+- 原生协议：model_calls 96；accepted_multi_runtime_batches 35（批次大小 2→19，3→9，4→7）；全部模型协议诊断码为 0；provider_errors = 0；`ToolLoopProtocolError` = 0。
+- tokens：prompt 603221，completion 6982。
+- 数据库不变量：40/40 unchanged。
+- 失败分类（3 个）：step-budget / batch planning = 1；final disposition = 2。
+- 描述：
+  - Round 1 的原生混合调用失败已修复（ask_user 单独调用，之后再成批查询）。
+  - 一个签收状态冲突的 case 已修复（核对订单与物流后 refuse）。
+  - 另一个签收状态冲突的 case 已取得正确证据，但仍选错最终 disposition（answer 而不是 refuse）。
+  - 一个新回归：一个较大的推测性批次耗尽了 finish 之前的工具步数，依赖观察结果的库存查询没有机会执行。
+  - 已有售后单进度查询的过度 handoff 仍然存在，按计划有意未修复。

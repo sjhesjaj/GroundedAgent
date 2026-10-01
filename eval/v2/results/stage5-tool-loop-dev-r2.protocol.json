@@ -1,0 +1,2925 @@
+{
+  "schema": "v2-stage5-tool-loop-dev-protocol/1",
+  "round": 2,
+  "tool_loop_commit": "a78659ddd74129fdaed4e7e85f490604c90c79b8",
+  "cases": [
+    {
+      "case_id": "dev-A01-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1698,
+          "completion_tokens": 135,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3301614000229165
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 16015,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.8125266999704763
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A01-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1705,
+          "completion_tokens": 88,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.4581413000123575
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4678,
+          "completion_tokens": 55,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.223542100051418
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 15697,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.6959969999734312
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A02-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1714,
+          "completion_tokens": 186,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy",
+            "get_after_sales_case"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 6.62191410001833
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 16524,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.8442689999938011
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A02-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1720,
+          "completion_tokens": 171,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.522259300108999
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 13204,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.608570999931544
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A03-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1697,
+          "completion_tokens": 87,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.327142000081949
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4666,
+          "completion_tokens": 56,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2119673999259248
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 16030,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.3856091999914497
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A03-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1704,
+          "completion_tokens": 92,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.4276252000126988
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4671,
+          "completion_tokens": 55,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.4003033000044525
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 15690,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.354487800039351
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A04-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1706,
+          "completion_tokens": 136,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3279983999673277
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 15109,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.793238600017503
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A04-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1702,
+          "completion_tokens": 133,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2281714000273496
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 19059,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.2097426999825984
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A05-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1695,
+          "completion_tokens": 49,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order"
+          ],
+          "selected_function": "get_order",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.0213289000093937
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1816,
+          "completion_tokens": 42,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_logistics"
+          ],
+          "selected_function": "get_logistics",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3336662999354303
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1940,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.2413918999955058
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A05-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1697,
+          "completion_tokens": 141,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.41586249996908
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 13286,
+          "completion_tokens": 69,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.318367199972272
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A06-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1709,
+          "completion_tokens": 159,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.490412799990736
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 5468,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.194194499985315
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A06-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1712,
+          "completion_tokens": 161,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3670595000730827
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4507,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.351541499956511
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A07-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1705,
+          "completion_tokens": 94,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.1494630000088364
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4670,
+          "completion_tokens": 57,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2656769000459462
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 16035,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.1687260000035167
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A07-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1704,
+          "completion_tokens": 87,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.53384010004811
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4649,
+          "completion_tokens": 95,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 2.301436600042507
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A08-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1697,
+          "completion_tokens": 60,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "ask_user"
+          ],
+          "selected_function": "ask_user",
+          "batch_functions": [],
+          "action_kind": "clarify",
+          "diagnostic": null,
+          "latency_seconds": 1.6275389000074938
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1706,
+          "completion_tokens": 84,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3547929000342265
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4639,
+          "completion_tokens": 46,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.2364556000102311
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A08-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1695,
+          "completion_tokens": 84,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "ask_user"
+          ],
+          "selected_function": "ask_user",
+          "batch_functions": [],
+          "action_kind": "clarify",
+          "diagnostic": null,
+          "latency_seconds": 1.4828299999935552
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1711,
+          "completion_tokens": 90,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 0.9622795999748632
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4692,
+          "completion_tokens": 60,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.150009199976921
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 15452,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.1337080000666901
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A09-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1697,
+          "completion_tokens": 84,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.0314635999966413
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 3420,
+          "completion_tokens": 64,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.1704156000632793
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A09-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1709,
+          "completion_tokens": 89,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3016484000254422
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 5654,
+          "completion_tokens": 58,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.1266965999966487
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 17020,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.6883977999677882
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A10-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1716,
+          "completion_tokens": 166,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.425440900027752
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 11830,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.222428899956867
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A10-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1718,
+          "completion_tokens": 168,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 2.641594900051132
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 17268,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.6089661000296474
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A11-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1707,
+          "completion_tokens": 87,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.277831400046125
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 5730,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.2238679999718443
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A11-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1716,
+          "completion_tokens": 93,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3473482000408694
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4130,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.325501300045289
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A12-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1713,
+          "completion_tokens": 89,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2483917999779806
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 6858,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.1928474999731407
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A12-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1712,
+          "completion_tokens": 139,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.441388199920766
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 14758,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.7654101999942213
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A13-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1698,
+          "completion_tokens": 92,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.1089223999297246
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 7050,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.084694700082764
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A13-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1701,
+          "completion_tokens": 92,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_after_sales_case"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.235222899937071
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 5776,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 0.9188212000299245
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A14-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1699,
+          "completion_tokens": 84,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3793075999710709
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 3448,
+          "completion_tokens": 62,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.3492104999022558
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A14-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1703,
+          "completion_tokens": 88,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.4080447000451386
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4427,
+          "completion_tokens": 59,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.265783500042744
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A15-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1698,
+          "completion_tokens": 127,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.1198793000075966
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4781,
+          "completion_tokens": 53,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.187596199917607
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4307,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.351339100045152
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A15-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1696,
+          "completion_tokens": 58,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "selected_function": "get_after_sales_case",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3723300999263301
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1819,
+          "completion_tokens": 45,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "selected_function": "get_after_sales_case",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.191118499962613
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1942,
+          "completion_tokens": 45,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "selected_function": "get_after_sales_case",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 0.9798772999783978
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 2065,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 0.9958503999514505
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A16-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1701,
+          "completion_tokens": 137,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.580054400023073
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 17000,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.4977545000147074
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A16-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1696,
+          "completion_tokens": 89,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 0.9994340999983251
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4659,
+          "completion_tokens": 57,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.3586957000661641
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 16024,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.6598001000238582
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A17-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1709,
+          "completion_tokens": 129,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.0130697001004592
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 17748,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.7300634999992326
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A17-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1696,
+          "completion_tokens": 88,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.330233099986799
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 4671,
+          "completion_tokens": 57,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.0636207000352442
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 10606,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.2189578999532387
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A18-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1706,
+          "completion_tokens": 58,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "selected_function": "get_after_sales_case",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 0.9383064000867307
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 3108,
+          "completion_tokens": 55,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.8477599999168888
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 16533,
+          "completion_tokens": 39,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.8391355000203475
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A18-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1710,
+          "completion_tokens": 57,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "selected_function": "get_after_sales_case",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2948814999544993
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 3110,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.1907210999634117
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A19-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1699,
+          "completion_tokens": 107,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 2,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "search_after_sales_policy",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.1644841000670567
+        },
+        {
+          "control_step": 3,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 24405,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.507960099959746
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A19-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1695,
+          "completion_tokens": 70,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.028471800033003
+        },
+        {
+          "control_step": 2,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 14775,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.653416799963452
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A20-01",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1706,
+          "completion_tokens": 136,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 3,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2021416999632493
+        },
+        {
+          "control_step": 4,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 17010,
+          "completion_tokens": 58,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "selected_function": "search_after_sales_policy",
+          "batch_functions": [],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.2360460000345483
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 21992,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 1.9162062000250444
+        }
+      ]
+    },
+    {
+      "case_id": "dev-A20-02",
+      "decisions": [
+        {
+          "control_step": 1,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 1709,
+          "completion_tokens": 170,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 4,
+          "offered_functions": [
+            "search_after_sales_policy",
+            "get_order",
+            "get_logistics",
+            "get_inventory",
+            "get_after_sales_case",
+            "ask_user",
+            "finish"
+          ],
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "latency_seconds": 1.407239899970591
+        },
+        {
+          "control_step": 5,
+          "provider": "deepseek",
+          "model_requested": "deepseek-flash",
+          "model_reported": "deepseek-flash",
+          "prompt_tokens": 19213,
+          "completion_tokens": 38,
+          "finish_reason": "tool_calls",
+          "native_tool_calls": 1,
+          "offered_functions": [
+            "finish"
+          ],
+          "returned_functions": [
+            "finish"
+          ],
+          "selected_function": "finish",
+          "batch_functions": [],
+          "action_kind": "finish",
+          "diagnostic": null,
+          "latency_seconds": 2.056120799970813
+        }
+      ]
+    }
+  ]
+}
