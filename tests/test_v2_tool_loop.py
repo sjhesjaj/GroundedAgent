@@ -958,6 +958,33 @@ class SystemPromptGuidanceTests(unittest.TestCase):
         import re
         self.assertEqual(re.findall(r"ORD-\d+|SKU-[A-Z]|dev-A\d+|A\d\d\b", self.PROMPT), [])
 
+    def test_batches_hold_only_necessary_calls_with_known_arguments(self):
+        self.assertIn("批次不是越多越好", self.PROMPT)
+        self.assertIn("确实需要、且参数已经知道的彼此独立查询", self.PROMPT)
+        self.assertIn("不要为了保险调用与当前问题无关的工具", self.PROMPT)
+
+    def test_dependent_follow_up_and_finish_keep_reserved_steps(self):
+        self.assertIn("参数要等当前查询结果才能确定", self.PROMPT)
+        self.assertIn("必须给这个后续工具保留至少一个步数", self.PROMPT)
+        self.assertIn("另外给最终的 finish 保留一个步数", self.PROMPT)
+        self.assertIn("不要让一个大批次耗尽 finish 之前的全部工具步数", self.PROMPT)
+        self.assertIn("remaining_steps", self.PROMPT)
+
+    def test_confirmed_state_conflict_is_a_hard_stop_refuse(self):
+        self.assertIn("硬性停止条件", self.PROMPT)
+        self.assertIn("这个矛盾本身就是停止的充分理由", self.PROMPT)
+        self.assertIn("必须立即调用 finish，disposition 为 refuse", self.PROMPT)
+
+    def test_conflict_is_not_overridden_by_more_lookup_or_handoff(self):
+        self.assertIn("不要再检索售后规则或继续计算来试图覆盖这个矛盾", self.PROMPT)
+        self.assertIn("不要基于矛盾的任何一方作答", self.PROMPT)
+        self.assertIn("不要仅因为记录矛盾就转人工", self.PROMPT)
+
+    def test_rules_are_numbered_consecutively(self):
+        import re
+        numbers = [int(n) for n in re.findall(r"^(\d+)\. ", self.PROMPT, flags=re.M)]
+        self.assertEqual(numbers, list(range(1, len(numbers) + 1)))
+
 
 class AuditRecordTests(unittest.TestCase):
     def test_record_schema(self):
