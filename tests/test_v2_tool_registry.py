@@ -46,8 +46,12 @@ STAGE6_ACTION_MODULES = frozenset({
     "guard_snapshot.py", "guard_state.py", "ids.py",
 })
 
-# The only eval modules that may name a Stage 6 action (Stage 6.3 control loop and runner).
-STAGE6_EVAL_MODULES = frozenset({"action_control.py", "action_loop.py", "action_runner.py"})
+# The only eval modules that may name a Stage 6 action (Stage 6.3 control loop and
+# runner; Stage 6.4 state-based evaluation).
+STAGE6_EVAL_MODULES = frozenset({
+    "action_control.py", "action_loop.py", "action_runner.py",
+    "stage6_oracle.py", "stage6_runner.py", "stage6_runtime.py", "stage6_scoring.py", "stage6_state.py",
+})
 
 
 class RuntimeRegistryTests(unittest.TestCase):

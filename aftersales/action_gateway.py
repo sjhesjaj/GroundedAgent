@@ -134,11 +134,15 @@ from .context import Persona, TrustedExecutionContext
 from .demo import resolve_persona
 from .guard import Guard, GuardCapture, GuardDecision, GuardDecisionKind, snapshot_document, snapshot_sha256
 from .guard_snapshot import STALE_GUARD_DECISION_CHANGED, parse_snapshot_document, stale_reason
+from .guard_state import GuardReadHook, GuardStateReader
 from .ids import DeterministicIdProvider, IdKind, IdProvider, RequestIdentity, idempotency_key
 from .schema import CaseType
 
-# Deterministic fault points, used by tests to exercise rollback and compensation
-# paths. The formal Stage 6 eval fault declarations (action_faults) are a Stage 6.4 concern.
+# Deterministic fault points: the boundaries where a test or the Stage 6 eval
+# (action_faults, docs/v2/stage6-design.md §19.2) may make an attempt fail.
+# Without fault_hooks nothing is called. guard_read faults go through the
+# optional guard_read_hook of the Guard's own reader (aftersales.guard_state);
+# policy_catalog faults are a property of the catalog object the caller passes.
 FAULT_BUSINESS_WRITE = "business_write"
 FAULT_RECEIPT_WRITE = "receipt_write"
 FAULT_COMMIT = "commit"
@@ -149,6 +153,12 @@ FAULT_POINTS = (FAULT_BUSINESS_WRITE, FAULT_RECEIPT_WRITE, FAULT_COMMIT, FAULT_C
 class ActionFaultHooks(Protocol):
     def before(self, point: str) -> None:
         """Called just before a fault point; may raise to simulate a failure."""
+
+
+class GuardDecisionObserver(Protocol):
+    def __call__(self, decision: GuardDecision) -> None:
+        """Eval only: sees each Guard decision as made, including one whose
+        transaction later rolls back. Never changes it; never called without one."""
 
 
 class _AttemptFailed(Exception):
@@ -183,6 +193,8 @@ class ActionGateway:
                  persona_resolver: Callable[[str], Persona] = resolve_persona,
                  operators: frozenset[str] = STAGE6_TRUSTED_OPERATORS,
                  formal: bool = False, fault_hooks: ActionFaultHooks | None = None,
+                 guard_read_hook: GuardReadHook | None = None,
+                 decision_observer: GuardDecisionObserver | None = None,
                  busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS) -> None:
         if not isinstance(clock, Clock):
             raise ValueError("clock must implement Clock")
@@ -202,6 +214,8 @@ class ActionGateway:
             raise ValueError("persona_resolver must be callable")
         if not isinstance(operators, frozenset) or not all(isinstance(op, str) for op in operators):
             raise ValueError("operators must be a frozenset of trusted operator ids")
+        if decision_observer is not None and not callable(decision_observer):
+            raise ValueError("decision_observer must be callable")
         registry = build_action_registry() if action_registry is None else action_registry
         self._db_path = Path(db_path)
         self._clock = clock
@@ -210,7 +224,10 @@ class ActionGateway:
         self._capabilities = capabilities
         self._risk = risk_policy
         self._validator = ActionIntentValidator(registry, capabilities.actions)
-        self._guard = Guard(risk_policy)
+        # No hook: the Guard builds its default reader, exactly as without this option.
+        self._guard = (Guard(risk_policy) if guard_read_hook is None else
+                       Guard(risk_policy, reader=GuardStateReader(read_hook=guard_read_hook)))
+        self._observer = decision_observer
         self._resolve_persona = persona_resolver
         self._operators = operators
         self._hooks = fault_hooks
@@ -652,9 +669,12 @@ class ActionGateway:
     def _decide(self, action: ValidatedAction, capture: GuardCapture,
                 txn_now: datetime) -> GuardDecision:
         try:
-            return Guard.decide(action, capture.state, capture.policy, self._risk, txn_now)
+            decision = Guard.decide(action, capture.state, capture.policy, self._risk, txn_now)
         except GuardFailure as failure:
             raise _AttemptFailed(failure.code, from_guard=True) from None
+        if self._observer is not None:
+            self._observer(decision)
+        return decision
 
     def _capture_and_decide(self, connection, persona, action, txn_now, *, exclude_pending_id):
         capture = self._capture(connection, persona, action, txn_now,

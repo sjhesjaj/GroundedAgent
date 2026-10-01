@@ -18,6 +18,15 @@ The BusinessEvidence the derived-fact functions need is built here, in the
 same shape the business tools produce (entity / record_id / field / value
 metadata, field locator, observed_at = txn_now, state_version, order_id
 relation), so `Guard.decide` reads nothing.
+
+Eval read hook (docs/v2/stage6-design.md §19.2 `action_faults: guard_read`)
+    Optional and inert by default: a reader built without a hook runs every
+    template exactly as before. With a hook, `hook.before_read(read)` is called
+    just before each named read (GUARD_READS). It may raise sqlite3.Error - the
+    read fails and the reader's own handling turns it into
+    GuardFailure(state_read_failed) - or return READ_MALFORMED, in which case
+    the read yields one row of NULLs that the unchanged decoders reject as
+    GuardFailure(state_malformed). Nothing runs first and is then rewritten.
 """
 
 from __future__ import annotations
@@ -25,7 +34,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, fields
 from datetime import datetime
-from typing import Sequence
+from typing import Protocol, Sequence
 
 from orchestration.contracts import (
     OBSERVATION_ID_KEY,
@@ -111,6 +120,27 @@ GUARD_SQL_TEMPLATES = {
     "R7": R7_TICKETS,
     "R8": R8_OTHER_PENDINGS,
 }
+
+# Read names of the eval read hook, in template order (§19.2 guard_read).
+GUARD_READS = {
+    "order": R1_ORDER,
+    "order_item": R2_ORDER_ITEM,
+    "logistics": R3_LOGISTICS,
+    "item_cases": R4_ITEM_CASES,
+    "inventory": R5_TARGET_INVENTORY,
+    "variants": R6_VARIANTS,
+    "tickets": R7_TICKETS,
+    "pendings": R8_OTHER_PENDINGS,
+}
+READ_MALFORMED = "malformed"
+# Selected columns per read: a malformed read is one row of that many NULLs.
+_READ_WIDTHS = {read: len(sql.split(" FROM ", 1)[0].split(",")) for read, sql in GUARD_READS.items()}
+
+
+class GuardReadHook(Protocol):
+    def before_read(self, read: str) -> str | None:
+        """Eval only: may raise sqlite3.Error, or return READ_MALFORMED; None reads normally."""
+
 
 # The Guard-relevant record set of each action (§12.1), by table.
 RECORD_TABLES = {
@@ -307,6 +337,17 @@ def _evidence(entity: str, record_id: str, field: str, value: object, *, version
 class GuardStateReader:
     """Fixed templates, structured columns, one pass per capture."""
 
+    def __init__(self, read_hook: GuardReadHook | None = None) -> None:
+        if read_hook is not None and not callable(getattr(read_hook, "before_read", None)):
+            raise ValueError("read_hook must provide before_read(read)")
+        self._read_hook = read_hook
+
+    def _fetch(self, read: str, connection: object, bindings: tuple) -> list[tuple]:
+        if self._read_hook is not None:
+            if self._read_hook.before_read(read) == READ_MALFORMED:
+                return [(None,) * _READ_WIDTHS[read]]
+        return _fetch(connection, GUARD_READS[read], bindings)
+
     def read(self, action: ValidatedAction, context: TrustedExecutionContext, *,
              txn_now: datetime, exclude_pending_id: str | None) -> GuardState:
         if not isinstance(action, ValidatedAction):
@@ -335,7 +376,7 @@ class GuardStateReader:
         order_id = action.target_order_id
         item_id = action.target_order_item_id
 
-        order_rows = _fetch(connection, R1_ORDER, (customer, order_id))
+        order_rows = self._fetch("order", connection, (customer, order_id))
         order = _single(order_rows, self._order)
         if order is None or order.order_id != order_id:
             if order is not None:
@@ -343,7 +384,7 @@ class GuardStateReader:
             return _state(name, observed_at)
         order_updated = _timestamp(order_rows[0][2])
 
-        item_rows = _fetch(connection, R2_ORDER_ITEM, (customer, order_id, item_id))
+        item_rows = self._fetch("order_item", connection, (customer, order_id, item_id))
         item = _single(item_rows, self._item)
         if item is None:
             return _state(name, observed_at, order=order, order_updated=order_updated)
@@ -359,35 +400,35 @@ class GuardStateReader:
         tickets: tuple[TicketRow, ...] = ()
 
         if name in (CREATE_RETURN, CREATE_EXCHANGE):
-            for row in _fetch(connection, R3_LOGISTICS, (customer, order_id)):
+            for row in self._fetch("logistics", connection, (customer, order_id)):
                 package = self._package(row)
                 if package.order_id != order_id:
                     raise _malformed()
                 packages.append((package, _timestamp(row[4])))
             if len({package.tracking_no for package, _ in packages}) != len(packages):
                 raise _malformed()
-            cases = tuple(self._case(row) for row in _fetch(connection, R4_ITEM_CASES, (item_id,)))
+            cases = tuple(self._case(row) for row in self._fetch("item_cases", connection, (item_id,)))
             if any(case.order_item_id != item_id for case in cases):
                 raise _malformed()
-            pendings = tuple(self._pending(row) for row in _fetch(
-                connection, R8_OTHER_PENDINGS, (item_id, exclude, exclude)))
+            pendings = tuple(self._pending(row) for row in self._fetch(
+                "pendings", connection, (item_id, exclude, exclude)))
         if name == CREATE_EXCHANGE:
             target = action.args["target_sku"]
-            inventory_rows = _fetch(connection, R5_TARGET_INVENTORY, (target,))
+            inventory_rows = self._fetch("inventory", connection, (target,))
             row = _single(inventory_rows, self._inventory)
             if row is not None:
                 if row.sku != target:
                     raise _malformed()
                 inventory = (row, _timestamp(inventory_rows[0][2]))
-            variants = tuple(self._variant(row) for row in _fetch(
-                connection, R6_VARIANTS, (item.sku, target)))
+            variants = tuple(self._variant(row) for row in self._fetch(
+                "variants", connection, (item.sku, target)))
             if len({variant.sku for variant in variants}) != len(variants) or not all(
                     variant.sku in (item.sku, target) for variant in variants):
                 raise _malformed()
         if name == ESCALATE_TO_HUMAN:
             trigger = action.args["handoff_trigger"]
-            tickets = tuple(self._ticket(row) for row in _fetch(
-                connection, R7_TICKETS, (item_id, trigger)))
+            tickets = tuple(self._ticket(row) for row in self._fetch(
+                "tickets", connection, (item_id, trigger)))
             if any(ticket.order_item_id != item_id or ticket.handoff_trigger != trigger
                    for ticket in tickets):
                 raise _malformed()

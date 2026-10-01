@@ -109,9 +109,22 @@ class RuntimeTestCase(unittest.TestCase):
 # --------------------------------------------------------------------------
 
 
+# Stage 6.4 evaluation modules name the Stage 6 `action_receipts` domain table
+# (execution receipts, docs/v2/stage6-design.md §7.2). For them only, the bare
+# word "receipt" is narrowed to the author-receipt file stem the guard is about
+# (eval/v2/*-author-receipt.json); every other module keeps the original list.
+STAGE6_EVAL_MODULES = frozenset({"stage6_oracle.py", "stage6_runner.py", "stage6_runtime.py",
+                                 "stage6_scoring.py", "stage6_state.py"})
+STAGE6_RECEIPT_AWARE_WORDS = ("holdout", "unseal", "author-receipt", "author_receipt")
+
+
 class PackageBoundaryTests(unittest.TestCase):
     def sources(self):
         return {path: path.read_text(encoding="utf-8") for path in sorted(PACKAGE.glob("*.py"))}
+
+    def test_stage6_eval_modules_exist(self):
+        for name in STAGE6_EVAL_MODULES:
+            self.assertTrue((PACKAGE / name).is_file(), name)
 
     def test_runtime_does_not_read_the_system_clock_or_make_ids(self):
         for path, source in self.sources().items():
@@ -143,7 +156,9 @@ class PackageBoundaryTests(unittest.TestCase):
                 literals = [node.value.lower() for node in ast.walk(tree)
                             if isinstance(node, ast.Constant) and isinstance(node.value, str)
                             and id(node) not in docstrings]
-                for word in ("holdout", "unseal", "receipt"):
+                words = (STAGE6_RECEIPT_AWARE_WORDS if path.name in STAGE6_EVAL_MODULES
+                         else ("holdout", "unseal", "receipt"))
+                for word in words:
                     self.assertFalse([text for text in literals if word in text], word)
 
     def test_case_contract_is_the_frozen_file_loaded_by_path(self):

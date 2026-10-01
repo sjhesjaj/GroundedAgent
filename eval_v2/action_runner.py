@@ -43,14 +43,14 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Protocol
 
 from aftersales.action_errors import ActionValidationError, CapabilityConfigurationError
 from aftersales.action_gateway import ActionGateway
 from aftersales.action_outcome import ActionOutcome, ActionOutcomeRenderer, ActionStatus
-from aftersales.actions import ActionIntentValidator, build_action_registry
+from aftersales.actions import ActionIntentValidator, ValidatedAction, build_action_registry
 from aftersales.capabilities import DEPLOYMENT_ACTIONS, DEPLOYMENT_READ_TOOLS, EffectiveCapabilities
 from aftersales.clock import FixedClock
 from aftersales.context import TrustedExecutionContext
@@ -68,15 +68,18 @@ from .action_control import (
     require_stage6_action,
 )
 from .control import (
+    CONTRACT_FAILURE_MALFORMED,
     Clarify,
     ControlPolicyContractError,
     Observation,
     ToolCall,
+    ToolContractFailure,
     ToolObservation,
     UserMessage,
     canonical_json,
     clarification_slots,
 )
+from .faults import OUTCOME_INJECTED_MALFORMED, FaultConfigurationError
 from .runner import (
     TERMINATION_FINISHED,
     TERMINATION_MAX_STEPS_EXCEEDED,
@@ -259,7 +262,14 @@ class ActionProposedEvent:
 
 @dataclass(frozen=True, kw_only=True)
 class ActionRunRecord:
-    """The facts of one Stage 6 run. No label, no score, no user text."""
+    """The facts of one Stage 6 run. No label, no score, no user text.
+
+    `accepted_action` is the ValidatedAction the runner handed to the
+    ActionGateway and `outcome` the ActionOutcome it returned, kept in memory
+    for the trusted eval harness (replay, argument and idempotency scoring).
+    Neither is part of the serialized record, which names the action by
+    args_sha256 only and a paused run by RunPaused only.
+    """
 
     schema: str
     persona_id: str
@@ -277,6 +287,8 @@ class ActionRunRecord:
     events: tuple[ActionProposedEvent, ...]
     paused: RunPaused | None
     completed: ActionCompleted | None
+    accepted_action: ValidatedAction | None = field(default=None, compare=False, repr=False)
+    outcome: ActionOutcome | None = field(default=None, compare=False, repr=False)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -360,6 +372,8 @@ class _ActionRun:
         self.final_disposition: str | None = None
         self.paused: RunPaused | None = None
         self.completed: ActionCompleted | None = None
+        self.accepted_action: ValidatedAction | None = None
+        self.outcome: ActionOutcome | None = None
 
     def drive(self) -> None:
         self._deliver(0, self._first_turn)
@@ -433,17 +447,36 @@ class _ActionRun:
         self._tool_step += 1
         turn_index = len(self._messages)
         observation_id = observation_id_for(turn_index, self._tool_step)
-        result = self._read_gateway.execute(action.tool_name, action.arguments,
-                                            observation_id=observation_id)
+        common = dict(control_step=step, turn_index=turn_index, tool_step=self._tool_step,
+                      observation_id=observation_id, tool_name=action.tool_name,
+                      arguments=action.arguments)
+        before = len(self._ledger())
+        try:
+            result = self._read_gateway.execute(action.tool_name, action.arguments,
+                                                observation_id=observation_id)
+        except FaultConfigurationError:
+            raise
+        except ValueError:
+            # Stage 5 semantics: only a ledgered injected malformed result becomes
+            # a contract failure; every other ValueError is a contract bug.
+            new = self._ledger()[before:]
+            if not (len(new) == 1 and new[0].observation_id == observation_id
+                    and new[0].outcome == OUTCOME_INJECTED_MALFORMED):
+                raise
+            self._observations.append(ToolContractFailure(
+                sequence=self._next_sequence(), kind=CONTRACT_FAILURE_MALFORMED, **common))
+            return
         trace = getattr(result, "trace", None)
         if (type(result) is not ToolResult or result.tool_name != action.tool_name
                 or not isinstance(trace, Mapping)
                 or trace.get(TRACE_OBSERVATION_ID) != observation_id):
             raise EvalRuntimeError("tool result does not belong to this observation")
         self._observations.append(ToolObservation(
-            sequence=self._next_sequence(), control_step=step, turn_index=turn_index,
-            tool_step=self._tool_step, observation_id=observation_id,
-            tool_name=action.tool_name, arguments=action.arguments, result=result))
+            sequence=self._next_sequence(), result=result, **common))
+
+    def _ledger(self) -> tuple:
+        """The read gateway's fault ledger, when it keeps one (FaultInjectingGateway)."""
+        return tuple(getattr(self._read_gateway, "records", ()))
 
     # -- the action --------------------------------------------------------
 
@@ -458,10 +491,12 @@ class _ActionRun:
                 "an ActionIntent failed the action contract: " + error.diagnostic) from None
         self._events.append(ActionProposedEvent(
             control_step=step, action_name=action.action_name, args_sha256=action.args_sha256))
+        self.accepted_action = action
         # The one write path: trusted identity plus validated action, exactly once.
         outcome = self._action_gateway.start_action(self._identity, action)
         if type(outcome) is not ActionOutcome or outcome.action_name != action.action_name:
             raise EvalRuntimeError("the ActionGateway returned an outcome for another action")
+        self.outcome = outcome
         text = self._renderer.render(outcome)
         if outcome.status is ActionStatus.WAITING_APPROVAL:
             self.termination = TERMINATION_WAITING_APPROVAL
@@ -502,6 +537,8 @@ class _ActionRun:
             events=tuple(self._events),
             paused=self.paused,
             completed=self.completed,
+            accepted_action=self.accepted_action,
+            outcome=self.outcome,
         )
 
 

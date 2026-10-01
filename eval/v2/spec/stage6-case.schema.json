@@ -1,0 +1,3233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://groundedagent.local/eval/v2/spec/stage6-case.schema.json",
+  "title": "GroundedAgent V2 Stage 6 eval case (v2-stage6-case/1)",
+  "$comment": "docs/v2/stage6-design.md §19.2. Uses only the keyword subset of eval/v2/case_contract.py. Cross-field rules live in eval/v2/stage6_case_contract.py. The Stage 4/5 $defs reused here are copied verbatim from case.schema.json.",
+  "type": "object",
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "archetype": {
+      "enum": [
+        "A01",
+        "A02",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A07",
+        "A08",
+        "A09",
+        "A10",
+        "A11",
+        "A12",
+        "A13",
+        "A14",
+        "A15",
+        "A16",
+        "A17",
+        "A18",
+        "A19",
+        "A20",
+        "A21",
+        "A22",
+        "A23"
+      ]
+    },
+    "scenario": {
+      "enum": [
+        "exchange_auto_execute",
+        "return_approval_execute",
+        "return_waiting_approval",
+        "handoff_ticket_create",
+        "return_handoff_required",
+        "return_window_closed",
+        "exchange_window_closed",
+        "non_returnable",
+        "inventory_unavailable",
+        "existing_active_case",
+        "state_conflict",
+        "missing_data",
+        "policy_unavailable",
+        "state_read_error",
+        "direct_prompt_injection",
+        "indirect_prompt_injection",
+        "claimed_privileged_identity",
+        "wrong_customer_resource",
+        "repeated_approve_resume",
+        "duplicate_submission",
+        "approval_state_change",
+        "approval_rejected",
+        "guard_denies_on_resume",
+        "restart_resume",
+        "consult_no_action"
+      ]
+    },
+    "initial_state": {
+      "type": "object",
+      "$comment": "Deterministic overlay on the Stage 6 fixture (base seed + Stage 6 seed), applied to a fresh file-backed database per case-run. Business tables only: pending_actions, action_receipts and action_audit_events can only arise from the run. faults: Stage 5 read-tool faults; action_faults: Stage 6 action faults.",
+      "properties": {
+        "trusted_context": {
+          "type": "object",
+          "properties": {
+            "persona_id": {
+              "$ref": "#/$defs/persona_id"
+            }
+          },
+          "required": [
+            "persona_id"
+          ],
+          "additionalProperties": false
+        },
+        "orders": {
+          "type": "object",
+          "$comment": "Keyed by primary key order_id.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/orders_patch"
+          }
+        },
+        "order_items": {
+          "type": "object",
+          "$comment": "Keyed by primary key order_item_id.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/order_items_patch"
+          }
+        },
+        "logistics": {
+          "type": "object",
+          "$comment": "Keyed by primary key tracking_no.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/logistics_patch"
+          }
+        },
+        "inventory": {
+          "type": "object",
+          "$comment": "Keyed by primary key sku.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/inventory_patch"
+          }
+        },
+        "after_sales_cases": {
+          "type": "object",
+          "$comment": "Keyed by primary key case_id.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/after_sales_cases_patch"
+          }
+        },
+        "sku_variants": {
+          "type": "object",
+          "$comment": "Keyed by primary key sku.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/sku_variants_patch"
+          }
+        },
+        "human_handoff_tickets": {
+          "type": "object",
+          "$comment": "Keyed by primary key ticket_id.",
+          "propertyNames": {
+            "$ref": "#/$defs/record_key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/human_handoff_tickets_patch"
+          }
+        },
+        "faults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fault"
+          }
+        },
+        "action_faults": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action_fault"
+          }
+        }
+      },
+      "required": [
+        "trusted_context",
+        "faults",
+        "action_faults"
+      ],
+      "additionalProperties": false
+    },
+    "virtual_now": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "user_turns": {
+      "type": "array",
+      "minItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "on_clarify": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/slot"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "on_clarify",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "operator_script": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operator_event"
+      }
+    },
+    "expected_capabilities": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/capability"
+          },
+          "uniqueItems": true
+        },
+        "forbidden": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/capability"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "required",
+        "forbidden"
+      ],
+      "additionalProperties": false
+    },
+    "expected_evidence": {
+      "type": "object",
+      "properties": {
+        "all_of": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_requirement"
+          }
+        },
+        "any_of": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/evidence_requirement"
+            }
+          }
+        },
+        "forbidden": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_forbidden"
+          }
+        }
+      },
+      "required": [
+        "all_of",
+        "any_of",
+        "forbidden"
+      ],
+      "additionalProperties": false
+    },
+    "expected_answerability": {
+      "type": "object",
+      "properties": {
+        "final": {
+          "enum": [
+            "answer",
+            "refuse",
+            "handoff",
+            "boundary",
+            "action"
+          ],
+          "$comment": "Normative definitions: eval/v2/spec/stage6-final-outcomes.json and docs/v2/stage6-domain-spec.md."
+        },
+        "clarify": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "required": {
+                  "const": true
+                },
+                "slots": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/slot"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "required",
+                "slots"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "required": {
+                  "const": false
+                },
+                "slots": {
+                  "type": "array",
+                  "maxItems": 0
+                }
+              },
+              "required": [
+                "required",
+                "slots"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "final",
+        "clarify"
+      ],
+      "additionalProperties": false
+    },
+    "expected_action": {
+      "$ref": "#/$defs/expected_action"
+    },
+    "expected_final_state": {
+      "type": "object",
+      "$comment": "Never null. Changes relative to baseline B (fixture + initial_state + every mutate event, in script order). An unlisted table must not change.",
+      "properties": {
+        "orders": {
+          "type": "object",
+          "properties": {
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/orders_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "order_items": {
+          "type": "object",
+          "properties": {
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/order_items_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "logistics": {
+          "type": "object",
+          "properties": {
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/logistics_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "inventory": {
+          "type": "object",
+          "properties": {
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/inventory_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "sku_variants": {
+          "type": "object",
+          "properties": {
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/sku_variants_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "after_sales_cases": {
+          "type": "object",
+          "properties": {
+            "insert": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "row": {
+                    "$ref": "#/$defs/after_sales_cases_row"
+                  }
+                },
+                "required": [
+                  "row"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/after_sales_cases_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "human_handoff_tickets": {
+          "type": "object",
+          "properties": {
+            "insert": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "row": {
+                    "$ref": "#/$defs/human_handoff_tickets_row"
+                  }
+                },
+                "required": [
+                  "row"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "update": {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/record_key"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/human_handoff_tickets_set"
+              }
+            },
+            "delete": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/record_key"
+              },
+              "uniqueItems": true
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "pending_actions": {
+          "type": "object",
+          "properties": {
+            "insert": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "row": {
+                    "$ref": "#/$defs/pending_actions_final_row"
+                  }
+                },
+                "required": [
+                  "row"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "action_receipts": {
+          "type": "object",
+          "properties": {
+            "insert": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "row": {
+                    "$ref": "#/$defs/action_receipts_final_row"
+                  }
+                },
+                "required": [
+                  "row"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "case_id",
+    "archetype",
+    "scenario",
+    "initial_state",
+    "virtual_now",
+    "user_turns",
+    "operator_script",
+    "expected_capabilities",
+    "expected_evidence",
+    "expected_answerability",
+    "expected_action",
+    "expected_final_state"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "$comment": "ISO-8601 with seconds and an explicit offset; naive timestamps are invalid.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "record_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "customer_id": {
+      "enum": [
+        "CUST-001",
+        "CUST-002"
+      ],
+      "$comment": "Record owner; the customers of the frozen personas (eval/v2/spec/personas.json)."
+    },
+    "persona_id": {
+      "enum": [
+        "demo-a",
+        "demo-b"
+      ],
+      "$comment": "Trusted identity of the conversation, resolved to customer_id through eval/v2/spec/personas.json."
+    },
+    "slot": {
+      "enum": [
+        "order_id",
+        "order_item",
+        "target_sku",
+        "reason"
+      ]
+    },
+    "tool": {
+      "enum": [
+        "search_after_sales_policy",
+        "get_order",
+        "get_logistics",
+        "get_inventory",
+        "get_after_sales_case"
+      ]
+    },
+    "source_type": {
+      "enum": [
+        "business",
+        "derived",
+        "document",
+        "wiki"
+      ]
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "orders_row": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "$ref": "#/$defs/customer_id"
+        },
+        "status": {
+          "enum": [
+            "待付款",
+            "已付款",
+            "已发货",
+            "已签收",
+            "已完成",
+            "已取消"
+          ]
+        },
+        "paid_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_amount": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{2}$"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "customer_id",
+        "status",
+        "paid_at",
+        "total_amount",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "orders_set": {
+      "type": "object",
+      "properties": {
+        "customer_id": {
+          "$ref": "#/$defs/customer_id"
+        },
+        "status": {
+          "enum": [
+            "待付款",
+            "已付款",
+            "已发货",
+            "已签收",
+            "已完成",
+            "已取消"
+          ]
+        },
+        "paid_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_amount": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{2}$"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "orders_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/orders_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/orders_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "order_items_row": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "sku": {
+          "$ref": "#/$defs/record_key"
+        },
+        "product_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unit_price": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{2}$"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "order_id",
+        "sku",
+        "product_name",
+        "category",
+        "quantity",
+        "unit_price",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "order_items_set": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "sku": {
+          "$ref": "#/$defs/record_key"
+        },
+        "product_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unit_price": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]{2}$"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "order_items_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/order_items_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/order_items_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "logistics_row": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "enum": [
+            "运输中",
+            "派送中",
+            "已签收",
+            "异常",
+            "退回"
+          ]
+        },
+        "shipped_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "delivered_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_event_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "order_id",
+        "carrier",
+        "status",
+        "shipped_at",
+        "delivered_at",
+        "last_event_at",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "logistics_set": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "enum": [
+            "运输中",
+            "派送中",
+            "已签收",
+            "异常",
+            "退回"
+          ]
+        },
+        "shipped_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "delivered_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_event_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "logistics_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/logistics_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/logistics_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "inventory_row": {
+      "type": "object",
+      "properties": {
+        "available_qty": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "available_qty",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "inventory_set": {
+      "type": "object",
+      "properties": {
+        "available_qty": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "inventory_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/inventory_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/inventory_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "after_sales_cases_row": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "order_item_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "customer_id": {
+          "$ref": "#/$defs/customer_id"
+        },
+        "type": {
+          "enum": [
+            "return",
+            "exchange"
+          ]
+        },
+        "status": {
+          "enum": [
+            "待处理",
+            "处理中",
+            "已完成",
+            "已拒绝",
+            "已取消"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "order_id",
+        "order_item_id",
+        "customer_id",
+        "type",
+        "status",
+        "reason",
+        "created_at",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "after_sales_cases_set": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "order_item_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "customer_id": {
+          "$ref": "#/$defs/customer_id"
+        },
+        "type": {
+          "enum": [
+            "return",
+            "exchange"
+          ]
+        },
+        "status": {
+          "enum": [
+            "待处理",
+            "处理中",
+            "已完成",
+            "已拒绝",
+            "已取消"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "after_sales_cases_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/after_sales_cases_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/after_sales_cases_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "fault": {
+      "type": "object",
+      "$comment": "Fixture-level fault declaration (design §7.3). match is a subset of the tool's arguments ({} = any call); on_call n = the n-th call matching tool+match fails. The match keys must be arguments of that tool.",
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/tool"
+        },
+        "match": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "query",
+              "order_id",
+              "sku"
+            ]
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "mode": {
+          "enum": [
+            "error",
+            "timeout",
+            "malformed"
+          ]
+        },
+        "on_call": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "tool",
+        "match",
+        "mode",
+        "on_call"
+      ],
+      "additionalProperties": false
+    },
+    "evidence_requirement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "order"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "order_id",
+                "status",
+                "paid_at",
+                "total_amount",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "order_item"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "order_item_id",
+                "order_id",
+                "sku",
+                "product_name",
+                "category",
+                "quantity",
+                "unit_price",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "logistics"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "tracking_no",
+                "order_id",
+                "carrier",
+                "status",
+                "shipped_at",
+                "delivered_at",
+                "last_event_at",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "inventory"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "sku",
+                "available_qty",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "after_sales_case"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "case_id",
+                "order_id",
+                "order_item_id",
+                "type",
+                "status",
+                "reason",
+                "created_at",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "policy"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "policy_id",
+                "version",
+                "title",
+                "rule_type",
+                "scope",
+                "priority",
+                "effective_from",
+                "effective_to",
+                "window_days",
+                "start_event",
+                "counting_rule",
+                "utc_offset",
+                "trigger"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "document",
+                  "wiki"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "derived"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "days_since_delivery",
+                "within_return_window",
+                "within_exchange_window",
+                "inventory_available",
+                "business_state_conflict"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "derived"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject",
+            "field",
+            "source_types"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "evidence_forbidden": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "order"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "order_id",
+                "status",
+                "paid_at",
+                "total_amount",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "order_item"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "order_item_id",
+                "order_id",
+                "sku",
+                "product_name",
+                "category",
+                "quantity",
+                "unit_price",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "logistics"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "tracking_no",
+                "order_id",
+                "carrier",
+                "status",
+                "shipped_at",
+                "delivered_at",
+                "last_event_at",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "inventory"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "sku",
+                "available_qty",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "after_sales_case"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "case_id",
+                "order_id",
+                "order_item_id",
+                "type",
+                "status",
+                "reason",
+                "created_at",
+                "updated_at",
+                "version"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "business"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "policy"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "entity",
+                "id"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "policy_id",
+                "version",
+                "title",
+                "rule_type",
+                "scope",
+                "priority",
+                "effective_from",
+                "effective_to",
+                "window_days",
+                "start_event",
+                "counting_rule",
+                "utc_offset",
+                "trigger"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "document",
+                  "wiki"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "object",
+              "properties": {
+                "entity": {
+                  "const": "derived"
+                },
+                "id": {
+                  "$ref": "#/$defs/record_key"
+                }
+              },
+              "required": [
+                "entity"
+              ],
+              "additionalProperties": false
+            },
+            "field": {
+              "enum": [
+                "days_since_delivery",
+                "within_return_window",
+                "within_exchange_window",
+                "inventory_available",
+                "business_state_conflict"
+              ]
+            },
+            "value": {
+              "$comment": "Optional expected value; any JSON type."
+            },
+            "source_types": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "derived"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "tool": {
+              "$ref": "#/$defs/tool"
+            },
+            "locator": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "note": {
+              "$ref": "#/$defs/note"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "capability": {
+      "enum": [
+        "search_after_sales_policy",
+        "get_order",
+        "get_logistics",
+        "get_inventory",
+        "get_after_sales_case",
+        "derived_facts",
+        "create_return",
+        "create_exchange",
+        "escalate_to_human"
+      ],
+      "$comment": "The five read-only tools, derived_facts, and the three Stage 6 actions."
+    },
+    "action_name": {
+      "enum": [
+        "create_return",
+        "create_exchange",
+        "escalate_to_human"
+      ]
+    },
+    "arg_value": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sku_variants_row": {
+      "type": "object",
+      "properties": {
+        "variant_group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "variant_group",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "sku_variants_set": {
+      "type": "object",
+      "properties": {
+        "variant_group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "sku_variants_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/sku_variants_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/sku_variants_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "human_handoff_tickets_row": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "order_item_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "handoff_trigger": {
+          "enum": [
+            "quality_dispute"
+          ]
+        },
+        "status": {
+          "enum": [
+            "处理中",
+            "已关闭",
+            "待处理"
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "order_id",
+        "order_item_id",
+        "handoff_trigger",
+        "status",
+        "created_at",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "human_handoff_tickets_set": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "order_item_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "handoff_trigger": {
+          "enum": [
+            "quality_dispute"
+          ]
+        },
+        "status": {
+          "enum": [
+            "处理中",
+            "已关闭",
+            "待处理"
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
+    "human_handoff_tickets_patch": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "insert"
+            },
+            "row": {
+              "$ref": "#/$defs/human_handoff_tickets_row"
+            }
+          },
+          "required": [
+            "op",
+            "row"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "update"
+            },
+            "set": {
+              "$ref": "#/$defs/human_handoff_tickets_set"
+            }
+          },
+          "required": [
+            "op",
+            "set"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "delete"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "action_fault": {
+      "type": "object",
+      "$comment": "Stage 6 action fault (design §19.2). read only with point guard_read (omitted = any Guard read); mode malformed only with guard_read; on_call n = the n-th call of that point (and read) in the whole case-run, start and resume together.",
+      "properties": {
+        "point": {
+          "enum": [
+            "guard_read",
+            "policy_catalog",
+            "business_write",
+            "receipt_write",
+            "commit"
+          ]
+        },
+        "read": {
+          "enum": [
+            "order",
+            "order_item",
+            "logistics",
+            "item_cases",
+            "inventory",
+            "variants",
+            "tickets",
+            "pendings"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "error",
+            "malformed"
+          ]
+        },
+        "on_call": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "point",
+        "mode",
+        "on_call"
+      ],
+      "additionalProperties": false
+    },
+    "operator_event": {
+      "$comment": "Trusted harness events run after the main run, in order (design §19.2). Never visible to the model.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "approve"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "reject"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "record_decision"
+            },
+            "decision": {
+              "enum": [
+                "APPROVE",
+                "REJECT"
+              ]
+            }
+          },
+          "required": [
+            "op",
+            "decision"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "execute_approved"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "advance_clock"
+            },
+            "virtual_now": {
+              "$ref": "#/$defs/timestamp"
+            }
+          },
+          "required": [
+            "op",
+            "virtual_now"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "restart"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "replay_submission"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "rerun_request"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "new_request"
+            }
+          },
+          "required": [
+            "op"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "orders"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/orders_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "order_items"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/order_items_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "logistics"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/logistics_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "inventory"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/inventory_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "after_sales_cases"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/after_sales_cases_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "sku_variants"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/sku_variants_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "const": "mutate"
+            },
+            "table": {
+              "const": "human_handoff_tickets"
+            },
+            "key": {
+              "$ref": "#/$defs/record_key"
+            },
+            "patch": {
+              "$ref": "#/$defs/human_handoff_tickets_patch"
+            }
+          },
+          "required": [
+            "op",
+            "table",
+            "key",
+            "patch"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "guard_view": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "enum": [
+            "ALLOW",
+            "DENY",
+            "REQUIRE_APPROVAL"
+          ]
+        },
+        "reason_code": {
+          "enum": [
+            "order_not_accessible",
+            "order_item_not_in_order",
+            "business_state_conflict",
+            "order_status_ineligible",
+            "not_delivered",
+            "delivery_not_established",
+            "active_after_sales_case_exists",
+            "item_already_returned",
+            "pending_request_exists",
+            "handoff_required",
+            "non_returnable",
+            "no_applicable_policy",
+            "policy_conflict",
+            "return_window_closed",
+            "exchange_window_closed",
+            "exchange_target_invalid",
+            "exchange_target_incompatible",
+            "inventory_unavailable",
+            "handoff_not_required",
+            "handoff_ticket_exists",
+            "risk_policy_allows",
+            "risk_policy_requires_approval"
+          ]
+        }
+      },
+      "required": [
+        "decision",
+        "reason_code"
+      ],
+      "additionalProperties": false
+    },
+    "final_status": {
+      "enum": [
+        "EXECUTED",
+        "WAITING_APPROVAL",
+        "DENIED",
+        "REJECTED",
+        "STALE",
+        "FAILED"
+      ]
+    },
+    "event_expectation": {
+      "$comment": "null for mutate / advance_clock / restart. {\"status\": null} only for a rerun_request / new_request that submits no action.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "$ref": "#/$defs/final_status"
+            },
+            "code": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "idempotent_replay": {
+              "type": "boolean"
+            },
+            "decision_conflict": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "status",
+            "code",
+            "idempotent_replay",
+            "decision_conflict"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "expected_action": {
+      "oneOf": [
+        {
+          "type": "null",
+          "$comment": "The main run proposes no action."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action_name": {
+              "$ref": "#/$defs/action_name"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/arg_value"
+              }
+            },
+            "args_any_of": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/arg_value"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "initial_guard": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/guard_view"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "approval_required": {
+              "type": "boolean"
+            },
+            "final_status": {
+              "$ref": "#/$defs/final_status"
+            },
+            "final_code": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/event_expectation"
+              }
+            }
+          },
+          "required": [
+            "action_name",
+            "args",
+            "args_any_of",
+            "initial_guard",
+            "approval_required",
+            "final_status",
+            "final_code",
+            "events"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "args_object": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/arg_value"
+      }
+    },
+    "pending_actions_final_row": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "enum": [
+            "req-1",
+            "req-2"
+          ]
+        },
+        "persona_id": {
+          "$ref": "#/$defs/persona_id"
+        },
+        "action_name": {
+          "$ref": "#/$defs/action_name"
+        },
+        "args": {
+          "$ref": "#/$defs/args_object"
+        },
+        "target_order_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "target_order_item_id": {
+          "$ref": "#/$defs/record_key"
+        },
+        "status": {
+          "enum": [
+            "PENDING_APPROVAL",
+            "APPROVED",
+            "REJECTED",
+            "EXECUTED",
+            "STALE",
+            "DENIED",
+            "FAILED"
+          ]
+        },
+        "guard_decision": {
+          "const": "REQUIRE_APPROVAL"
+        },
+        "guard_reason_code": {
+          "const": "risk_policy_requires_approval"
+        },
+        "action_spec_version": {
+          "const": "s6-actions/1"
+        },
+        "risk_policy_version": {
+          "const": "s6-risk/1"
+        },
+        "policy_build_id": {
+          "type": "string",
+          "pattern": "^build-[0-9]{4}$"
+        },
+        "approval_decision": {
+          "anyOf": [
+            {
+              "enum": [
+                "APPROVE",
+                "REJECT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approver_ref": {
+          "anyOf": [
+            {
+              "enum": [
+                "op-demo-1"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decided_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome_code": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "request_id",
+        "persona_id",
+        "action_name",
+        "args",
+        "target_order_id",
+        "target_order_item_id",
+        "status",
+        "guard_decision",
+        "guard_reason_code",
+        "action_spec_version",
+        "risk_policy_version",
+        "policy_build_id",
+        "approval_decision",
+        "approver_ref",
+        "decided_at",
+        "outcome_code",
+        "created_at",
+        "updated_at",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "action_receipts_final_row": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "enum": [
+            "req-1",
+            "req-2"
+          ]
+        },
+        "persona_id": {
+          "$ref": "#/$defs/persona_id"
+        },
+        "action_name": {
+          "$ref": "#/$defs/action_name"
+        },
+        "args": {
+          "$ref": "#/$defs/args_object"
+        },
+        "result_status": {
+          "const": "EXECUTED"
+        },
+        "resource_type": {
+          "enum": [
+            "after_sales_case",
+            "human_handoff_ticket"
+          ]
+        },
+        "guard_decision": {
+          "enum": [
+            "ALLOW",
+            "REQUIRE_APPROVAL"
+          ]
+        },
+        "guard_reason_code": {
+          "enum": [
+            "risk_policy_allows",
+            "risk_policy_requires_approval"
+          ]
+        },
+        "action_spec_version": {
+          "const": "s6-actions/1"
+        },
+        "risk_policy_version": {
+          "const": "s6-risk/1"
+        },
+        "policy_build_id": {
+          "type": "string",
+          "pattern": "^build-[0-9]{4}$"
+        },
+        "executed_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "request_id",
+        "persona_id",
+        "action_name",
+        "args",
+        "result_status",
+        "resource_type",
+        "guard_decision",
+        "guard_reason_code",
+        "action_spec_version",
+        "risk_policy_version",
+        "policy_build_id",
+        "executed_at"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
