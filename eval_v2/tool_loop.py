@@ -6,15 +6,16 @@ Policy, scorer and step budget as the frozen Stage 4 Baseline - only the
 control decision changes: a model chooses every action through provider-native
 tool calling.
 
-Each decision (one model call)
+Each model decision (one model call)
     1. rebuild the model-visible conversation from the ControlState alone
     2. offer the native functions: the runtime tools in state.allowed_tools
        (intersected with the five Stage 5 tools, so exposure can only shrink),
        plus the two policy-internal functions ask_user and finish; on the last
        remaining step, finish only
     3. call provider.chat(messages, tools=..., temperature=0, max_tokens=512)
-    4. require exactly one native tool call and translate it:
-       runtime tool -> ToolCall, ask_user -> Clarify, finish -> Finish
+    4. translate the native call: runtime tool -> ToolCall, ask_user ->
+       Clarify, finish -> Finish (several runtime calls: an atomic batch,
+       see "Native runtime batches")
 
     The runner executes a ToolCall through the case's single fault gateway and
     hands the observation back in the next ControlState, so the model can use
@@ -44,11 +45,18 @@ Native replay
     canonical arguments; a formal policy raises ToolLoopProtocolError before
     calling the model and never fabricates an id.
 
-Single-call protocol
-    One decision = one model request = exactly one native function call, then
-    execute -> observe -> next decision. Several calls in one response are a
-    protocol failure (multiple_tool_calls): none is executed, none is queued,
-    and the batch is never reduced to its first member.
+Native runtime batches
+    A response with several native calls is accepted only as a pure runtime
+    batch, atomically: every call must be an offered runtime tool with valid
+    arguments, within the retry cap (counting earlier calls of the same batch),
+    and the batch must leave one step for the next model decision. Otherwise
+    the whole response is Finish("refuse") with that diagnostic and nothing
+    runs; ask_user / finish never share a response (multiple_tool_calls). An
+    accepted batch is drained one ToolCall per control step, in model order,
+    with no model call in between; a tool failure (error, timeout, malformed)
+    is an observation, not a reason to cancel the rest. After the batch, the
+    history replays ONE assistant message with all its native calls, followed
+    by one tool message per call.
 
 Fail-closed model protocol
     Zero calls, several calls, an unknown or not-offered function, arguments
@@ -125,11 +133,13 @@ DIAG_INVALID_ARGUMENTS = "invalid_arguments"
 DIAG_INVALID_ASK_USER_SLOTS = "invalid_ask_user_slots"
 DIAG_INVALID_FINISH_DISPOSITION = "invalid_finish_disposition"
 DIAG_RETRY_CAP_EXCEEDED = "retry_cap_exceeded"
+DIAG_BATCH_EXCEEDS_STEP_BUDGET = "batch_exceeds_step_budget"
 PROTOCOL_DIAGNOSTICS = (
     DIAG_NO_TOOL_CALL, DIAG_MULTIPLE_TOOL_CALLS, DIAG_UNKNOWN_FUNCTION,
     DIAG_TOOL_NOT_ALLOWED, DIAG_FUNCTION_NOT_OFFERED, DIAG_IDENTITY_ARGUMENT,
     DIAG_INVALID_ARGUMENTS, DIAG_INVALID_ASK_USER_SLOTS,
     DIAG_INVALID_FINISH_DISPOSITION, DIAG_RETRY_CAP_EXCEEDED,
+    DIAG_BATCH_EXCEEDS_STEP_BUDGET,
 )
 
 SYSTEM_PROMPT = """你是电商售后场景中的只读控制策略。你的任务是每一轮决定下一步动作，不是给顾客写回复。
@@ -172,14 +182,19 @@ class ToolLoopProtocolError(RuntimeError):
 class NativeCallEnvelope:
     """The wire envelope of one runtime call the model made. Nothing else.
 
+    `call_id` is the provider's native id (None when it gave none).
     `arguments_key` is the canonical JSON of the validated arguments, used only
-    to check that an observation belongs to this very call.
+    to check that an observation belongs to this very call. `batch` is the
+    control step of the model response that produced the call and
+    `batch_index` its position in that response (lineage, not content).
     """
 
-    call_id: str
+    call_id: str | None
     name: str
     raw_arguments: str | None
     arguments_key: str
+    batch: int
+    batch_index: int
 
 
 # --------------------------------------------------------------------------
@@ -299,41 +314,75 @@ def _arguments_key(arguments: Mapping[str, str]) -> str:
     return canonical_json({name: arguments[name] for name in sorted(arguments)})
 
 
-def _replay_envelope(observation: Observation,
-                     native_calls: Mapping[int, NativeCallEnvelope],
-                     formal: bool) -> tuple[str, str]:
-    """(call id, arguments string) for the assistant message of one observation."""
-    envelope = native_calls.get(observation.control_step)
-    if (envelope is not None and envelope.name == observation.tool_name
-            and envelope.arguments_key == _arguments_key(observation.arguments)):
-        raw = envelope.raw_arguments
-        return envelope.call_id, raw if raw is not None else envelope.arguments_key
-    if formal:
-        raise ToolLoopProtocolError(
-            "no native call of this policy produced the observation at control step "
-            + str(observation.control_step))
-    return synthetic_call_id(observation), _arguments_key(observation.arguments)
+def envelope_matches(envelope: NativeCallEnvelope | None, observation: Observation) -> bool:
+    """True when the observation is an execution attempt of exactly this call.
+
+    Any outcome counts - ok, empty, error, timeout, malformed: the status plays
+    no part, only the tool name and the canonical arguments.
+    """
+    return (envelope is not None and envelope.name == observation.tool_name
+            and envelope.arguments_key == _arguments_key(observation.arguments))
 
 
-def _observation_messages(observation: Observation, call_id: str,
-                          arguments: str) -> list[dict[str, object]]:
-    return [
-        {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [{
-                "id": call_id,
-                "type": "function",
-                "function": {"name": observation.tool_name, "arguments": arguments},
-            }],
-        },
-        {
+def _tool_call_messages(entries: list[tuple[Observation, str, str]]) -> list[dict[str, object]]:
+    """One assistant message carrying every call, then one tool message per call."""
+    messages: list[dict[str, object]] = [{
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{
+            "id": call_id,
+            "type": "function",
+            "function": {"name": observation.tool_name, "arguments": arguments},
+        } for observation, call_id, arguments in entries],
+    }]
+    for observation, call_id, _ in entries:
+        messages.append({
             "role": "tool",
             "tool_call_id": call_id,
             "name": observation.tool_name,
             "content": _observation_content(observation),
-        },
-    ]
+        })
+    return messages
+
+
+def _replayed_call(observation: Observation, envelope: NativeCallEnvelope | None,
+                   formal: bool) -> tuple[Observation, str, str]:
+    """(observation, call id, arguments string) of one call to replay."""
+    if envelope is not None and envelope.call_id is not None:
+        raw = envelope.raw_arguments
+        return observation, envelope.call_id, raw if raw is not None else envelope.arguments_key
+    if formal:
+        raise ToolLoopProtocolError(
+            "no native call of this policy produced the observation at control step "
+            + str(observation.control_step))
+    return observation, synthetic_call_id(observation), _arguments_key(observation.arguments)
+
+
+def _replay_turn(observations: list[Observation],
+                 native_calls: Mapping[int, NativeCallEnvelope],
+                 formal: bool) -> list[dict[str, object]]:
+    """The tool-call history of one user turn, one native response at a time."""
+    messages: list[dict[str, object]] = []
+    index = 0
+    while index < len(observations):
+        observation = observations[index]
+        envelope = native_calls.get(observation.control_step)
+        if not envelope_matches(envelope, observation):
+            messages.extend(_tool_call_messages([_replayed_call(observation, None, formal)]))
+            index += 1
+            continue
+        # A whole native response: every call it carried, in its own order,
+        # each answered by its own observation (whatever that observation's status).
+        members = sorted((item for item in native_calls.values() if item.batch == envelope.batch),
+                         key=lambda item: item.batch_index)
+        group = observations[index:index + len(members)]
+        if (envelope.batch_index != 0 or len(group) != len(members)
+                or not all(envelope_matches(member, item) for member, item in zip(members, group))):
+            raise ToolLoopProtocolError("a native tool-call batch is incomplete or out of order")
+        messages.extend(_tool_call_messages(
+            [_replayed_call(item, member, formal) for member, item in zip(members, group)]))
+        index += len(members)
+    return messages
 
 
 def build_messages(state: ControlState,
@@ -363,10 +412,8 @@ def build_messages(state: ControlState,
     observations = sorted(state.observations, key=lambda item: item.sequence)
     for message in sorted(state.user_messages, key=lambda item: item.turn_index):
         messages.append({"role": "user", "content": message.text})
-        for observation in observations:
-            if observation.turn_index == message.turn_index:
-                call_id, arguments = _replay_envelope(observation, native_calls, formal)
-                messages.extend(_observation_messages(observation, call_id, arguments))
+        turn = [item for item in observations if item.turn_index == message.turn_index]
+        messages.extend(_replay_turn(turn, native_calls, formal))
     return messages
 
 
@@ -389,6 +436,7 @@ class ToolLoopDecisionRecord:
     native_tool_calls: int
     offered_functions: tuple[str, ...]
     selected_function: str | None
+    batch_functions: tuple[str, ...]
     action_kind: str
     diagnostic: str | None
     latency_seconds: float
@@ -405,6 +453,7 @@ class ToolLoopDecisionRecord:
             "native_tool_calls": self.native_tool_calls,
             "offered_functions": list(self.offered_functions),
             "selected_function": self.selected_function,
+            "batch_functions": list(self.batch_functions),
             "action_kind": self.action_kind,
             "diagnostic": self.diagnostic,
             "latency_seconds": self.latency_seconds,
@@ -444,11 +493,6 @@ def _refuse(diagnostic: str) -> tuple[ControlAction, str]:
     return Finish(disposition="refuse"), diagnostic
 
 
-def _refused(diagnostic: str,
-             selected: str | None = None) -> tuple[ControlAction, str | None, str]:
-    return Finish(disposition="refuse"), selected, diagnostic
-
-
 def call_key(tool_name: str, arguments: Mapping[str, str]) -> tuple[str, str]:
     """(tool_name, canonical arguments): the identity of a call for the retry cap."""
     return tool_name, canonical_json({name: arguments[name] for name in sorted(arguments)})
@@ -484,45 +528,89 @@ def _translate_finish(arguments: object) -> tuple[ControlAction, str | None]:
     return Finish(disposition=disposition), None
 
 
-def _translate_runtime_call(state: ControlState, name: str,
-                            arguments: object) -> tuple[ControlAction, str | None]:
+def _validated_runtime_arguments(name: str, arguments: object) -> dict[str, str] | str:
+    """The validated argument copy, or the diagnostic code that rejects it."""
     if not isinstance(arguments, Mapping):
-        return _refuse(DIAG_INVALID_ARGUMENTS)
+        return DIAG_INVALID_ARGUMENTS
     if any(isinstance(key, str) and key in IDENTITY_ARGUMENT_NAMES for key in arguments):
-        return _refuse(DIAG_IDENTITY_ARGUMENT)
+        return DIAG_IDENTITY_ARGUMENT
     try:
-        values = validate_arguments(name, runtime_tool_specs()[name].parameter_names, arguments)
+        return validate_arguments(name, runtime_tool_specs()[name].parameter_names, arguments)
     except ValueError:
-        return _refuse(DIAG_INVALID_ARGUMENTS)
-    if prior_attempts(state, name, values) >= RETRY_CAP:
-        return _refuse(DIAG_RETRY_CAP_EXCEEDED)
-    return ToolCall(tool_name=name, arguments=values), None
+        return DIAG_INVALID_ARGUMENTS
 
 
-def translate(state: ControlState, offered: tuple[str, ...],
-              tool_calls: object) -> tuple[ControlAction, str | None, str | None]:
-    """(action, selected function name or None, diagnostic or None)."""
+@dataclass(frozen=True, kw_only=True)
+class Translation:
+    """What one native response means: the actions to take, in order.
+
+    `actions` holds one action, or several ToolCalls for an accepted runtime
+    batch. A rejected response is always the single action Finish("refuse").
+    """
+
+    actions: tuple[ControlAction, ...]
+    selected_function: str | None
+    batch_functions: tuple[str, ...]
+    diagnostic: str | None
+
+
+def _rejected(diagnostic: str, selected: str | None = None) -> Translation:
+    return Translation(actions=(_refuse(diagnostic)[0],), selected_function=selected,
+                       batch_functions=(), diagnostic=diagnostic)
+
+
+def _translate_runtime_batch(state: ControlState, offered: tuple[str, ...],
+                             calls: tuple[object, ...]) -> Translation:
+    """Atomic: every runtime call is accepted, or none is (nothing runs)."""
+    names = tuple(getattr(call, "name", None) for call in calls)
+    single = names[0] if len(calls) == 1 else None
+    for name in names:
+        if name not in state.allowed_tools:
+            return _rejected(DIAG_TOOL_NOT_ALLOWED, single)
+        if name not in offered:
+            return _rejected(DIAG_FUNCTION_NOT_OFFERED, single)
+    # Each call takes one control step, and the model must still get a step
+    # after the batch to decide again: a batch never runs into the budget.
+    if len(calls) > state.remaining_steps - 1:
+        return _rejected(DIAG_BATCH_EXCEEDS_STEP_BUDGET, single)
+    actions: list[ToolCall] = []
+    for name, call in zip(names, calls):
+        values = _validated_runtime_arguments(name, getattr(call, "arguments", None))
+        if isinstance(values, str):
+            return _rejected(values, single)
+        earlier = sum(1 for action in actions
+                      if call_key(action.tool_name, action.arguments) == call_key(name, values))
+        if prior_attempts(state, name, values) + earlier >= RETRY_CAP:
+            return _rejected(DIAG_RETRY_CAP_EXCEEDED, single)
+        actions.append(ToolCall(tool_name=name, arguments=values))
+    return Translation(actions=tuple(actions), selected_function=single,
+                       batch_functions=names if len(calls) > 1 else (), diagnostic=None)
+
+
+def translate(state: ControlState, offered: tuple[str, ...], tool_calls: object) -> Translation:
+    """Translate one native response: one call, or one pure runtime batch."""
     calls = tuple(tool_calls or ())
     if not calls:
-        return _refused(DIAG_NO_TOOL_CALL)
-    if len(calls) > 1:
-        return _refused(DIAG_MULTIPLE_TOOL_CALLS)
-    name = getattr(calls[0], "name", None)
-    arguments = getattr(calls[0], "arguments", None)
-    if not isinstance(name, str) or name not in KNOWN_FUNCTIONS:
+        return _rejected(DIAG_NO_TOOL_CALL)
+    names = tuple(getattr(call, "name", None) for call in calls)
+    if not all(isinstance(name, str) and name in KNOWN_FUNCTIONS for name in names):
         # An unknown name is model output and is not recorded.
-        return _refused(DIAG_UNKNOWN_FUNCTION)
-    if name in STAGE5_RUNTIME_TOOLS and name not in state.allowed_tools:
-        return _refused(DIAG_TOOL_NOT_ALLOWED, name)
+        return _rejected(DIAG_UNKNOWN_FUNCTION)
+    if len(calls) > 1 and any(name in CONTROL_FUNCTIONS for name in names):
+        # ask_user and finish end a decision: they never share a response.
+        return _rejected(DIAG_MULTIPLE_TOOL_CALLS)
+    name = names[0]
+    if name in STAGE5_RUNTIME_TOOLS:
+        return _translate_runtime_batch(state, offered, calls)
     if name not in offered:
-        return _refused(DIAG_FUNCTION_NOT_OFFERED, name)
+        return _rejected(DIAG_FUNCTION_NOT_OFFERED, name)
+    arguments = getattr(calls[0], "arguments", None)
     if name == ASK_USER:
         action, diagnostic = _translate_ask_user(arguments)
-    elif name == FINISH:
-        action, diagnostic = _translate_finish(arguments)
     else:
-        action, diagnostic = _translate_runtime_call(state, name, arguments)
-    return action, name, diagnostic
+        action, diagnostic = _translate_finish(arguments)
+    return Translation(actions=(action,), selected_function=name, batch_functions=(),
+                       diagnostic=diagnostic)
 
 
 # --------------------------------------------------------------------------
@@ -548,8 +636,11 @@ class LLMNativeToolLoopPolicy:
         self._formal = formal
         self._records: list[ToolLoopDecisionRecord] = []
         # Private replay sidecar: control step -> wire envelope of the runtime
-        # call made at that step. Never results, evidence, or text.
+        # call issued at that step. Never results, evidence, or text.
         self._native_calls: dict[int, NativeCallEnvelope] = {}
+        # Accepted batch calls not yet issued, in model order. Drained one per
+        # step with no model call; never re-planned, filtered or reordered.
+        self._pending: list[ToolCall] = []
 
     @property
     def formal(self) -> bool:
@@ -559,23 +650,49 @@ class LLMNativeToolLoopPolicy:
     def decision_records(self) -> tuple[ToolLoopDecisionRecord, ...]:
         return tuple(self._records)
 
-    def _remember(self, step: int, action: ToolCall, native_call: object) -> None:
-        call_id = getattr(native_call, "id", None)
-        if not isinstance(call_id, str) or not call_id:
-            return  # nothing native to replay; a formal replay refuses to fabricate one
-        raw = getattr(native_call, "raw_arguments", None)
-        self._native_calls[step] = NativeCallEnvelope(
-            call_id=call_id,
-            name=action.tool_name,
-            raw_arguments=raw if isinstance(raw, str) else None,
-            arguments_key=_arguments_key(action.arguments),
-        )
+    def _remember(self, step: int, actions: tuple[ControlAction, ...],
+                  native_calls: tuple[object, ...]) -> None:
+        for index, (action, native_call) in enumerate(zip(actions, native_calls)):
+            call_id = getattr(native_call, "id", None)
+            raw = getattr(native_call, "raw_arguments", None)
+            self._native_calls[step + index] = NativeCallEnvelope(
+                # No native id: a formal replay refuses to fabricate one.
+                call_id=call_id if isinstance(call_id, str) and call_id else None,
+                name=action.tool_name,
+                raw_arguments=raw if isinstance(raw, str) else None,
+                arguments_key=_arguments_key(action.arguments),
+                batch=step,
+                batch_index=index,
+            )
+
+    def _drain(self, state: ControlState) -> ToolCall:
+        """The next queued batch call, after checking the queue against the state.
+
+        The previous batch call must have exactly one execution attempt as the
+        latest observation - with any status: ok, empty, error, timeout or
+        malformed are all observations, never a reason to cancel the rest.
+        Only a structural inconsistency stops the run.
+        """
+        previous = self._native_calls.get(state.step_number - 1)
+        latest = max(state.observations, key=lambda item: item.sequence, default=None)
+        if (previous is None or latest is None
+                or latest.control_step != state.step_number - 1
+                or not envelope_matches(previous, latest)):
+            raise ToolLoopProtocolError("the pending batch does not match the observed calls")
+        action = self._pending.pop(0)
+        if action.tool_name not in state.allowed_tools or state.remaining_steps < 2:
+            raise ToolLoopProtocolError("a pending batch call no longer fits the run")
+        return action
 
     def next_action(self, state: ControlState) -> ControlAction:
         if not isinstance(state, ControlState):
             raise TypeError("state must be a ControlState")
         if state.step_number == 1:
-            self._native_calls.clear()  # a case-run always starts at step 1
+            # A case-run always starts at step 1.
+            self._native_calls.clear()
+            self._pending.clear()
+        if self._pending:
+            return self._drain(state)
         offered = offered_functions(state)
         # On the formal path this raises ToolLoopProtocolError before any model call.
         messages = build_messages(state, self._native_calls, formal=self._formal)
@@ -587,9 +704,12 @@ class LLMNativeToolLoopPolicy:
             max_tokens=TOOL_LOOP_MAX_TOKENS,
         )
         tool_calls = tuple(getattr(response, "tool_calls", None) or ())
-        action, selected, diagnostic = translate(state, offered, tool_calls)
+        translation = translate(state, offered, tool_calls)
+        action = translation.actions[0]
         if type(action) is ToolCall:
-            self._remember(state.step_number, action, tool_calls[0])
+            self._remember(state.step_number, translation.actions, tool_calls)
+            self._pending = list(translation.actions[1:])
+        selected, diagnostic = translation.selected_function, translation.diagnostic
         self._records.append(ToolLoopDecisionRecord(
             control_step=state.step_number,
             provider=self._provider.name,
@@ -601,6 +721,7 @@ class LLMNativeToolLoopPolicy:
             native_tool_calls=len(tool_calls),
             offered_functions=offered,
             selected_function=selected,
+            batch_functions=translation.batch_functions,
             action_kind=_action_kind(action),
             diagnostic=diagnostic,
             latency_seconds=_latency(getattr(response, "latency_seconds", None)),

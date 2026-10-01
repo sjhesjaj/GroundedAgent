@@ -217,14 +217,21 @@ class TranslationTests(unittest.TestCase):
         self.assertEqual(policy.decision_records[0].diagnostic, "no_tool_call")
         self.assertEqual(policy.decision_records[0].native_tool_calls, 0)
 
-    def test_multiple_tool_calls_fail_closed(self):
+    def test_multiple_calls_with_a_control_function_fail_closed(self):
         action, policy, _ = decide(control_state("ORD-1001"),
-                                   ("get_order", {"order_id": "ORD-1001"}),
-                                   ("get_logistics", {"order_id": "ORD-1001"}))
+                                   (FINISH, {"disposition": "answer"}),
+                                   (ASK_USER, {"slots": ["order_id"]}))
         self.assertEqual(action, REFUSE)
         record = policy.decision_records[0]
         self.assertEqual((record.diagnostic, record.native_tool_calls, record.selected_function),
                          ("multiple_tool_calls", 2, None))
+
+    def test_unknown_member_rejects_a_batch(self):
+        action, policy, _ = decide(control_state("ORD-1001"),
+                                   ("get_order", {"order_id": "ORD-1001"}),
+                                   ("issue_refund", {"order_id": "ORD-1001"}))
+        self.assertEqual(action, REFUSE)
+        self.assertEqual(policy.decision_records[0].diagnostic, "unknown_function")
 
     def test_unknown_function_fails_closed_and_is_not_recorded_by_name(self):
         for name in ("refund_now", None, "", "Get_Order"):
@@ -635,7 +642,8 @@ class NativeReplayTests(unittest.TestCase):
 
     def test_sidecar_holds_only_the_wire_envelope(self):
         self.assertEqual(set(NativeCallEnvelope.__dataclass_fields__),
-                         {"call_id", "name", "raw_arguments", "arguments_key"})
+                         {"call_id", "name", "raw_arguments", "arguments_key",
+                          "batch", "batch_index"})
 
     def test_non_formal_without_native_id_falls_back_to_synthetic_id(self):
         provider = ScriptedProvider(reply(("get_order", {"order_id": "ORD-1001"})),
@@ -682,21 +690,219 @@ class NativeReplayTests(unittest.TestCase):
         run_case(synthetic_case("你好"), policy, max_steps=MAX_STEPS)
         self.assertEqual(policy._native_calls, {})
 
-    def test_multiple_calls_execute_nothing_and_queue_nothing(self):
-        provider = ScriptedProvider(reply(native("get_order", '{"order_id":"ORD-1001"}', "call-o"),
-                                          native("get_logistics", '{"order_id":"ORD-1001"}',
-                                                 "call-l")))
+
+
+# --------------------------------------------------------------------------
+# Native runtime batches (atomic acceptance, serial drain)
+# --------------------------------------------------------------------------
+
+
+ORDER_RAW = '{"order_id": "ORD-1001"}'
+LOGISTICS_RAW = '{"order_id":"ORD-1001"}'
+
+
+def order_logistics_batch():
+    return reply(native("get_order", ORDER_RAW, "call-order"),
+                 native("get_logistics", LOGISTICS_RAW, "call-logistics"))
+
+
+def fault(tool, mode, **match):
+    return {"tool": tool, "match": dict(match), "mode": mode, "on_call": 1}
+
+
+class NativeBatchTests(unittest.TestCase):
+    def run_batch(self, faults=()):
+        provider = ScriptedProvider(order_logistics_batch(),
+                                    reply((FINISH, {"disposition": "answer"})))
+        # Each queued call is checked against the provider's request count
+        # at the moment the runner asks for it.
         policy = LLMNativeToolLoopPolicy(provider, formal=True)
-        record = run_case(synthetic_case("查一下 ORD-1001 的订单状态和物流情况"), policy,
-                          max_steps=MAX_STEPS)
+        requests_seen = []
+        original = policy.next_action
+
+        def watched(state):
+            action = original(state)
+            requests_seen.append((state.step_number, len(provider.requests)))
+            return action
+
+        policy.next_action = watched
+        case = synthetic_case("查一下 ORD-1001 的订单状态和物流情况", faults=list(faults))
+        record = run_case(case, policy, max_steps=MAX_STEPS)
+        return record, policy, provider, requests_seen
+
+    def assert_batch_history(self, record, provider):
+        """ONE assistant message with both native calls, then both tool results."""
+        messages = provider.requests[1]["messages"]
+        assistants = [m for m in messages if m["role"] == "assistant"]
+        self.assertEqual(len(assistants), 1)
+        self.assertEqual(
+            [(c["id"], c["function"]["name"], c["function"]["arguments"])
+             for c in assistants[0]["tool_calls"]],
+            [("call-order", "get_order", ORDER_RAW),
+             ("call-logistics", "get_logistics", LOGISTICS_RAW)])
+        start = messages.index(assistants[0])
+        tools = messages[start + 1:]
+        self.assertEqual([(m["role"], m["tool_call_id"], m["name"]) for m in tools],
+                         [("tool", "call-order", "get_order"),
+                          ("tool", "call-logistics", "get_logistics")])
+        return [m["content"] for m in tools]
+
+    def test_batch_is_drained_without_model_calls(self):
+        record, policy, provider, seen = self.run_batch()
         self.assertEqual((record.termination, record.final_disposition),
-                         (TERMINATION_FINISHED, "refuse"))
-        self.assertEqual(record.observations, ())
-        self.assertEqual(record.fault_records, ())
-        (decision,) = policy.decision_records
-        self.assertEqual((decision.diagnostic, decision.native_tool_calls, decision.selected_function),
-                         ("multiple_tool_calls", 2, None))
-        self.assertEqual(policy._native_calls, {})
+                         (TERMINATION_FINISHED, "answer"))
+        self.assertEqual([o.tool_name for o in record.observations], ["get_order", "get_logistics"])
+        self.assertEqual([o.control_step for o in record.observations], [1, 2])
+        # step 1: model call (1 request); step 2: drained, no new request;
+        # step 3: the model decides again only after the batch.
+        self.assertEqual(seen, [(1, 1), (2, 1), (3, 2)])
+        contents = self.assert_batch_history(record, provider)
+        self.assertEqual(contents, [canonical_json(o.to_dict()["result"])
+                                    for o in record.observations])
+        first, second = policy.decision_records
+        self.assertEqual((first.native_tool_calls, first.selected_function, first.batch_functions,
+                          first.diagnostic, first.action_kind),
+                         (2, None, ("get_order", "get_logistics"), None, "tool_call"))
+        self.assertEqual(second.control_step, 3)
+        self.assertEqual(policy._pending, [])
+        self.assertTrue(record.database_unchanged)
+
+    def test_error_or_timeout_does_not_cancel_the_rest_of_the_batch(self):
+        for mode in ("error", "timeout"):
+            with self.subTest(mode=mode):
+                record, policy, provider, seen = self.run_batch(
+                    faults=[fault("get_order", mode, order_id="ORD-1001")])
+                first, second = record.observations
+                self.assertEqual(type(first), ToolObservation)
+                self.assertEqual(first.result.status, ToolStatus.ERROR)
+                self.assertEqual(type(second), ToolObservation)
+                self.assertEqual(second.tool_name, "get_logistics")
+                self.assertEqual(second.result.status, ToolStatus.OK)
+                self.assertEqual(seen, [(1, 1), (2, 1), (3, 2)])
+                contents = self.assert_batch_history(record, provider)
+                # The failure is replayed as the failure it was; nothing is made up.
+                self.assertEqual(contents, [canonical_json(first.to_dict()["result"]),
+                                            canonical_json(second.to_dict()["result"])])
+                self.assertEqual(json.loads(contents[0])["status"], "error")
+                self.assertTrue(record.database_unchanged)
+
+    def test_malformed_does_not_cancel_the_rest_of_the_batch(self):
+        record, policy, provider, seen = self.run_batch(
+            faults=[fault("get_order", "malformed", order_id="ORD-1001")])
+        first, second = record.observations
+        self.assertEqual((type(first), first.kind), (ToolContractFailure, "malformed"))
+        self.assertEqual((type(second), second.result.status), (ToolObservation, ToolStatus.OK))
+        self.assertEqual(seen, [(1, 1), (2, 1), (3, 2)])
+        contents = self.assert_batch_history(record, provider)
+        self.assertEqual(json.loads(contents[0]), {"tool_name": "get_order", "status": "malformed"})
+        self.assertEqual(contents[1], canonical_json(second.to_dict()["result"]))
+        self.assertEqual(record.final_disposition, "answer")
+        self.assertTrue(record.database_unchanged)
+
+    def test_drain_continues_after_every_observation_status(self):
+        args = {"order_id": "ORD-1001"}
+        outcomes = {
+            "empty": observation(1, "get_order", args, empty_result("get_order")),
+            "error": observation(1, "get_order", args, error_result("get_order")),
+            "malformed": contract_failure(1, "get_order", args),
+        }
+        for status, first in outcomes.items():
+            with self.subTest(status=status):
+                provider = ScriptedProvider(order_logistics_batch())
+                policy = LLMNativeToolLoopPolicy(provider, formal=True)
+                self.assertEqual(type(policy.next_action(control_state("ORD-1001"))), ToolCall)
+                action = policy.next_action(control_state("ORD-1001", observations=[first]))
+                self.assertEqual((action.tool_name, dict(action.arguments)), ("get_logistics", args))
+                self.assertEqual(len(provider.requests), 1)
+
+    def test_pending_queue_must_match_the_observed_call(self):
+        provider = ScriptedProvider(order_logistics_batch())
+        policy = LLMNativeToolLoopPolicy(provider, formal=False)
+        policy.next_action(control_state("ORD-1001"))
+        stray = observation(1, "get_order", {"order_id": "ORD-1002"}, empty_result("get_order"))
+        with self.assertRaises(ToolLoopProtocolError):
+            policy.next_action(control_state("ORD-1001", observations=[stray]))
+        self.assertEqual(len(provider.requests), 1)
+
+    def test_pending_queue_requires_the_previous_attempt(self):
+        provider = ScriptedProvider(order_logistics_batch())
+        policy = LLMNativeToolLoopPolicy(provider)
+        policy.next_action(control_state("ORD-1001"))
+        with self.assertRaises(ToolLoopProtocolError):
+            policy.next_action(control_state("ORD-1001", step=2))
+
+    def test_invalid_member_rejects_the_whole_batch(self):
+        bad_members = (
+            (native("get_logistics", '{"order_id":"ORD-1001","customer_id":"CUST-002"}', "c2"),
+             "identity_argument"),
+            (native("get_logistics", '{"order_id":""}', "c2"), "invalid_arguments"),
+            (native("get_inventory", '{"sku":"SKU-MUG"}', "c2"), "tool_not_allowed"),
+        )
+        for member, diagnostic in bad_members:
+            with self.subTest(diagnostic=diagnostic):
+                provider = ScriptedProvider(reply(native("get_order", ORDER_RAW, "c1"), member))
+                policy = LLMNativeToolLoopPolicy(provider, formal=True)
+                state = control_state("ORD-1001",
+                                      tools=("get_order", "get_logistics", "get_after_sales_case"))
+                self.assertEqual(policy.next_action(state), REFUSE)
+                record = policy.decision_records[0]
+                self.assertEqual((record.diagnostic, record.batch_functions), (diagnostic, ()))
+                self.assertEqual((policy._pending, policy._native_calls), ([], {}))
+
+    def test_rejected_batch_runs_nothing_through_the_runner(self):
+        provider = ScriptedProvider(reply(
+            native("get_order", ORDER_RAW, "c1"),
+            native("get_logistics", '{"order_id":"ORD-1001","role":"admin"}', "c2")))
+        record = run_case(synthetic_case("ORD-1001"), LLMNativeToolLoopPolicy(provider, formal=True),
+                          max_steps=MAX_STEPS)
+        self.assertEqual((record.final_disposition, record.observations, record.fault_records),
+                         ("refuse", (), ()))
+        self.assertEqual(len(provider.requests), 1)
+
+    def test_control_function_never_shares_a_response(self):
+        for second in ((FINISH, {"disposition": "answer"}), (ASK_USER, {"slots": ["order_id"]})):
+            with self.subTest(second=second[0]):
+                action, policy, _ = decide(control_state("ORD-1001"),
+                                           ("get_order", {"order_id": "ORD-1001"}), second)
+                self.assertEqual(action, REFUSE)
+                self.assertEqual(policy.decision_records[0].diagnostic, "multiple_tool_calls")
+                self.assertEqual(policy._pending, [])
+
+    def test_batch_must_leave_a_step_for_the_next_decision(self):
+        state = control_state("ORD-1001", step=MAX_STEPS - 1)  # remaining_steps == 2
+        action, policy, _ = decide(state, ("get_order", {"order_id": "ORD-1001"}),
+                                   ("get_logistics", {"order_id": "ORD-1001"}))
+        self.assertEqual(action, REFUSE)
+        self.assertEqual(policy.decision_records[0].diagnostic, "batch_exceeds_step_budget")
+        action, _, _ = decide(state, ("get_order", {"order_id": "ORD-1001"}))
+        self.assertEqual(type(action), ToolCall)
+
+    def test_retry_cap_counts_calls_within_the_batch(self):
+        args = {"order_id": "ORD-1001"}
+        prior = [observation(i, "get_order", args, error_result("get_order")) for i in (1, 2)]
+        state = control_state("ORD-1001", observations=prior, max_steps=8)
+        action, policy, _ = decide(state, ("get_order", args), ("get_order", args))
+        self.assertEqual(action, REFUSE)
+        self.assertEqual(policy.decision_records[0].diagnostic, "retry_cap_exceeded")
+        action, _, _ = decide(state, ("get_order", args), ("get_logistics", args))
+        self.assertEqual(type(action), ToolCall)
+
+    def test_non_formal_batch_without_ids_replays_one_grouped_message(self):
+        provider = ScriptedProvider(reply(("get_order", {"order_id": "ORD-1001"}),
+                                          ("get_logistics", {"order_id": "ORD-1001"})),
+                                    reply((FINISH, {"disposition": "answer"})))
+        run_case(synthetic_case("ORD-1001"), LLMNativeToolLoopPolicy(provider), max_steps=MAX_STEPS)
+        assistants = [m for m in provider.requests[1]["messages"] if m["role"] == "assistant"]
+        self.assertEqual(len(assistants), 1)
+        self.assertEqual([c["id"] for c in assistants[0]["tool_calls"]],
+                         ["obs-turn:1:tool:1", "obs-turn:1:tool:2"])
+
+    def test_formal_batch_without_native_ids_is_never_fabricated(self):
+        provider = ScriptedProvider(reply(("get_order", {"order_id": "ORD-1001"}),
+                                          ("get_logistics", {"order_id": "ORD-1001"})))
+        with self.assertRaises(ToolLoopProtocolError):
+            run_case(synthetic_case("ORD-1001"), LLMNativeToolLoopPolicy(provider, formal=True),
+                     max_steps=MAX_STEPS)
         self.assertEqual(len(provider.requests), 1)
 
 
@@ -733,7 +939,8 @@ class AuditRecordTests(unittest.TestCase):
             "model_reported": "deepseek-chat", "prompt_tokens": 321, "completion_tokens": 17,
             "finish_reason": "tool_calls", "native_tool_calls": 1,
             "offered_functions": list(EXPECTED_TOOL_NAMES) + [ASK_USER, FINISH],
-            "selected_function": "get_order", "action_kind": "tool_call", "diagnostic": None,
+            "selected_function": "get_order", "batch_functions": [],
+            "action_kind": "tool_call", "diagnostic": None,
             "latency_seconds": 0.25})
         with self.assertRaises(AttributeError):
             record.diagnostic = "x"
