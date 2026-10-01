@@ -1843,3 +1843,84 @@ A″ 的思路是：时间词和实时请求在同一个请求的不同子句里
 - 冻结的 1024 的验证结果：部分合法回复超过 512 completion tokens；最大值 Baseline 674 / 626 / 585，Tool Loop 718 / 719 / 718；没有回复达到 900；所有模型调用都正常结束。因此 `GENERATION_MAX_TOKENS = 1024` 保持冻结，holdout 不得修改。
 - e2e run SHA：Baseline t1 `4c141d971121c8a2413833aab3a1d1d86a19e820f070fa30d2cda7429c168c7d`，t2 `54b5f92717b93d04118266a964cb76218834bc0a09f826c79e7e1961d1415347`，t3 `b74ba11f4a2608d81b6d8880788477b6e4cce54548c9f05923535ff7c0886969`；Tool Loop t1 `06d6fa779784482e0d9640dd4aabcdda8604a55fce67c0a22b8c3af2a7f20583`，t2 `3cda7dcb3ed9d9feacd85c44ac18df02579294dc51496798b8638cbe8d399e3c`，t3 `c6bd6ca9326ae16f06580a0e51c603b190afef91f7d58f6fa6387413227350b9`。
 - 结果文件（`eval/v2/results/stage5-generation-validation-*`，13 个）及其 SHA-256 记录在 `stage5-generation-validation.meta.json`（`0adb4065a22ebc4e68c33b0a4ee33ef161c516cf6c33238e677c900e4718eabb`）所在 commit 中；validation 只报告汇总、archetype 与协议层面，不记录 case 文本。
+
+## 23. GroundedAgent V2 Stage 5：STAGE 5 FINAL HOLDOUT
+
+### Holdout 与开封审计
+
+- holdout SHA-256：`0d312305e62ffc3bf4c73cf3ee0715a8cbe1b910d44183b9bb8abf9cc2d88e8a`；seal receipt SHA-256：`1c899e4f8d54a168aef77489f9450f1d08f4166949a9164d935412fbae9ff002`（两者均在内存中校验）。
+- case_count：20；分布：A01–A20 各恰好一次（A21–A23 不存在）；expected_action / expected_final_state 全为 null；case contract 有效。
+- 开封：只开封一次，且仅在以下全部完成之后：Stage 4 Baseline 冻结、Stage 5 Tool Loop 冻结、Tool Loop validation、共享 generation 冻结、共享 generation validation。
+- 开封方式：在内存中进行——receipt 与 holdout 各只读取一次，使用预先提交的 unseal 工具中的校验步骤（不执行其写入步骤）；原始 holdout 与 receipt 没有写入仓库，也没有记录外部路径。
+- author_agent_runs_before_open：0。
+- 最终评测运行：Baseline 1 次，Tool Loop 1 次（同一个冻结的共享 generator）。没有人工查看 case 内容。
+- 开封之后没有任何调参，也没有源码 / 评测器修改。措辞：holdout opened once for the final frozen evaluation。
+- 运行时 HEAD：`a5d2840`；冻结栈：`v2-stage4-baseline`（`f99d5c3`）、`v2-stage5-tool-loop`（`03b1893`）、`v2-stage5-generation`（`2ab48dc`）；DeepSeek `deepseek-flash`，temperature 0，max_tokens 1024，thinking disabled，`max_steps = 5`；response_format 为 json_object 加 provider 注入的 schema 指令。
+
+### 最终指标
+
+| 指标 | Baseline | Tool Loop |
+|---|---|---|
+| control_success | 14/20 = 0.70 | 18/20 = 0.90 |
+| capabilities_ok | 15/20 = 0.75 | 20/20 = 1.0 |
+| clarification_ok | 20/20 = 1.0 | 20/20 = 1.0 |
+| evidence_ok | 16/20 = 0.80 | 20/20 = 1.0 |
+| final_ok | 18/20 = 0.90 | 18/20 = 0.90 |
+| db_ok | 20/20 = 1.0 | 20/20 = 1.0 |
+| average_control_steps | 3.55 | 3.60 |
+| generated / fixed / not_generated | 17 / 3 / 0 | 15 / 5 / 0 |
+| generation_ok | 20/20 | 20/20 |
+| generation 协议错误 | 0 | 0 |
+| answer-only citation_grounding_ok | 13/17 ≈ 0.765 | 14/15 ≈ 0.933 |
+| answer-only forbidden_citation_used | 0 | 1 |
+| overall citation_grounding_ok | 16/20 = 0.80 | 19/20 = 0.95 |
+| **e2e_grounded_success** | **14/20 = 0.70** | **18/20 = 0.90** |
+
+- Tool Loop 的那一次 forbidden citation 出现在控制层已经失败的 case 中；它没有在控制成功的 case 中造成额外失败（控制与 generation 都通过却引用 forbidden 证据的 case 两臂均为 0）。
+- 失败分解：Baseline——上游控制失败 6、generation 失败 0、citation grounding 失败 0、完全 grounded 14；Tool Loop——上游控制失败 2、generation 失败 0、citation grounding 失败 0、完全 grounded 18。
+- e2e run SHA：Baseline `5e73e5f0738db8561830d887e9ea6f95da1876dbdc2f280c9cd68ae2c91a9805`，Tool Loop `71a5421ec14b53ea3d4b55794d043cdeee5846295f67ba72d7e864b748f1b0ff`。
+- 结果文件（`eval/v2/results/`）：`stage5-holdout-final-baseline.json`（`7b45d06ec99172f3d59255984f7690620227d5168523dc926375acd9b6f144af`），`stage5-holdout-final-baseline.protocol.json`（`28d746055f19a75f9d405451081faa51eb77a7aa7a5d960ceb467f8694f98bdd`），`stage5-holdout-final-tool-loop.json`（`6596fbd6c4b835c23e18e88925fa298346f4501f593fdcb9cacd5bad63bf6c7d`），`stage5-holdout-final-tool-loop.protocol.json`（`6fd584b68506a6f7f40d88870027f42c0e19ddd03759151e36a5bb6ffef83504`），`stage5-holdout-final.meta.json`（`4cda3c1963ed5791bcc49bea9c0e822f057da28f16ea24a401205efa9dab778a`）。
+
+### 配对结果
+
+- On the frozen 20-case Stage 5 holdout, grounded E2E success was 14/20 for the deterministic Baseline and 18/20 for the frozen LLM-native Tool Loop.
+- 在这个冻结的 20-case holdout 上的差值：+4 个 case，+20 个百分点。这是对冻结 holdout 的描述性测量，不是生产环境准确率，不是经统计证明的生产提升，也不是语义 / 事实准确率。
+- archetype 汇总（每个 archetype 一个 case）：两者都通过 13；仅 Baseline 通过 1（A07）；仅 Tool Loop 通过 5（A02、A06、A11、A13、A15）；两者都失败 1（A18）。
+
+### 解读
+
+- Stage 5 观察到的最强效应在控制 / 证据层：holdout 上 Tool Loop 的 capabilities_ok 20/20、evidence_ok 20/20，而 final_ok 18/20。因此 Tool Loop 剩下的控制失败是最终 disposition 的失败，而不是缺少能力 / 证据的失败。
+- 共享 generation 在协议上是干净的：两臂 generation_ok 均为 20/20，generation 协议错误为 0。
+- citation grounding 在下游有所改善，但它仍是一个结构性指标：`citation_grounding_ok` 不等于语义正确性或事实准确性。
+
+### 硬性不变量
+
+- 数据库：最终 holdout 的 40/40 个 case-run 均 unchanged。
+- 没有执行任何有副作用的工具；没有越过 allowed_tools 的调用到达 executor；没有身份参数到达 executor。
+- 没有基础设施错误；开封之后没有源码 / 评测器修改。
+
+### 历史实验链（各数据集分开记录，不合并）
+
+| 阶段 | Baseline | Tool Loop |
+|---|---|---|
+| CONTROL DEV | 30/40 | 38/40（选定的 R3） |
+| CONTROL VALIDATION | 28/40 | 33/40、33/40、33/40 |
+| GENERATION DEV R2（E2E） | 25/40 | 32/40 |
+| GENERATION VALIDATION（E2E） | 24/40、26/40、26/40 | 31/40、30/40、28/40 |
+| FINAL HOLDOUT（E2E） | 14/20 | 18/20 |
+
+### Stage 5 状态
+
+**STAGE 5 CLOSED / PASS.**
+
+- 冻结的架构：
+  - 确定性的 Stage 4 Baseline；
+  - LLM-native 的只读 Tool Loop；
+  - 确定性的能力 / 安全边界；
+  - 共享的 EvidenceState；
+  - 共享的 grounded generation；
+  - 结构化的 citation refs；
+  - 派生事实来源 `supporting_refs`；
+  - Trace / Eval / 冻结的环境。
+- Stage 5 **不**包括（留到 Stage 6）：有副作用的业务工具；退款 / 退货 / 换货的执行；Policy Guard；WAITING_APPROVAL；人工审批；暂停 / 恢复；幂等写入。
+- 最终 tag：`v2-stage5-final` 指向本记录 commit，代表完整的 Stage 5 历史状态（含最终评测结果）；`v2-stage5-tool-loop` 与 `v2-stage5-generation` 仍是 source 冻结 tag，不移动。

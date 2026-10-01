@@ -1,0 +1,976 @@
+{
+  "schema": "v2-stage5-holdout-final-protocol/1",
+  "arm": "tool-loop",
+  "cases": [
+    {
+      "case_id": "gh2-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 415,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1902,
+          "completion_tokens": 89,
+          "latency_seconds": 1.2682466000551358
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4875,
+          "completion_tokens": 58,
+          "latency_seconds": 1.3348812999902293
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15897,
+          "completion_tokens": 38,
+          "latency_seconds": 1.5766395999817178
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 390,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1904,
+          "completion_tokens": 125,
+          "latency_seconds": 1.065825399942696
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5181,
+          "completion_tokens": 57,
+          "latency_seconds": 1.41374430002179
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 10508,
+          "completion_tokens": 38,
+          "latency_seconds": 1.6901137999957427
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-03",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 660,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1893,
+          "completion_tokens": 89,
+          "latency_seconds": 1.1038694999879226
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4862,
+          "completion_tokens": 58,
+          "latency_seconds": 0.9885398999322206
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15884,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3111279000295326
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-04",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 226,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 3,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1895,
+          "completion_tokens": 138,
+          "latency_seconds": 1.19268610002473
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 14947,
+          "completion_tokens": 38,
+          "latency_seconds": 1.524768800009042
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-05",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 60,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1890,
+          "completion_tokens": 88,
+          "latency_seconds": 2.835603400017135
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 2122,
+          "completion_tokens": 75,
+          "latency_seconds": 1.0956467000069097
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-06",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 169,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_inventory"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1898,
+          "completion_tokens": 86,
+          "latency_seconds": 1.6886708999518305
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 3850,
+          "completion_tokens": 38,
+          "latency_seconds": 1.305774600012228
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-07",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 505,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1892,
+          "completion_tokens": 88,
+          "latency_seconds": 1.2741868000011891
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4857,
+          "completion_tokens": 60,
+          "latency_seconds": 1.132040400058031
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16225,
+          "completion_tokens": 38,
+          "latency_seconds": 1.6769804999930784
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-08",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 247,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "ask_user"
+          ],
+          "batch_functions": [],
+          "selected_function": "ask_user",
+          "action_kind": "clarify",
+          "diagnostic": null,
+          "prompt_tokens": 1882,
+          "completion_tokens": 79,
+          "latency_seconds": 1.0893463001120836
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1891,
+          "completion_tokens": 84,
+          "latency_seconds": 1.0505229000700638
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4824,
+          "completion_tokens": 47,
+          "latency_seconds": 1.0538635000120848
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-09",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 379,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1890,
+          "completion_tokens": 89,
+          "latency_seconds": 1.1842708000913262
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5835,
+          "completion_tokens": 58,
+          "latency_seconds": 1.1917765999678522
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 17201,
+          "completion_tokens": 38,
+          "latency_seconds": 1.3637982999207452
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-10",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 4,
+          "returned_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics",
+            "get_after_sales_case",
+            "search_after_sales_policy"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1902,
+          "completion_tokens": 167,
+          "latency_seconds": 1.1077189999632537
+        },
+        {
+          "control_step": 5,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 17791,
+          "completion_tokens": 39,
+          "latency_seconds": 1.2367634000256658
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-11",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1897,
+          "completion_tokens": 89,
+          "latency_seconds": 1.364374199998565
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 5842,
+          "completion_tokens": 77,
+          "latency_seconds": 1.28752610005904
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-12",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 397,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1908,
+          "completion_tokens": 95,
+          "latency_seconds": 1.1883107000030577
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5857,
+          "completion_tokens": 57,
+          "latency_seconds": 1.3218536999775097
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 11446,
+          "completion_tokens": 38,
+          "latency_seconds": 1.262786699924618
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-13",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 221,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1885,
+          "completion_tokens": 58,
+          "latency_seconds": 1.246921999962069
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 4644,
+          "completion_tokens": 38,
+          "latency_seconds": 1.2342939999653026
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-14",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_logistics"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_logistics",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1885,
+          "completion_tokens": 56,
+          "latency_seconds": 1.725861500017345
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 2001,
+          "completion_tokens": 52,
+          "latency_seconds": 1.046139599988237
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-15",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1885,
+          "completion_tokens": 57,
+          "latency_seconds": 0.9984368999721482
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 2008,
+          "completion_tokens": 45,
+          "latency_seconds": 1.122438200050965
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 2131,
+          "completion_tokens": 45,
+          "latency_seconds": 1.113724400056526
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 2254,
+          "completion_tokens": 39,
+          "latency_seconds": 1.5544289000099525
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-16",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 424,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1901,
+          "completion_tokens": 89,
+          "latency_seconds": 1.056673299986869
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4876,
+          "completion_tokens": 84,
+          "latency_seconds": 1.220915099955164
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16239,
+          "completion_tokens": 38,
+          "latency_seconds": 1.093583200010471
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-17",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 609,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1898,
+          "completion_tokens": 94,
+          "latency_seconds": 1.3875999000156298
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 4865,
+          "completion_tokens": 58,
+          "latency_seconds": 1.34949269995559
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 15887,
+          "completion_tokens": 38,
+          "latency_seconds": 1.1566111000720412
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-18",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "get_after_sales_case"
+          ],
+          "batch_functions": [],
+          "selected_function": "get_after_sales_case",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1894,
+          "completion_tokens": 58,
+          "latency_seconds": 1.2562822999898344
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 3296,
+          "completion_tokens": 53,
+          "latency_seconds": 1.1485047999303788
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16719,
+          "completion_tokens": 39,
+          "latency_seconds": 2.0306082000024617
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-19",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 184,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1890,
+          "completion_tokens": 74,
+          "latency_seconds": 1.5373456000816077
+        },
+        {
+          "control_step": 2,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 14974,
+          "completion_tokens": 38,
+          "latency_seconds": 1.2918448999989778
+        }
+      ]
+    },
+    {
+      "case_id": "gh2-20",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 641,
+      "control_decisions": [
+        {
+          "control_step": 1,
+          "native_tool_calls": 2,
+          "returned_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "batch_functions": [
+            "get_order",
+            "get_logistics"
+          ],
+          "selected_function": null,
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 1903,
+          "completion_tokens": 90,
+          "latency_seconds": 0.9376380000030622
+        },
+        {
+          "control_step": 3,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "search_after_sales_policy"
+          ],
+          "batch_functions": [],
+          "selected_function": "search_after_sales_policy",
+          "action_kind": "tool_call",
+          "diagnostic": null,
+          "prompt_tokens": 5844,
+          "completion_tokens": 87,
+          "latency_seconds": 1.153201200067997
+        },
+        {
+          "control_step": 4,
+          "native_tool_calls": 1,
+          "returned_functions": [
+            "finish"
+          ],
+          "batch_functions": [],
+          "selected_function": "finish",
+          "action_kind": "finish",
+          "diagnostic": null,
+          "prompt_tokens": 16866,
+          "completion_tokens": 38,
+          "latency_seconds": 1.6863742999266833
+        }
+      ]
+    }
+  ]
+}

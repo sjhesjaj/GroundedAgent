@@ -1,0 +1,146 @@
+{
+  "schema": "v2-stage5-holdout-final-protocol/1",
+  "arm": "baseline",
+  "cases": [
+    {
+      "case_id": "gh2-01",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 442,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-02",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 372,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-03",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 340,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-04",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 473,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-05",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 223,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-06",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 292,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-07",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-08",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 194,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-09",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 437,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-10",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-11",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 395,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-12",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 490,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-13",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 430,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-14",
+      "generation_status": "fixed",
+      "generation_error": null,
+      "generation_completion_tokens": null,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-15",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 286,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-16",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 382,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-17",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 448,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-18",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 446,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-19",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 245,
+      "control_decisions": null
+    },
+    {
+      "case_id": "gh2-20",
+      "generation_status": "generated",
+      "generation_error": null,
+      "generation_completion_tokens": 597,
+      "control_decisions": null
+    }
+  ]
+}

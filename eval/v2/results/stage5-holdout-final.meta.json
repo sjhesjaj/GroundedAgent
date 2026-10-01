@@ -1,0 +1,316 @@
+{
+  "schema": "v2-stage5-holdout-final-meta/1",
+  "holdout_sha256": "0d312305e62ffc3bf4c73cf3ee0715a8cbe1b910d44183b9bb8abf9cc2d88e8a",
+  "seal_receipt_sha256": "1c899e4f8d54a168aef77489f9450f1d08f4166949a9164d935412fbae9ff002",
+  "input_bundle_digest": "7b3d4684cf3fa7425d25a6e842f47876392f6b0c095592f8371d5aa0cad61fc8",
+  "case_count": 20,
+  "baseline_control_tag": "v2-stage4-baseline",
+  "baseline_control_commit": "f99d5c307e13d15626335bfeca06dbf7ee624fd5",
+  "tool_loop_control_tag": "v2-stage5-tool-loop",
+  "tool_loop_control_commit": "03b1893579eb13fdd04bffa1729afda870eeb576",
+  "generation_tag": "v2-stage5-generation",
+  "generation_source": "2ab48dc993429a4b10b3317a663362c2cf35e911",
+  "run_head": "a5d28404361f7ff50baef0ce70573a952b108e29",
+  "max_steps": 5,
+  "generation_max_tokens": 1024,
+  "temperature": 0,
+  "thinking": "disabled",
+  "provider": "deepseek",
+  "model_requested": "deepseek-flash",
+  "base_url_host": "api.deepseek.com",
+  "response_format": "json_object_with_schema_instruction",
+  "baseline_e2e_run_sha256": "5e73e5f0738db8561830d887e9ea6f95da1876dbdc2f280c9cd68ae2c91a9805",
+  "tool_loop_e2e_run_sha256": "71a5421ec14b53ea3d4b55794d043cdeee5846295f67ba72d7e864b748f1b0ff",
+  "database_unchanged_case_runs": 40,
+  "holdout_open_audit": {
+    "opened_once": true,
+    "author_agent_runs_before_open": 0,
+    "baseline_runs": 1,
+    "tool_loop_runs": 1,
+    "no_tuning_after_open": true,
+    "opened_after": [
+      "Stage 4 Baseline freeze",
+      "Stage 5 Tool Loop freeze",
+      "Tool Loop validation",
+      "Shared Generation freeze",
+      "Shared Generation validation"
+    ],
+    "receipt_sha256_verified": "1c899e4f8d54a168aef77489f9450f1d08f4166949a9164d935412fbae9ff002",
+    "opening": "in-memory; receipt and holdout each read exactly once and verified with the pre-committed unseal tool's checks, without its write step; raw holdout and receipt not written to the repository",
+    "statement": "holdout opened once for the final frozen evaluation"
+  },
+  "arm_reports": {
+    "baseline": {
+      "control_summary": {
+        "case_count": 20,
+        "control_success_count": 14,
+        "control_success_rate": 0.7,
+        "capabilities_ok_count": 15,
+        "capabilities_ok_rate": 0.75,
+        "clarification_ok_count": 20,
+        "clarification_ok_rate": 1.0,
+        "evidence_ok_count": 16,
+        "evidence_ok_rate": 0.8,
+        "final_ok_count": 18,
+        "final_ok_rate": 0.9,
+        "db_ok_count": 20,
+        "db_ok_rate": 1.0,
+        "average_control_steps": 3.55,
+        "termination_counts": {
+          "finished": 20,
+          "unanswered_clarification": 0,
+          "max_steps_exceeded": 0
+        },
+        "forbidden_evidence_present_count": 1
+      },
+      "e2e_summary": {
+        "case_count": 20,
+        "control_success_count": 14,
+        "control_success_rate": 0.7,
+        "generation_ok_count": 20,
+        "generation_ok_rate": 1.0,
+        "citation_grounding_ok_count": 16,
+        "citation_grounding_ok_rate": 0.8,
+        "forbidden_citation_used_count": 0,
+        "forbidden_citation_used_rate": 0.0,
+        "e2e_grounded_success_count": 14,
+        "e2e_grounded_success_rate": 0.7
+      },
+      "generation_status_counts": {
+        "generated": 17,
+        "fixed": 3,
+        "not_generated": 0
+      },
+      "generation_protocol_error_counts": {
+        "malformed_json": 0,
+        "not_an_object": 0,
+        "invalid_keys": 0,
+        "empty_answer": 0,
+        "citation_refs_not_a_list": 0,
+        "invalid_citation_ref": 0,
+        "duplicate_citation_ref": 0,
+        "unknown_citation_ref": 0
+      },
+      "answer_only": {
+        "answer_case_count": 17,
+        "generated_ok_count": 17,
+        "citation_grounding_ok_count": 13,
+        "citation_grounding_ok_rate": 0.764706,
+        "forbidden_citation_used_count": 0
+      },
+      "citation_aggregate": {
+        "generated_answer_count": 17,
+        "refs_per_answer": {
+          "mean": 15.118,
+          "median": 16,
+          "min": 6,
+          "max": 26
+        },
+        "required_evidence_cited_failures": 4,
+        "forbidden_cited_count": 0,
+        "unknown_citation_errors": 0,
+        "duplicate_citation_errors": 0
+      },
+      "decomposition": {
+        "A_control_failure": 6,
+        "B_generation_failure": 0,
+        "C_citation_grounding_failure": 0,
+        "D_e2e_grounded_success": 14
+      },
+      "control_and_generation_ok_but_forbidden_cited": 0,
+      "archetype_e2e": {
+        "A01": true,
+        "A02": false,
+        "A03": true,
+        "A04": true,
+        "A05": true,
+        "A06": false,
+        "A07": true,
+        "A08": true,
+        "A09": true,
+        "A10": true,
+        "A11": false,
+        "A12": true,
+        "A13": false,
+        "A14": true,
+        "A15": false,
+        "A16": true,
+        "A17": true,
+        "A18": false,
+        "A19": true,
+        "A20": true
+      },
+      "generation_usage": {
+        "model_call_count": 17,
+        "prompt_tokens_total": 71366,
+        "completion_tokens_total": 6492,
+        "latency_seconds_total": 41.543,
+        "latency_seconds_mean": 2.444,
+        "latency_seconds_median": 2.514,
+        "completion_tokens_max": 597,
+        "completion_tokens_over_512": 1,
+        "completion_tokens_at_least_900": 0,
+        "finish_reasons": {
+          "stop": 17
+        },
+        "prompt_adaptations": {
+          "schema_not_supported_by_json_object": 17
+        },
+        "models_reported": [
+          "deepseek-flash"
+        ]
+      },
+      "database_unchanged": 20
+    },
+    "tool-loop": {
+      "control_summary": {
+        "case_count": 20,
+        "control_success_count": 18,
+        "control_success_rate": 0.9,
+        "capabilities_ok_count": 20,
+        "capabilities_ok_rate": 1.0,
+        "clarification_ok_count": 20,
+        "clarification_ok_rate": 1.0,
+        "evidence_ok_count": 20,
+        "evidence_ok_rate": 1.0,
+        "final_ok_count": 18,
+        "final_ok_rate": 0.9,
+        "db_ok_count": 20,
+        "db_ok_rate": 1.0,
+        "average_control_steps": 3.6,
+        "termination_counts": {
+          "finished": 20,
+          "unanswered_clarification": 0,
+          "max_steps_exceeded": 0
+        },
+        "forbidden_evidence_present_count": 2
+      },
+      "e2e_summary": {
+        "case_count": 20,
+        "control_success_count": 18,
+        "control_success_rate": 0.9,
+        "generation_ok_count": 20,
+        "generation_ok_rate": 1.0,
+        "citation_grounding_ok_count": 19,
+        "citation_grounding_ok_rate": 0.95,
+        "forbidden_citation_used_count": 1,
+        "forbidden_citation_used_rate": 0.05,
+        "e2e_grounded_success_count": 18,
+        "e2e_grounded_success_rate": 0.9
+      },
+      "generation_status_counts": {
+        "generated": 15,
+        "fixed": 5,
+        "not_generated": 0
+      },
+      "generation_protocol_error_counts": {
+        "malformed_json": 0,
+        "not_an_object": 0,
+        "invalid_keys": 0,
+        "empty_answer": 0,
+        "citation_refs_not_a_list": 0,
+        "invalid_citation_ref": 0,
+        "duplicate_citation_ref": 0,
+        "unknown_citation_ref": 0
+      },
+      "answer_only": {
+        "answer_case_count": 15,
+        "generated_ok_count": 15,
+        "citation_grounding_ok_count": 14,
+        "citation_grounding_ok_rate": 0.933333,
+        "forbidden_citation_used_count": 1
+      },
+      "citation_aggregate": {
+        "generated_answer_count": 15,
+        "refs_per_answer": {
+          "mean": 15,
+          "median": 15,
+          "min": 0,
+          "max": 29
+        },
+        "required_evidence_cited_failures": 0,
+        "forbidden_cited_count": 1,
+        "unknown_citation_errors": 0,
+        "duplicate_citation_errors": 0
+      },
+      "decomposition": {
+        "A_control_failure": 2,
+        "B_generation_failure": 0,
+        "C_citation_grounding_failure": 0,
+        "D_e2e_grounded_success": 18
+      },
+      "control_and_generation_ok_but_forbidden_cited": 0,
+      "archetype_e2e": {
+        "A01": true,
+        "A02": true,
+        "A03": true,
+        "A04": true,
+        "A05": true,
+        "A06": true,
+        "A07": false,
+        "A08": true,
+        "A09": true,
+        "A10": true,
+        "A11": true,
+        "A12": true,
+        "A13": true,
+        "A14": true,
+        "A15": true,
+        "A16": true,
+        "A17": true,
+        "A18": false,
+        "A19": true,
+        "A20": true
+      },
+      "generation_usage": {
+        "model_call_count": 15,
+        "prompt_tokens_total": 78090,
+        "completion_tokens_total": 5527,
+        "latency_seconds_total": 34.957,
+        "latency_seconds_mean": 2.33,
+        "latency_seconds_median": 2.233,
+        "completion_tokens_max": 660,
+        "completion_tokens_over_512": 3,
+        "completion_tokens_at_least_900": 0,
+        "finish_reasons": {
+          "stop": 15
+        },
+        "prompt_adaptations": {
+          "schema_not_supported_by_json_object": 15
+        },
+        "models_reported": [
+          "deepseek-flash"
+        ]
+      },
+      "database_unchanged": 20,
+      "control_usage": {
+        "model_call_count": 53,
+        "prompt_tokens_total": 320393,
+        "completion_tokens_total": 3464,
+        "latency_seconds_total": 69.531,
+        "latency_seconds_mean": 1.312,
+        "latency_seconds_median": 1.247,
+        "accepted_multi_runtime_batch_count": 15,
+        "batch_size_histogram": {
+          "2": 12,
+          "3": 2,
+          "4": 1
+        },
+        "diagnostic_counts": {
+          "no_tool_call": 0,
+          "multiple_tool_calls": 0,
+          "retry_cap_exceeded": 0,
+          "batch_exceeds_step_budget": 0,
+          "invalid_arguments": 0,
+          "identity_argument": 0,
+          "tool_not_allowed": 0,
+          "function_not_offered": 0,
+          "unknown_function": 0,
+          "invalid_ask_user_slots": 0,
+          "invalid_finish_disposition": 0
+        },
+        "other_diagnostic_counts": {}
+      }
+    }
+  }
+}
