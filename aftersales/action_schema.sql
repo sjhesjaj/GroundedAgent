@@ -62,8 +62,8 @@ CREATE TABLE pending_actions (
     CHECK ((approval_decision IS NULL) = (decided_at IS NULL)),
     CHECK (status <> 'PENDING_APPROVAL' OR approval_decision IS NULL),
     CHECK (status NOT IN ('APPROVED', 'EXECUTED', 'STALE', 'DENIED', 'FAILED')
-           OR approval_decision = 'APPROVE'),
-    CHECK (status <> 'REJECTED' OR approval_decision = 'REJECT'),
+           OR approval_decision IS 'APPROVE'),
+    CHECK (status <> 'REJECTED' OR approval_decision IS 'REJECT'),
     CHECK ((status = 'EXECUTED') = (receipt_id IS NOT NULL)),
     CHECK ((status IN ('PENDING_APPROVAL', 'APPROVED', 'EXECUTED')) = (outcome_code IS NULL))
 );

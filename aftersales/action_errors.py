@@ -96,3 +96,31 @@ class CapabilityConfigurationError(ValueError):
 
 class ActionContractError(ValueError):
     """A ValidatedAction or a Stage 6 record does not satisfy its own contract."""
+
+
+# --------------------------------------------------------------------------
+# Approval / resume (§10.3, §11, §14)
+# --------------------------------------------------------------------------
+
+
+class ApprovalInputError(ValueError):
+    """An ApprovalDecision failed the trusted operator boundary. Nothing is written."""
+
+
+class UnknownPendingAction(LookupError):
+    """No pending action has this id. Nothing is written."""
+
+
+class NotApproved(RuntimeError):
+    """T2 was asked to execute a pending action that no trusted APPROVE has reached.
+
+    Only a recorded APPROVE moves PENDING_APPROVAL to APPROVED; nothing is written.
+    """
+
+
+class PendingTransitionConflict(RuntimeError):
+    """A guarded pending UPDATE did not hit exactly one row (wrong status or version)."""
+
+
+class SnapshotIntegrityError(ValueError):
+    """A persisted s6-guard-snapshot/1 document is malformed or does not match its digest."""

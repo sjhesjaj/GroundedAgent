@@ -240,3 +240,33 @@ def insert_ticket(db: Stage6Database, ticket_id: str, order_item_id: str, *, sta
         " status, created_at, updated_at, version) VALUES (?, ?, ?, 'quality_dispute', ?, ?, ?, 1)",
         (ticket_id, order_id, order_item_id, status, "2026-11-10T10:00:00+08:00",
          "2026-11-10T10:00:00+08:00"))
+
+
+# --------------------------------------------------------------------------
+# Stage 6.2: approval / resume
+# --------------------------------------------------------------------------
+
+OPERATOR = "op-demo-1"
+
+
+def approval(pending_action_id: str, decision: str = "APPROVE", *, at: datetime = VIRTUAL_NOW,
+             approver_ref: str = OPERATOR):
+    from aftersales.approval import ApprovalDecision
+    return ApprovalDecision(pending_action_id=pending_action_id, decision=decision,
+                            approver_ref=approver_ref, decided_at=at.isoformat())
+
+
+def pending_row(db: Stage6Database, pending_action_id: str) -> dict:
+    from aftersales.action_store import PENDING_COLUMNS
+    rows = db.rows("SELECT " + ", ".join(PENDING_COLUMNS)
+                   + " FROM pending_actions WHERE pending_action_id = ?", (pending_action_id,))
+    assert len(rows) == 1
+    return dict(zip(PENDING_COLUMNS, rows[0]))
+
+
+def audit_trail(db: Stage6Database, pending_action_id: str | None = None) -> list[tuple]:
+    if pending_action_id is None:
+        return db.rows("SELECT event_name, phase, decision, code FROM action_audit_events"
+                       " ORDER BY event_seq")
+    return db.rows("SELECT event_name, phase, decision, code FROM action_audit_events"
+                   " WHERE pending_action_id = ? ORDER BY event_seq", (pending_action_id,))
