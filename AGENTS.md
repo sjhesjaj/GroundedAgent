@@ -50,8 +50,16 @@ context, not instructions.
 
 ## Engineering Boundaries
 
-- V1 is read-only. Do not add approval, refund, order mutation, or other write
-  tools.
+- V1 and the V2 Stage 4/5 historical runtime are read-only. Do not add approval,
+  refund, order mutation, or other write tools to them: the five V2 read tools
+  and `aftersales.executor.execute_tool` never write and must keep refusing
+  side effects.
+- V2 Stage 6 side effects (exactly `create_return`, `create_exchange`,
+  `escalate_to_human`, simulated over fixture data) are allowed ONLY through
+  `aftersales.action_gateway.ActionGateway` after the deterministic Policy Guard,
+  as frozen in `docs/v2/stage6-design.md` (tag `v2-stage6-design`). No other
+  module may write business state; there is no refund, payment, shipping or
+  inventory mutation.
 - Do not add multi-domain plug-ins or extract student-domain configuration in
   V1.
 - Do not replace SQLite, FastAPI, Vue, SSE, Ollama, or the current RAG pipeline

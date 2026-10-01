@@ -2,8 +2,9 @@
 
 Every tool declares its name, a closed input schema, whether it has a side
 effect, and its handler. The runtime registry built here holds only the five
-read-only tools of docs/v2/stage4-design.md §6. Future actions exist only in
-the domain specification: there is no code, stub, or registration for them.
+read-only tools of docs/v2/stage4-design.md §6. The Stage 6 actions are not
+tools: they are `ActionSpec`s in `aftersales/actions.py`, executed only by the
+ActionGateway, and a ToolSpec cannot declare the action kind.
 
 `ToolRegistry` itself accepts any well-formed spec, including one declaring
 `side_effect=True`, so that the executor's refusal is a real, tested guard and
@@ -43,6 +44,14 @@ Handler = Callable[[TrustedExecutionContext, Mapping[str, str]], ToolResult]
 class ToolKind(str, Enum):
     KNOWLEDGE_READ = "knowledge_read"
     BUSINESS_READ = "business_read"
+    # Stage 6 (docs/v2/stage6-design.md §4.1): the kind of an ActionSpec only.
+    # A ToolSpec can never carry it, so no action can enter a ToolRegistry or
+    # reach execute_tool.
+    BUSINESS_ACTION = "business_action"
+
+
+# The only kinds a ToolSpec (an element of the read registry) may declare.
+READ_TOOL_KINDS = frozenset({ToolKind.KNOWLEDGE_READ, ToolKind.BUSINESS_READ})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -74,6 +83,11 @@ class ToolSpec:
             raise ValueError("ToolSpec.description must be a non-empty string")
         if not isinstance(self.kind, ToolKind):
             raise ValueError("ToolSpec.kind must be a ToolKind")
+        if self.kind not in READ_TOOL_KINDS:
+            raise ValueError(
+                "ToolSpec.kind must be a read kind; an action is never a ToolSpec "
+                "(use aftersales.actions.ActionSpec)"
+            )
         if not isinstance(self.parameters, tuple) or not all(
             isinstance(item, ParameterSpec) for item in self.parameters
         ):

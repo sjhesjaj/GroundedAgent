@@ -35,8 +35,16 @@ EXPECTED_TOOLS = {
     "get_after_sales_case": (("order_id",), ToolKind.BUSINESS_READ, True),
 }
 
-# Future actions live only in the domain specification (design §5, §6).
-FUTURE_ACTIONS = ("create_return", "create_exchange", "escalate_to_human")
+# The Stage 6 actions (docs/v2/stage6-design.md §4). They are ActionSpecs,
+# never ToolSpecs, and live only in the Stage 6 action modules below.
+STAGE6_ACTIONS = ("create_return", "create_exchange", "escalate_to_human")
+
+# The only aftersales modules that may name a Stage 6 action.
+STAGE6_ACTION_MODULES = frozenset({
+    "actions.py", "action_policy.py", "action_errors.py", "action_db.py", "action_store.py",
+    "action_gateway.py", "action_outcome.py", "capabilities.py", "guard.py", "guard_state.py",
+    "ids.py",
+})
 
 
 class RuntimeRegistryTests(unittest.TestCase):
@@ -89,18 +97,107 @@ class RuntimeRegistryTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.registry._tools["get_order"] = None
 
-    def test_no_future_action_exists_anywhere_in_code(self):
-        sources = sorted((REPO_ROOT / "aftersales").glob("*.py")) + sorted(
-            (REPO_ROOT / "orchestration").glob("*.py")
-        ) + sorted(REPO_ROOT.glob("*.py"))
-        self.assertTrue(sources)
+    # Stage 6.1 replaced the Stage 4 test `test_no_future_action_exists_anywhere_in_code`
+    # (kept at tag v2-stage5-final): Stage 6 deliberately adds action code, so the
+    # invariant is now that actions can never reach the read path. See HANDOFF §24.
+
+    def test_read_registry_holds_no_action(self):
+        for action in STAGE6_ACTIONS:
+            self.assertNotIn(action, self.registry)
+        handlers = {spec.handler.__name__ for spec in self.registry}
+        self.assertFalse(handlers & set(STAGE6_ACTIONS))
+        for spec in self.registry:
+            self.assertIn(spec.kind, (ToolKind.KNOWLEDGE_READ, ToolKind.BUSINESS_READ))
+
+    def test_action_names_stay_out_of_the_read_and_stage5_modules(self):
+        sources = [path for path in sorted((REPO_ROOT / "aftersales").glob("*.py"))
+                   if path.name not in STAGE6_ACTION_MODULES]
+        sources += sorted((REPO_ROOT / "orchestration").glob("*.py"))
+        sources += sorted(REPO_ROOT.glob("*.py"))
+        sources += sorted((REPO_ROOT / "eval_v2").glob("*.py"))
+        for required in ("business_tools.py", "registry.py", "executor.py", "derived.py",
+                         "policy.py", "policy_catalog.py"):
+            self.assertIn(REPO_ROOT / "aftersales" / required, sources)
+        for required in ("tool_loop.py", "runner.py", "control.py", "generation.py"):
+            self.assertIn(REPO_ROOT / "eval_v2" / required, sources)
         for path in sources:
             text = path.read_text(encoding="utf-8")
-            for action in FUTURE_ACTIONS:
+            for action in STAGE6_ACTIONS:
                 with self.subTest(path=path.name, action=action):
                     self.assertNotIn(action, text)
-        for action in FUTURE_ACTIONS:
-            self.assertNotIn(action, self.registry)
+
+    def test_stage6_action_modules_exist(self):
+        for name in STAGE6_ACTION_MODULES:
+            self.assertTrue((REPO_ROOT / "aftersales" / name).is_file(), name)
+
+
+class Stage6ActionBoundaryTests(unittest.TestCase):
+    """Stage 6 invariants that replace the Stage 4 "no action code" test."""
+
+    def test_action_registry_holds_exactly_the_three_actions(self):
+        from aftersales.actions import ActionSpec, build_action_registry
+
+        registry = build_action_registry()
+        self.assertEqual(registry.names(), STAGE6_ACTIONS)
+        for spec in registry:
+            self.assertIs(type(spec), ActionSpec)
+            self.assertIs(spec.kind, ToolKind.BUSINESS_ACTION)
+            self.assertIs(spec.side_effect, True)
+            self.assertFalse(hasattr(spec, "handler"))
+
+    def test_an_action_spec_cannot_enter_a_tool_registry(self):
+        from aftersales.actions import build_action_registry
+
+        for spec in build_action_registry():
+            with self.subTest(action=spec.name):
+                with self.assertRaises(ValueError):
+                    ToolRegistry([spec])
+                with self.assertRaises(ValueError):
+                    ToolRegistry(list(build_runtime_registry()) + [spec])
+
+    def test_a_tool_spec_cannot_declare_the_action_kind(self):
+        for side_effect in (True, False):
+            with self.subTest(side_effect=side_effect):
+                with self.assertRaises(ValueError):
+                    ToolSpec(name="create_exchange", description="d",
+                             kind=ToolKind.BUSINESS_ACTION,
+                             parameters=(ParameterSpec(name="order_id", description="d"),),
+                             side_effect=side_effect, identity_scoped=True,
+                             handler=lambda context, arguments: None)
+
+    def test_execute_tool_still_refuses_side_effects(self):
+        from aftersales.errors import SideEffectForbidden
+        from aftersales.executor import execute_tool
+
+        calls = []
+        spec = ToolSpec(name="mutate", description="d", kind=ToolKind.BUSINESS_READ,
+                        parameters=(ParameterSpec(name="order_id", description="d"),),
+                        side_effect=True, identity_scoped=True,
+                        handler=lambda context, arguments: calls.append(arguments))
+        connection = memory_connection()
+        try:
+            with self.assertRaises(SideEffectForbidden):
+                execute_tool(ToolRegistry([spec]), make_context(connection), "mutate",
+                             {"order_id": "ORD-1001"})
+        finally:
+            connection.close()
+        self.assertEqual(calls, [])
+
+    def test_the_read_executor_cannot_name_an_action(self):
+        from aftersales.executor import execute_tool
+
+        registry = build_runtime_registry()
+        connection = memory_connection()
+        try:
+            before = connection.total_changes
+            for action in STAGE6_ACTIONS:
+                with self.subTest(action=action):
+                    with self.assertRaises(ValueError):
+                        execute_tool(registry, make_context(connection), action,
+                                     {"order_id": "ORD-1001", "order_item_id": "OI-1001-1"})
+            self.assertEqual(connection.total_changes, before)
+        finally:
+            connection.close()
 
 
 class RegistryValidationTests(unittest.TestCase):
