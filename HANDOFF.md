@@ -2455,3 +2455,20 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 - **holdout 未开封**：`eval/v2/stage6-holdout.json` 与 `eval/v2/stage6-holdout.receipt.json` 不存在，开封工具没有运行。
 - 没有对 holdout 运行 Agent 或 oracle（agent_runs = 0，oracle_runs = 0）；没有任何正式 Agent 运行。
 - 没有 `stage6-dev.json`、`stage6-validation.json`；`v2-stage6-action-core` 未创建。
+
+## 30. GroundedAgent V2 Stage 6.4B：DEV 作者记录
+
+- 隔离作者（全新的隔离上下文，只读冻结 bundle）编写 split `dev`，**40 条**；freeze commit `f27ee9583a971725b33d579a3d8fceba24b7d768`，输入 27 个文件、bundle 摘要 `15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371`。在 seal commit `17cb295` 之后入库。
+- 按原始字节入库（不重新序列化；`.gitattributes` 对这两个文件设窄 `-text`，与 Stage 4/5 相同）：
+  - `eval/v2/stage6-dev.json` SHA-256 **`80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3`**
+  - `eval/v2/stage6-dev.receipt.json`（`v2-stage6-dataset-receipt/1`）SHA-256 **`21d002c5ffa9342ac9c93da3124d8a5ccf3297a54bac359ef752b6625c34ff0f`**
+- 分布（回执、作者报告与独立重算三者一致）：
+  - final：action 34、answer 3、boundary 1、handoff 1、refuse 1。
+  - final_status：DENIED 11、EXECUTED 10、STALE 4、WAITING_APPROVAL 4、REJECTED 3、FAILED 2。
+  - archetype：A01 4、A02 1、A03 3、A04 1、A05 1、A06 1、A07 1、A08 3、A10 2、A11 2、A12 2、A13 2、A14 2、A15 1、A18 1、A19 1、A21 4、A22 5、A23 3。
+  - scenario：25 个 scenario 全部覆盖（每个 1–4 条）；persona demo-a 21、demo-b 19；distinct virtual_now 3。
+- 作者声明：fresh_isolated_context、frozen_bundle_only 为 true；implementation_visible、other_datasets_visible、failure_analysis_visible、external_sources_used 为 false；agent_runs = 0，oracle_runs = 0。
+- 入库前独立核对：两个文件先按原始字节计算 sha256 再解析；回执字段与键集合精确匹配；40 条、case_id 唯一；每条 `case_errors == []`（**契约 PASS**）；`dataset_plan_errors(cases, "dev") == []`（**分布计划 PASS**）。
+- **oracle（现有 `eval_v2.stage6_oracle.run_oracle`，一次性脚本，不在仓库内）：40 / 40 PASS，0 失败**；没有修改任何标签、实现或评测器代码。
+- 三个「仓库中没有 Stage 6 DEV」的状态测试改为只放行这两个 DEV 文件（仍禁止 VALIDATION 与已开封的 holdout），并钉住两者的原始字节 sha256。
+- 状态：holdout 仍封存、未开封；没有 `stage6-validation.json`；没有正式 DEV LLM 运行；`v2-stage6-action-core` 未创建。

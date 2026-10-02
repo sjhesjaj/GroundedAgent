@@ -560,15 +560,17 @@ class DatasetStateTests(unittest.TestCase):
     # Committed at the holdout seal, before any DEV / VALIDATION authoring: safe
     # metadata and the precommitted opening tool, never a dataset or an opened file.
     SEAL_ARTIFACTS = frozenset({"eval/v2/stage6-holdout.manifest.json", "tools/unseal_v2_stage6_holdout.py"})
+    # The isolated author's DEV split, ingested byte-exact after the seal.
+    DEV_ARTIFACTS = frozenset({"eval/v2/stage6-dev.json", "eval/v2/stage6-dev.receipt.json"})
 
-    def test_no_stage6_dataset_or_opened_holdout_exists(self):
+    def test_no_stage6_validation_or_opened_holdout_exists(self):
         names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "eval").rglob("*") if path.is_file()]
         names += [path.relative_to(ROOT).as_posix() for path in (ROOT / "tools").glob("*")]
-        self.assertLessEqual(self.SEAL_ARTIFACTS, set(names))
+        self.assertLessEqual(self.SEAL_ARTIFACTS | self.DEV_ARTIFACTS, set(names))
         for name in names:
             lowered = name.lower()
             with self.subTest(name=name):
-                if "stage6" in lowered and name not in self.SEAL_ARTIFACTS:
+                if "stage6" in lowered and name not in self.SEAL_ARTIFACTS | self.DEV_ARTIFACTS:
                     self.assertFalse(any(token in lowered for token in (
                         "dev.json", "validation.json", "holdout.json", "holdout.manifest", "receipt.json",
                         "unseal", "seal_")), name)

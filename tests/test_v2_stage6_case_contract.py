@@ -130,13 +130,15 @@ class SpecFileTests(unittest.TestCase):
             with self.subTest(path=entry["path"]):
                 self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
-    def test_no_stage6_dataset_exists(self):
-        # The sealed manifest holds safe metadata only; no dataset or opened holdout is in the repo.
+    def test_only_dev_dataset_and_sealed_manifest_exist(self):
+        # The sealed manifest holds safe metadata only; the DEV split and its author receipt are the
+        # only Stage 6 dataset files; no VALIDATION or opened holdout is in the repo.
         found = [path.relative_to(ROOT).as_posix() for path in ROOT.joinpath("eval").rglob("*")
                  if path.is_file() and "stage6" in path.name.lower()
                  and any(token in path.name.lower() for token in ("dev", "validation", "holdout.json",
                                                                    "holdout.manifest", "sealed", "receipt.json"))]
-        self.assertEqual(found, ["eval/v2/stage6-holdout.manifest.json"])
+        self.assertEqual(sorted(found), ["eval/v2/stage6-dev.json", "eval/v2/stage6-dev.receipt.json",
+                                         "eval/v2/stage6-holdout.manifest.json"])
 
 
 class SeedReaderTests(unittest.TestCase):

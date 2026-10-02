@@ -2,3 +2,5 @@
 /eval/v2/validation.json -text
 /eval/v2/dev-author-receipt.json -text
 /eval/v2/validation-author-receipt.json -text
+/eval/v2/stage6-dev.json -text
+/eval/v2/stage6-dev.receipt.json -text
