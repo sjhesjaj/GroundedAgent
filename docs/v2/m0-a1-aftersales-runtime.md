@@ -26,7 +26,7 @@ trusted operator approves          -> resume -> re-read + revalidate -> ActionGa
 | `aftersales_service/service.py` | Sessions, locks and reset. |
 | `aftersales_service/routes.py` | The `/api/aftersales/*` HTTP surface. |
 | `api.py` | One `include_router` line. The app title and branding are unchanged. |
-| `tests/test_aftersales_service.py` | 26 offline product/API tests. |
+| `tests/test_aftersales_service.py` | 27 offline product/API tests. |
 
 ## Reused vs deliberately not reused
 
