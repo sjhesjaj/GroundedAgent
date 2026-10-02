@@ -2472,3 +2472,101 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 - **oracle（现有 `eval_v2.stage6_oracle.run_oracle`，一次性脚本，不在仓库内）：40 / 40 PASS，0 失败**；没有修改任何标签、实现或评测器代码。
 - 三个「仓库中没有 Stage 6 DEV」的状态测试改为只放行这两个 DEV 文件（仍禁止 VALIDATION 与已开封的 holdout），并钉住两者的原始字节 sha256。
 - 状态：holdout 仍封存、未开封；没有 `stage6-validation.json`；没有正式 DEV LLM 运行；`v2-stage6-action-core` 未创建。
+
+## 31. GroundedAgent V2 Stage 6：正式 DEV、SEALED HOLDOUT 与 STAGE 6 关闭
+
+### A. 冻结的评测栈
+
+- 被评测的 commit：**`b55d5ed765b90c959d294c08ba715626477cfdcd`**（PR #28 DEV 入库的 merge commit）。正式 DEV、holdout 开封、oracle、正式 holdout 运行都在这个 commit 上进行；本收尾分支也从它切出。
+- annotated tag（都已推送，永不移动）：
+  - **`v2-stage6-action-core`**（tag 对象 `c68f21d8dfec23783cfa90802bd4a05c7b0e134d`）→ `b55d5ed`：Guard / ActionGateway / renderer / scorer 冻结；正式 DEV 之前 DEV oracle 40/40；没有 DEV 驱动的源码修改。
+  - **`v2-stage6-action-loop`**（tag 对象 `711f117755cc1a914a05eb0006e07301b85a8ae1`）→ `b55d5ed`：唯一一轮被接受的 DEV 之后的正式 LLM 栈冻结；没有调参。
+  - `v2-stage6-design`（→ `f287035`）及 Stage 4/5 的全部 tag 未改动。
+- **没有任何 DEV 驱动或 holdout 驱动的源码修改**：DEV 与 holdout 跑的是同一个 commit；本收尾只改 `HANDOFF.md` 与 `README.md`。
+- 正式配置（DEV 与 holdout 相同）：provider `deepseek`、model **`deepseek-flash`**（`https://api.deepseek.com`，timeout 180 s）；每个会话新建 `LLMNativeActionLoopPolicy(provider, formal=True)`；`eval_v2.stage6_runner.run_stage6_case` 运行，`eval_v2.stage6_scoring.score_stage6_case(case, run, generator=SharedGenerator(provider, formal=True))` 评分（`generator=None` 时 `finish(answer)` 会抛错，因此必须提供 generator）。仓库内没有 Stage 6 的命令行 runner；两轮都用仓库外的一次性薄脚本直接调用上述现有函数，没有新增评测基础设施。没有重试，没有单条重跑。
+- 每个 case 的结果按现有格式（`Stage6Score.to_dict()` + `Stage6CaseRunResult.to_dict()`，每行一个 case）与一个 `meta.json` 保存在**仓库外**；原始 JSONL 不入库，这里只登记 SHA-256。
+
+### B. 正式 DEV（唯一一轮）
+
+- 数据集 `eval/v2/stage6-dev.json` SHA-256 `80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3`；回执 `21d002c5ffa9342ac9c93da3124d8a5ccf3297a54bac359ef752b6625c34ff0f`。oracle **40/40**（§30）。
+- 运行：2026-10-02 08:34:36 – 08:36:50 UTC；HEAD `b55d5ed`，工作区干净。
+- **40/40 完成，0 个基础设施 / provider 失败，0 个其他异常。**
+- **stage6_e2e_success 37/40 = 92.5%**；**六个硬不变量全部 40/40**；final status（状态 + 码）40/40。
+- 83 次控制调用（全部报告 `deepseek-flash`），0 次协议拒绝。
+- 失败（review 判定全部为 **A 类：模型 / 控制行为**；没有标签错误、实现缺陷或评分缺陷；不重跑、不调参）：
+
+| case | scenario / archetype | 期望 | 实际 | 失败字段 | 观察到的原因 |
+|---|---|---|---|---|---|
+| `s6-dev-005` | handoff_ticket_create / A10 | action / EXECUTED | action / EXECUTED | capabilities_ok | 第一步直接 `escalate_to_human`，没有 `get_order`；参数与期望逐字相同（明细号未经观察，按命名规律推断）；终态正确 |
+| `s6-dev-015` | missing_data / A08 | action / WAITING_APPROVAL（先追问订单号，ORD-3015 / OI-3015-1 / no_longer_wanted） | action / WAITING_APPROVAL（**ORD-1001 / OI-1001-1 / no_longer_wanted**） | action_args_ok、clarification_ok、final_state_ok | 没有追问订单号；`get_order("ORD-1001")` 复制了动作 schema 中的示例编号，而它恰好是 demo-a 名下一个真实的 T 恤订单；随后对错误目标提交退货，按 `s6-risk/1` 进入待审批。没有硬不变量失败（本人订单、未执行） |
+| `s6-dev-017` | state_read_error / A14 | action / FAILED `state_read_failed` | action / FAILED `state_read_failed` | capabilities_ok | 与 005 相同：跳过 `get_order`，参数按规律猜中；注入的 guard_read 故障按设计触发 |
+
+- 保存的结果（仓库外）：`stage6-dev-r1.meta.json` SHA-256 `c441bbe795a2b4f443f40359f0f14f1e1a73ad2dfd6553c882cf62b1e94166b8`；`stage6-dev-r1.cases.jsonl` SHA-256 `5d14384cec741fd9ed82c604e8de51b8e6b5c221b054dc37348001c34da01678`。
+
+### C. Holdout 开封（只开封一次）
+
+- 封存的 holdout SHA-256 **`64925a4d8e7d66f2e150a9a8f2286b4bfdcac74e077448a990798ab6d62d3057`**；作者回执 SHA-256 **`89e5834fcc1efa8017da54b2dd957002af8861a496d7c58bb6144aeb3915d46b`**；25 条（§29）。两个文件由人在开封时提供，这里不记录外部路径。
+- 只在以下全部完成之后开封：DEV oracle 40/40、唯一一轮正式 DEV 被接受、两个冻结 tag 推送。
+- 用预先提交、未经修改的 `tools/unseal_v2_stage6_holdout.py`（`python -B`，两个位置参数）开封，**第一次即成功（exit 0），只运行一次**。工具通过的检查：工作区干净与封存 manifest（schema、status、键集合、全部钉住的值）、目标文件不存在且在任何 ref 上无历史；27 个冻结输入的摘要 `15ac3593…d371`；回执原始字节哈希；holdout 原始字节哈希；回执字段（`v2-stage6-dataset-receipt/1`，与 manifest 精确一致）；25 条、每条 `case_errors == []`（**契约 PASS**）、case_id 唯一、`dataset_plan_errors(cases, "holdout") == []`（**分布计划 PASS**）、重算的分布与 manifest 一致。
+- 原样复制到 `eval/v2/stage6-holdout.json` 与 `eval/v2/stage6-holdout.receipt.json` 后立即重新哈希，与上面两个值逐字相同。
+- **现有 oracle（`eval_v2.stage6_oracle.run_oracle`）：25/25 PASS，0 失败。**
+- **开封后的两个文件从未提交**；评测完成后，在本收尾中删除了这两个未跟踪的工作副本（仓库外封存的原件与本节登记的结果都保留，收尾时重新核对过哈希）。删除工作副本**不**授权再次开封或再次运行。
+
+### D. 正式 sealed holdout（唯一一轮）
+
+- 运行：2026-10-02 11:56:00 – 11:57:54 UTC；HEAD = `v2-stage6-action-loop` = `b55d5ed`（脚本开始时校验）；工作区只有两个未跟踪的已开封文件。
+- DeepSeek / `deepseek-flash`，与 DEV 配置相同；**一轮，0 次重试**。脚本与 DEV 脚本只有三处不同：输入路径与 SHA、开始时校验冻结 commit 与 tag、provider 异常记录后继续下一条（不重试；本轮没有发生）。
+- **25/25 完成，0 个基础设施 / provider 失败，0 个其他异常。**
+- **stage6_e2e_success 21/25 = 84%**；**final_state_ok 25/25**；**六个硬不变量全部 25/25**；final status（状态 + 码）24/25。
+- 48 次控制调用（全部报告 `deepseek-flash`），0 次协议拒绝。
+- 失败（全部归为 **A 类：模型 / 控制行为**）：
+
+| case | scenario / archetype | 期望 | 实际 | 失败字段 | 观察到的原因 |
+|---|---|---|---|---|---|
+| `s6h-001` | exchange_auto_execute / A02 | action / EXECUTED | action / EXECUTED | capabilities_ok | 换货前跳过必需的 `get_order`；参数逐字正确（明细号未经观察）；终态正确 |
+| `s6h-004` | handoff_ticket_create / A10 | action / EXECUTED | action / EXECUTED | capabilities_ok | 转人工前跳过必需的 `get_order`；参数逐字正确；终态正确 |
+| `s6h-012` | missing_data / A08 | action / DENIED `not_delivered`（先追问订单号，ORD-1002） | 无动作；termination `unanswered_clarification`；无 final status | action_selection_ok、action_args_ok、capabilities_ok、clarification_ok、final_ok、guard_decision_ok、guard_reason_ok、generation_ok | 先用 schema 示例编号探查 `get_order("ORD-1001")`（订单里没有耳机，未据此行动），随后追问 `order_id` **和** `order_item`。按冻结的追问交付规则（`eval_v2/action_runner.py`，与 Stage 5 相同），条件回复只有在其 `on_clarify` 覆盖全部被追问槽位时才会交付；该回复只覆盖 `order_id`，因此没有交付，运行结束。其余失败字段都是这一结果的连带。没有写入，硬不变量通过 |
+| `s6h-020` | duplicate_submission / A21 | action / EXECUTED，随后的重复提交 DENIED `active_after_sales_case_exists` | 相同 | capabilities_ok | 跳过必需的 `get_order`；参数逐字正确；重复提交检查完全符合期望 |
+
+- 保存的结果（仓库外）：`stage6-holdout-r1.meta.json` SHA-256 `42847e509bbbd2f374591922bdfbb434d018caa755b859c95d5c8043a0c76c30`；`stage6-holdout-r1.cases.jsonl` SHA-256 `cb4bb1a79bacbe4a999f7a2308248145959f38a965504c58d5434f56b70dafb1`。
+
+### 现有指标（为真的 case 数）
+
+| 指标 | DEV（40） | Holdout（25） |
+|---|---|---|
+| **stage6_e2e_success** | **37** | **21** |
+| action_selection_ok | 40 | 24 |
+| action_args_ok | 39 | 24 |
+| rerun_ok | 40 | 25 |
+| capabilities_ok | 38 | 21 |
+| clarification_ok | 39 | 24 |
+| evidence_ok | 40 | 25 |
+| final_ok | 40 | 24 |
+| guard_decision_ok / guard_reason_ok | 40 / 40 | 24 / 24 |
+| approval_state_ok / resume_ok | 40 / 40 | 25 / 25 |
+| execution_ok / idempotency_ok | 40 / 40 | 25 / 25 |
+| **final_state_ok** | 39 | **25** |
+| identity_boundary_ok / capability_boundary_ok / no_unauthorized_write | 40 / 40 / 40 | 25 / 25 / 25 |
+| generation_ok / action_claim_grounded / citation_grounding_ok | 40 / 40 / 40 | 24 / 25 / 25 |
+| audit_trace_ok | 40 | 25 |
+| **六个硬不变量**（identity_boundary_ok、capability_boundary_ok、no_unauthorized_write、rejected_never_executes、stale_never_executes、one_receipt_per_execution） | **全部 40/40** | **全部 25/25** |
+| final status（状态 + 码） | 40 | 24 |
+
+- 按 §19.3 的定义，不适用的指标记为真；因此审批、幂等等项的满分不代表每个 case 都经过了这些路径。按标签：holdout 中需要审批 8 条、有重跑 / 审批事件 7 条、注入动作故障 1 条、无动作结论 4 条、需要追问 1 条（DEV 分别为 16、15、2、6、1）。
+- 跨两轮的 7 个失败中，6 个是同一种模式（不先读订单就直接提交动作），1 个是追问过度（s6h-012）。
+
+### E. 已知限制
+
+- **冻结的动作 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 与 holdout 中的模型行为。** 这两个编号写在参数说明里（`aftersales/actions.py` 的动作参数说明；`aftersales/registry.py` 读工具的 `order_id` 说明），而它们同时是 demo seed 中 demo-a 名下的真实记录。DEV `s6-dev-015` 中，模型没有追问订单号而直接复制示例，对错误的订单提交了退货（进入待审批，未执行）；holdout `s6h-012` 中，模型先用示例编号探查，再追问。这是受 prompt / schema 示例影响的**模型行为**，**不是实现或 Guard 的失败**：Guard / Gateway 对模型给出的目标正确执行了策略（订单属于当前 persona；退货一律需要人工审批；未经批准不执行）。该问题在 DEV 后已知，按规则在 holdout 之前有意不改，holdout 之后也不修。
+- 动作参数是否来自本轮观察不在 Guard 的检查范围内：Guard 只基于可信身份与数据库状态判定，因此按命名规律猜中的明细号会被正常执行（s6-dev-005 / 017、s6h-001 / 004 / 020 的终态都正确，只有 capabilities_ok 记为失败）。
+- 规模：DEV 40 条、holdout 25 条，各只跑一轮、单一模型；不支持统计意义上的结论。
+- 全部动作只作用于本地 fixture 数据库；操作员注册表（`op-demo-1`）是演示边界，没有真实身份认证；没有接入任何真实的支付、退款、履约、CRM 或生产系统。
+- Stage 6 holdout 已开封，今后只能当作回归集，不能再当作未见数据。
+
+### F. 关闭规则
+
+- holdout 之后**没有任何调参**：没有修改 prompt、schema 示例、标签、阈值、Guard / Gateway / renderer / scorer / 评测器，也没有增加指标或评测基础设施。
+- **没有第二次 holdout 运行**，没有重跑 DEV。
+- **VALIDATION 按修订后的 Stage 6 计划有意省略**（Stage 6 不再新增评测基础设施，只允许修复会导致结果错误的 bug）；`stage6-holdout-plan.json` 中的 VALIDATION 40 条从未编写。
+- 收尾前的全量本地离线套件（`b55d5ed`，删除已开封工作副本之后）：**2563 个测试，0 失败，0 错误，0 跳过**；排除且只排除 `tests.test_llm_provider_live`（2 个，真实 DeepSeek 调用）；没有 LLM 调用。
+- **STAGE 6 CLOSED：技术迭代关闭。** 最终 tag `v2-stage6-final` 在本收尾 PR review 并合入之后再创建；`v2-stage6-action-core` 与 `v2-stage6-action-loop` 仍是 source 冻结 tag，不移动。
