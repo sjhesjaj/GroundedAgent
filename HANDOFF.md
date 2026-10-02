@@ -2366,3 +2366,37 @@ review 对 head `6c16296` 给出 CONDITIONAL PASS，只要求两处修正；评�
 测试：`tests/test_v2_eval_runtime.py` 62 → 65（+3）；`tests/test_v2_stage6_case_contract.py` 25 → 28（+3）；6.4A 四个模块共 101；全量本地离线套件 **2470 个测试，0 失败，0 错误，0 跳过**，排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
 
 数据集状态不变：没有 `stage6-dev.json`、`stage6-validation.json`、作者 bundle、私有 holdout、holdout manifest，也没有任何正式 LLM 运行。
+
+## 28. GroundedAgent V2 Stage 6.4B：设计与作者 bundle 冻结
+
+### 基线
+
+- Stage 6.4A（PR #25，head `7511aa6`，含 6.4A.1 修正）以 merge commit 合入：**`main` = `44efea23ae12fb9ee659139afec152d75768389e`**。本地 main 与 origin/main 一致。
+- Stage 6.4B 分支 `stage6-author-bundle` 从该 main 切出。`v2-stage6-action-core` 仍未创建（6.4 退出条件：DEV / VALIDATION 的 oracle 检查之后）。冻结设计未改动。
+
+### 设计（`docs/v2/stage6-4b-design.md`）
+
+细化冻结设计 §21 与 §22 Stage 6.4 的流程：步骤顺序（规格冻结 → 作者 bundle → bundle 冻结 → 隔离作者编写 holdout → 封存 manifest + 预先提交的开封工具 → 隔离作者编写 DEV / VALIDATION → oracle 检查 → `v2-stage6-action-core`）、bundle 的内容与排除理由、冻结规则、作者 brief、回执契约、封存与开封规程、实现会话的约束、本 PR 的验收。本 PR 只完成第 5 步（作者 bundle）；合入即 bundle 冻结（freeze commit）。
+
+### 作者 bundle（27 个文件）
+
+- 输入 manifest `eval/v2/stage6-holdout-input.manifest.json`（`v2-stage6-holdout-input-manifest/1`，`base_commit` = `44efea2`，LF 规范化 sha256），**content digest `942c05c5992bd8f01b82583cea3d1365f152f8c79e812a83f8676b8f092df84a`**。
+- 内容：作者 brief、Stage 6 领域规格、Stage 4/5 只读领域规格、规则发布清单；Stage 6 的五个 spec 与 Stage 4/5 的五个 spec（`case.schema.json`、`slots.json`、`personas.json`、`archetypes.json`、`final-outcomes.json`）；三个只依赖标准库的检查器（`case_contract.py`、`stage6_case_contract.py`、`stage6_dataset_receipt.py`）；两个表结构 SQL；两个 seed；六个规则语料。
+- 排除：全部设计文档（含 `stage6-design.md` 与本阶段设计）、`eval_v2/`、`aftersales/*.py`、`orchestration/`、`tests/`、`tools/`、`HANDOFF.md`、`AGENTS.md`、Stage 5 的 `holdout-plan.json` 与全部 Stage 4/5 数据集 / 回执 / 结果、任何 Stage 6 数据集或 oracle 输出。
+- 导出工具 `tools/export_v2_stage6_author_bundle.py`：与 Stage 4/5 工具同样的机制（新文件；旧工具、旧 manifest 与 17 个旧冻结输入都不变，测试核对旧摘要 `7b3d4684…`）；显式允许清单 + 路径 token 禁止表（另加 `design`、`prompt`、`prompts`、`oracle`、`scoring`、`results`、`harness`、`loop`、`agent`）+ 代码只允许三个标准库检查器；fail-closed，目标必须在仓库外且为空，bundle 根目录写 `bundle-manifest.json`。
+- 作者 brief `docs/v2/stage6-author-brief.md`（随 bundle 冻结）：隔离作者的角色、可用材料、禁止事项、按 split 的规模与覆盖（holdout 25 / DEV 40 / VALIDATION 40，五类 final、全部必需覆盖项）、编写规则摘要、契约自查、输出与报告（只含 split、条数、两个 sha256 与分布；holdout 文件只交给启动作者的人，从不进仓库）。
+- 回执工具 `eval/v2/stage6_dataset_receipt.py`（`v2-stage6-dataset-receipt/1`）：在 bundle 根目录运行；先核对 bundle 全部文件与摘要，再要求每个 case 通过契约、case_id 唯一、满足分布计划，任何一处不通过都拒绝且不写文件；必须显式 `--attest-isolated`；回执只含原始字节 sha256、条数、分布、校验结果与固定的隔离声明，不含路径或内容。
+
+### 冻结规则
+
+本 PR 合入后，27 个 bundle 文件在 Stage 6 holdout 开封之前不可修改；封存 manifest 与开封工具会重新核对它们。Stage 6 harness 加载的是同一个 `stage6_case_contract.py`，契约语义随 bundle 一起冻结。
+
+### 测试
+
+- 新增 `tests/test_v2_stage6_author_bundle.py` 25 个：manifest 当前且可重复生成、恰好 27 个文件、摘要只覆盖路径与哈希、无本地路径、Stage 4/5 作者输入不变；代码只有三个标准库检查器；没有实现 / 设计 / 测试 / 开发记录 / 数据集；禁止表拦下设计文档、`eval_v2/*`、`aftersales/*.py`、Stage 6 数据集名、HANDOFF、测试与结果路径；作者文档不含实现标识；brief 与分布计划一致；导出与 manifest 逐字节一致、确定、拒绝仓库内 / 非空目录、篡改、多 / 缺路径；换行不影响哈希；导出的 bundle 在 `-I -S` 下自足（契约词表检查为空、fixture case 有效、无效 case 被拒、回执工具核对 bundle、不加载任何非标准库模块、`sys.path` 不含仓库）；回执字段恰好是契约字段、sha256 为原始字节、不含路径与 case 内容；回执的各种拒绝（split、commit、非 JSON、空、无效 case、重复 id、分布不满足）；CLI 在没有隔离声明、bundle 被改动、分布不满足、不在 bundle 中运行时都拒绝；仓库中没有 Stage 6 数据集、封存或开封文件。回执的成功路径用评测器 fixture 并把分布检查换成桩：实现会话不构造满足完整分布的数据集。
+- 全量本地离线套件：**2495 个测试，0 失败，0 错误，0 跳过**；排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
+
+### 数据集状态
+
+- 没有 `stage6-dev.json`、`stage6-validation.json`、私有 holdout、封存 manifest（`eval/v2/stage6-holdout.manifest.json`）或开封工具；没有任何正式 LLM 运行。
+- 下一步（合入之后，由人发起）：在仓库外导出 bundle，启动全新的隔离作者上下文编写 holdout（split = holdout，提供 freeze commit）；作者只报告 sha256 与分布。之后实现会话提交封存 manifest 与开封工具。
