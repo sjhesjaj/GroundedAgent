@@ -4,7 +4,10 @@ Eval only. A case's frozen `initial_state.faults` declarations
 
     {"tool": ..., "match": {...}, "mode": "error|timeout|malformed", "on_call": N}
 
-are applied by a `FaultInjectingGateway` bound to one `V2CaseRuntime`:
+are applied by a `FaultInjectingGateway` bound to one read runtime - a
+`V2CaseRuntime`, or any object with the same small read-runtime protocol
+(`ReadRuntime`: faults, registry, context, require_open, claim_tool_gateway),
+such as the Stage 6 read runtime:
 
     gateway = FaultInjectingGateway(runtime)
     result = gateway.execute(tool_name, arguments, observation_id="obs-001")
@@ -52,14 +55,15 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Mapping
+from typing import Mapping, Protocol
 
+from aftersales.context import TrustedExecutionContext
 from aftersales.errors import ToolTimeout
 from aftersales.executor import execute_tool
 from aftersales.registry import Handler, ToolRegistry, ToolSpec
 from orchestration.contracts import ToolResult
 
-from .runtime import EvalRuntimeError, V2CaseRuntime
+from .runtime import EvalRuntimeError
 
 # A fixed, simulated figure for the future trace span - never a measured one.
 DEFAULT_SIMULATED_TIMEOUT_MS = 30_000
@@ -81,6 +85,42 @@ _INJECTED_OUTCOMES = MappingProxyType({
 CALL_OUTCOMES = (OUTCOME_DELEGATED,) + tuple(_INJECTED_OUTCOMES.values())
 
 _FAULT_KEYS = frozenset({"tool", "match", "mode", "on_call"})
+
+
+# --------------------------------------------------------------------------
+# The read runtime a gateway drives
+# --------------------------------------------------------------------------
+
+
+class ReadRuntime(Protocol):
+    """What a FaultInjectingGateway needs from a case-run's read side. Nothing else.
+
+    `faults` are the case's read-fault declarations, `registry` the five
+    read-only tools, `context` the trusted context the executor runs them in.
+    The runtime accepts exactly one gateway (`claim_tool_gateway`) and refuses
+    work once closed (`require_open`). V2CaseRuntime satisfies it unchanged.
+    """
+
+    @property
+    def faults(self) -> tuple[dict, ...]: ...
+
+    @property
+    def registry(self) -> ToolRegistry: ...
+
+    @property
+    def context(self) -> TrustedExecutionContext: ...
+
+    def require_open(self) -> None: ...
+
+    def claim_tool_gateway(self) -> None: ...
+
+
+READ_RUNTIME_MEMBERS = ("faults", "registry", "context", "require_open", "claim_tool_gateway")
+
+
+def _is_read_runtime(runtime: object) -> bool:
+    # Checked on the type, so no property of the instance runs here.
+    return all(hasattr(type(runtime), name) for name in READ_RUNTIME_MEMBERS)
 
 
 # --------------------------------------------------------------------------
@@ -245,9 +285,10 @@ class FaultInjectingGateway:
     it behaves exactly like `execute_observation`.
     """
 
-    def __init__(self, runtime: V2CaseRuntime) -> None:
-        if not isinstance(runtime, V2CaseRuntime):
-            raise ValueError("runtime must be a V2CaseRuntime, got " + type(runtime).__name__)
+    def __init__(self, runtime: ReadRuntime) -> None:
+        if not _is_read_runtime(runtime):
+            raise ValueError("runtime must be a read runtime (V2CaseRuntime or equivalent), got "
+                             + type(runtime).__name__)
         runtime.require_open()
         faults = _parse_faults(runtime.faults, runtime.registry)
         mirror = ToolRegistry(
@@ -267,7 +308,7 @@ class FaultInjectingGateway:
     # -- read-only views ---------------------------------------------------
 
     @property
-    def runtime(self) -> V2CaseRuntime:
+    def runtime(self) -> ReadRuntime:
         return self._runtime
 
     @property

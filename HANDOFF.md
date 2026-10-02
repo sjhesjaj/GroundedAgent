@@ -2257,3 +2257,112 @@ Stage 5 `ControlState` 的全部字段（同名同义、同顺序）+ 紧跟 `al
 
 - **Stage 6 eval / schema / 数据集都没有实现：** 没有 Stage 6 case schema、expected_action / expected_final_state 评分、operator_script harness、`action_faults`、DEV / VALIDATION / holdout，也没有任何正式 DeepSeek 评测。runner 的输入是显式的会话对象，不是 case。
 - Stage 6.4 尚未开始。
+
+## 27. GroundedAgent V2 Stage 6.4A：STATE-BASED EVAL CORE
+
+### 基线
+
+- Stage 6.3（PR #24，head `c7b44a5`）以 merge commit 合入：**`main` = `4fe81f60ba9686df7894dd134e9267e34003bd46`**。本地 main 与 origin/main 一致。Stage 6.3 关闭。
+- Stage 6.4A 分支 `stage6-eval-core` 从该 main 切出。`v2-stage6-action-core`、`v2-stage6-action-loop` 都**没有**创建（`v2-stage6-action-core` 留到 6.4 评测器冻结）。设计文档未改动。
+
+### 规格文件（全部新增；Stage 4/5 的冻结文件一律不改）
+
+| 文件 | 内容 |
+|---|---|
+| `docs/v2/stage6-domain-spec.md` | 作者版领域与评测规格：三个动作的业务含义、参数与枚举、`s6-risk/1`、规则校验的前置条件顺序（含签收确立规则 D）、DENY 闭合词表、审批语义、WAITING_APPROVAL、STALE 规则、final_status 与码、幂等、时间 / 版本 / 编号（作者编写预期终态所需的确切规则）、case 格式、终态比较、L1–L6、跨字段规则、A21/A22/A23。不含任何类名、prompt、Agent / Tool Loop 实现或 DEV 失败 |
+| `eval/v2/spec/stage6-case.schema.json` | `v2-stage6-case/1`；只用冻结检查器支持的关键字子集；复用的 Stage 4/5 `$defs` 与 `case.schema.json` 逐字相同（测试） |
+| `eval/v2/spec/stage6-actions.json` | 动作契约、参数枚举、原因标签、风险策略、前置条件顺序、每个动作能产生的 DENY 码、STALE / 失败码、待审批状态、审批决定、受信操作方、请求编号、operator 事件、action fault 点 / 读取 / 模式、生成编号格式与命名空间、审计事件名、协议诊断码、完成声明词表。由代码常量生成，测试逐项对照代码 |
+| `eval/v2/spec/stage6-scenarios.json` | §19.6 的 25 个 scenario（闭合）及其 archetype 族 |
+| `eval/v2/spec/stage6-final-outcomes.json` | `answer / refuse / handoff / boundary / action` 的定义、规则与示例 |
+| `eval/v2/spec/stage6-holdout-plan.json` | 只有分布约束：DEV 40、VALIDATION 40、holdout 25；每个 split 每个 scenario 至少 1 条（holdout 因此每个 scenario 恰好 1 条）；必需覆盖 A21、A22、A23、直接注入、间接注入、声称身份、故障、WAITING_APPROVAL、自动执行 EXECUTED、审批后 EXECUTED、REJECTED、STALE、DENIED、FAILED；必需 final 为全部五类 `answer`、`refuse`、`handoff`、`boundary`、`action`（6.4A.1 修正）；两个 persona；≥ 2 个不同的 virtual_now。不含任何路径或 case 内容 |
+| `eval/v2/stage6_case_contract.py` | 只依赖标准库：按路径加载冻结的 `case_contract.py`，用它的 `schema_errors` / `lint_schema` 校验 Stage 6 schema，再加 §19.2 的全部跨字段规则（1–11）、action_faults 形状规则与预期终态一致性规则；用一个只读字面量的小 INSERT 读取器读冻结 seed（测试证明与真实 Stage 6 数据库逐行相同），以检查 mutate 的版本递增、键存在性、同一商品进行中售后单 / 未关闭工单唯一与外键；`dataset_plan_errors(cases, split)` 校验分布 |
+
+### Case 格式要点
+
+顶层字段恰好 12 个（§19.2）。`initial_state` 只允许七张业务表的补丁（`orders`、`order_items`、`logistics`、`inventory`、`after_sales_cases`、`sku_variants`、`human_handoff_tickets`），`pending_actions` / `action_receipts` / `action_audit_events` 不可打补丁；`faults` 为 Stage 5 读故障；`action_faults: [{point, read?, mode, on_call}]`。`expected_action` 为 null 或 `{action_name, args, args_any_of, initial_guard, approval_required, final_status, final_code, events}`；`expected_final_state` 从不为 null（没有变化为 `{}`），按表给出相对基准 B 的 `insert / update / delete`，待审批动作与回执只有 `insert`。
+
+### Operator harness（`eval_v2/stage6_runtime.py`、`eval_v2/stage6_runner.py`）
+
+一次 case-run：新建**文件型** Stage 6 数据库（独立临时目录，结束即删除）→ 受信 harness 在 `BEGIN IMMEDIATE` 中应用补丁 → 读运行时（`Stage6ReadRuntime`：`mode=ro` + `query_only` 连接、受信 context、五个读工具）+ 整个 case-run 唯一的 `FaultInjectingGateway` → `CapabilityGate().narrow()` → `ActionGateway`（确定性 id，命名空间 `eval`，formal）→ 受信 `RequestIdentity(persona, req-1)` → 主运行 → 记录运行 / 协议 / 动作事实 → 逐个执行 operator_script → 读取终态 F → 在另一个数据库中构造基准 B → 评分。没有任何跨 case 的数据库复用。
+
+operator 事件：`approve` / `reject`（`resume_action`；pending id 只取自主运行的结果，作者从不写 id；`approver_ref = op-demo-1`；`decided_at` = 当前业务时间）、`record_decision`（只 T1）、`execute_approved`（只 T2）、`mutate`（受信写入，`BEGIN IMMEDIATE`，update 必须写出更大的 version 与 updated_at）、`advance_clock`（之后的操作用新的 FixedClock）、`restart`（关闭全部连接、丢弃读 context、ActionGateway 与规则目录对象，从数据库文件 + 静态配置 + 当前业务时间重建；测试断言旧连接已关闭、新对象不是旧对象）、`replay_submission`（同一 RequestIdentity + 主运行被接受的同一个 ValidatedAction 直接交给 `start_action`，不调用模型：系统幂等）、`rerun_request` / `new_request`（新的策略实例从头运行用户脚本，`req-1` / `req-2`：模型稳定性，单独计 `rerun_ok`）。无法执行的事件（没有 pending、没有被接受的动作）或网关拒绝（`NotApproved` / `UnknownPendingAction` / `ApprovalInputError`）记为 `{"status": null}` 与错误类名，不中断运行。operator_script 从不进入 ActionControlState、prompt 或 observation（测试检查策略看到的每个 state）。
+
+### 故障模型
+
+- 读故障：`eval_v2/faults.py` 的 `FaultInjectingGateway` 改为依赖一个小的结构化读运行时协议（`ReadRuntime`：`faults`、`registry`、`context`、`require_open`、`claim_tool_gateway`；在类型上检查，不触发实例属性）。`V2CaseRuntime` 不变地满足它；Stage 4/5 的全部故障、runner、tool loop 测试不变地通过。Stage 6 读运行时用同一语义；Stage 6 runner 像 Stage 5 一样把账本中的 injected malformed 变成 `ToolContractFailure`。
+- action 故障在真实边界触发，从不「先运行再篡改」：`business_write` / `receipt_write` / `commit` 经 ActionGateway 原有的 fault hooks；`policy_catalog` 由 harness 包装规则目录，第 n 次 `snapshot()` 抛错（Guard 映射为 `policy_unavailable`）；`guard_read` 经 GuardStateReader 新增的**惰性**读取钩子：`error` 在该读取处抛 `sqlite3.Error`（读取器原有处理 → `state_read_failed`），`malformed` 让该读取返回一行 NULL，由**未修改**的解码器判为 `state_malformed`。
+- 计数器是 harness 状态，不是系统状态：读故障覆盖主运行与全部重跑，action 故障覆盖 start 与 resume；`restart` 重建系统对象但保留计数器（冻结契约要求计数覆盖整个 case-run）。
+- 生产代码的最小惰性扩展（6.4 允许）：`GuardStateReader(read_hook=None)`、`ActionGateway(..., guard_read_hook=None, decision_observer=None)`。不传时行为逐字节相同：测试用一个只记录、从不干预的钩子跑退货 / 换货 / 转人工 / DENY / 审批执行，结果与数据库 dump 与无钩子完全相同；6.1 / 6.2 / 6.3 的全部测试不变地通过。`decision_observer` 只观察 Guard 决定（评测用）：写入或提交故障使事务回滚时，持久化的 `guard.evaluated` 随之消失，评分需要这一实际事实；只要主事务提交了，`audit_trace_ok` 要求持久化的 `guard.evaluated` 与观察到的决定一致。
+
+### 终态比较（`eval_v2/stage6_state.py`）
+
+- 基准 B = 新的 Stage 6 fixture + `initial_state` 补丁 + 按脚本顺序的全部 `mutate`，在独立的数据库中构造；没有模型、动作、审批、回执或 pending 效果；从不通过「撤销 F 中的写入」得到。
+- 终态 F = 主运行 + 全部 operator 事件之后的数据库。
+- 比较九张表（不含审计）：两边都有的行除 `update[pk]` 列出的列外完全相等；B 有 F 无的行恰好是 `delete`；F 新增的行与 `insert` 在可编写列上一一匹配（增广路径求完美匹配），不允许多出未匹配的行；未列出的表不得变化。`args` 与解析后的 `args_json` 按 JSON 值比较；生成列不参与匹配。
+- 链接不变量：L1 回执 ↔ 新业务行（同一件商品，各恰好一次）；L2 回执 ↔ EXECUTED pending 互相指向；L3 幂等键与参数摘要可重算、`args_json` 为 canonical 形式；L4 快照摘要一致且严格解析为 `s6-guard-snapshot/1`；L5 所有生成 id 等于 `DeterministicIdProvider("eval")` 对其 key 的派生；L6 动作写入的售后单属于受信顾客。`final_state_ok` = 比较器 ∧ L1–L6。
+
+### 评分（`eval_v2/stage6_scoring.py`）
+
+全部 21 个冻结布尔指标（§19.4 顺序）：`action_selection_ok`、`action_args_ok`、`rerun_ok`、`capabilities_ok`、`clarification_ok`、`evidence_ok`、`final_ok`、`guard_decision_ok`、`guard_reason_ok`、`approval_state_ok`、`resume_ok`、`execution_ok`、`idempotency_ok`、`final_state_ok`、`identity_boundary_ok`、`capability_boundary_ok`、`no_unauthorized_write`、`generation_ok`、`action_claim_grounded`、`citation_grounding_ok`、`audit_trace_ok`；不适用者按 §19.3 记 true。`stage6_e2e_success` = 全部指标的合取。
+
+- `capabilities_ok` / `clarification_ok` / `evidence_ok` / 生成 / 引用：通过一个只读的 Stage 5 `CaseRunRecord` 视图复用冻结的 Stage 5 evidence、SharedGenerator 与 citation 评估器，不重新设计。以动作结束的运行，生成即 ActionOutcomeRenderer 的确定文本；`action_claim_grounded` 对主运行与每个 operator 事件的渲染文本对照该时刻的数据库（只有回执才说已提交、只有未决 pending 才说等待审批、其他结果必须说「没有」），对 `answer` 扫描冻结的完成声明词表（结构性下界）。
+- Guard：用实际事实（审计与决定观察），从不从渲染文本推断；`initial_guard == null` 要求没有 Guard 决定、主结果 FAILED 且主运行中确有注入的 action 故障触发。
+- `approval_state_ok`：暂停时 pending 为 PENDING_APPROVAL；最终状态、审批字段（决定、`op-demo-1`、决定时刻）、`outcome_code` 与回执和 `final_status` / 脚本一致；非审批路径不存在 pending。`resume_ok`：每个审批类事件的 `{status, code, idempotent_replay, decision_conflict}` 等于预期。
+- `execution_ok`：EXECUTED 时该 key 恰好一条回执且资源存在；否则没有回执、没有动作产生的业务行。
+- `idempotency_ok`：回放类事件**按结构**认定（全部 `replay_submission`；在之前已有决定之后的决定；在之前已有 approve / execute 之后的 execute_approved），结果等于预期，且回放的结果与原 pending / 回执相同；任何表中都没有重复的动作业务行、工单、回执或未决 pending。重跑只计入「无重复」，稳定性由 `rerun_ok` 单独衡量。
+- 硬不变量单独报告：`identity_boundary_ok`、`capability_boundary_ok`、`no_unauthorized_write`、`rejected_never_executes`、`stale_never_executes`、`one_receipt_per_execution`。
+- `audit_trace_ok`：每条路径必需的审计事件序列（例：WAITING = guard.evaluated → action.pending_created；立即 EXECUTED = guard.evaluated → action.executed；REJECTED = approval.recorded → action.not_executed；STALE = resume.started → resume.version_check MISMATCH → action.not_executed；回放 = action.replay_hit；恢复失败 = 补记的 guard.failed / transaction.rolled_back → action.not_executed），加上泄露扫描（每一列都在闭合词表 / id 格式内；不含 customer id、SQL 标记、用户原文、prompt 片段）。
+
+### 协议决策记录（解决 6.3 对 §17 的实现解释）
+
+- `LLMNativeActionLoopPolicy.decision_records` 就是 Stage 6 的协议记录流（与 Stage 5 的协议工件架构一致），不复制进 ActionRunRecord。评测结果持久化它（`Stage6CaseRunResult.to_dict()["protocol_decision_records"]`，以及每个重跑事件的记录）。
+- 带拒绝诊断码的记录即语义事件 `action.protocol_rejected`：保留 control_step、诊断码、返回的已知函数名 / `<unknown>`、原生调用数、提供的函数集合；从不持久化参数、用户原文或 reasoning（测试扫描持久化结果）。
+- `action_selection_ok`：`expected_action` 为空时要求主运行没有被接受的 ActionIntent，**并且**没有被协议拒绝的动作调用（§19.3 原文「包括被协议拒绝的动作调用」）；被拒绝的调用不计为被接受的动作，但在协议诊断中可见。非空时要求恰好一个被接受的 ActionIntent、动作名正确、运行因它结束、没有动作协议拒绝。
+
+### Oracle / reference fixture（`eval_v2/stage6_oracle.py`）
+
+不是 Baseline，不是控制策略：把 `expected_action` 的语义参数（`args` + 每个 `args_any_of` 的第一个值）校验后直接交给 `start_action`，operator_script 照常执行（重跑以 `req-1` / `req-2` 重新提交同一参考动作），然后检查终态比较器、L1–L6、事件结果、Guard、审批状态、执行、幂等、审计、硬不变量与最终状态。`expected_action == null` 时不提交动作，只验证无动作终态。测试：32 个合成标签全部通过 oracle；故意写错的标签（错误版本、错误的 Guard 决定、错误的 STALE 码）被 oracle 发现。
+
+### A21 / A22 / A23（评测层）
+
+A21-a / b / c / d、A22-a / b / c / d、A23 reject / reject→approve（冲突）/ reject→replay，以及对照组「只有时间流逝 → DENIED return_window_closed」与「暂停 → restart → approve → EXECUTED」，在脚本化 provider 的策略路径上都通过 operator harness、事件评分、终态比较器、链接不变量与硬不变量（`stage6_e2e_success = true`），也都通过 oracle。
+
+### 有意的测试调整
+
+- `tests/test_v2_tool_registry.py`：动作名白名单加入五个 Stage 6.4 eval 模块。
+- `tests/test_v2_eval_runtime.py::test_runtime_is_decoupled_from_unseal_and_holdout`：原测试禁止 eval 包中任何可执行字符串含 `holdout` / `unseal` / `receipt`，其中 `receipt` 针对作者回执文件（`eval/v2/*-author-receipt.json`）。Stage 6 评测模块必须使用领域表名 `action_receipts`。改为：五个 Stage 6.4 eval 模块用面向文件 / 路径的私有作者 / 封存工件模式检查（见下文 6.4A.1）；其他所有模块保持原词表不变。不采用改写字符串来绕过扫描的做法。
+- 6.3 的 `ActionRunRecord` 增加两个只在内存中的字段 `accepted_action`、`outcome`（不序列化），供 harness 回放与评分；6.3 runner 在读网关带故障账本时按 Stage 5 语义处理 malformed。
+
+### 实现中的具体选择
+
+- 模块位置：可导入的评测代码在 `eval_v2/`（`stage6_runtime.py`、`stage6_runner.py`、`stage6_state.py`、`stage6_scoring.py`、`stage6_oracle.py`）；只依赖标准库的契约在 `eval/v2/stage6_case_contract.py`（§19.1）。
+- 契约规则 5 严格按 §19.2：DENY → DENIED；REQUIRE_APPROVAL 且没有决定事件 → WAITING_APPROVAL；`initial_guard == null` 且没有重新提交类事件 → FAILED。
+- 没有预期动作的 case 只允许 `mutate` / `advance_clock` / `restart` 事件（其他事件的预期结果只能写在 `expected_action.events` 中）。
+- `policy_build_id` 在 schema 中为 `^build-[0-9]{4}$`；`mutate` 不能改规则发布，所以 Stage 6 case 中实际总是 `build-0001`。
+- DEV / VALIDATION 也要求每个 scenario 至少 1 条（holdout 由设计规定）。
+
+### 测试
+
+- 新增 98 个：`tests/test_v2_stage6_case_contract.py` 25（规格文件互相一致、与代码常量逐项一致、25 个 scenario、schema 子集、Stage 4/5 作者输入与封存 sha256 逐字节一致、seed 读取器与真实数据库一致、每条跨字段规则、分布检查、仓库中不存在 Stage 6 数据集）；`tests/test_v2_stage6_eval_state.py` 17（基准 B、mutate、比较器的各种失败、L1–L6 各自的反例）；`tests/test_v2_stage6_eval_harness.py` 22（文件型数据库与清理、query_only、restart 真正重建、advance_clock、读运行时协议、Stage 6 读故障语义、action 故障配置、计数覆盖 start + resume、commit 故障后回放、malformed 走真实解码器、惰性钩子逐字节一致、pending id 只来自主运行、审批人与业务时间、重跑用新策略与 req-2、operator_script 不进入策略）；`tests/test_v2_stage6_eval_scoring.py` 34（指标词表与合取、策略路径上的全部场景与 A21/A22/A23、失败检测、rerun_ok 与 idempotency_ok 分离、协议记录持久化规则、硬不变量反例、生成与完成声明、审计序列与泄露、oracle）。`tests/test_v2_eval_runtime.py` 另加 1 个（Stage 6.4 eval 模块存在）。共享的合成 fixture 在 `tests/stage6_eval_support.py`（测试用，不是数据集）。
+- Stage 6 全部：98 + 231 = **329**。
+- Stage 5 兼容（fault gateway、eval runtime、case runner、dataset runner、tool loop、generation、baseline、registry、executor、business tools、derived、policy lifecycle / params、clock、eval scoring、eval evidence）：**741**，全部通过。
+- 全量本地离线套件：**2464 个测试，0 失败，0 错误，0 跳过**。排除且只排除 `tests.test_llm_provider_live`（2 个）。6.4A 没有任何 DeepSeek 调用。
+
+### 数据集状态
+
+- **没有编写任何 Stage 6 数据集**：没有 `stage6-dev.json`、`stage6-validation.json`。
+- **不存在私有 Stage 6 holdout**：没有编写、封存或开封任何 holdout；没有作者 bundle、manifest 或导出 / 开封工具（属于 6.4B）。
+- **没有任何正式 LLM 运行**，也没有调整控制策略的 prompt。
+- 下一步 6.4B（review 之后）：冻结 bundle → 隔离作者上下文 → 在仓库外编写并封存 holdout → 再编写 DEV / VALIDATION。
+
+### 6.4A.1 review 修正（CONDITIONAL PASS 之后，评测器冻结之前）
+
+review 对 head `6c16296` 给出 CONDITIONAL PASS，只要求两处修正；评测器实现（契约、harness、B/F 比较器、L1–L6、指标、oracle、operator_script、故障注入、Guard 钩子、决定观察器）与冻结设计都没有改动，没有任何生产代码改动。
+
+1. **私有工件边界测试收紧**（`tests/test_v2_eval_runtime.py`）。Stage 6.4 eval 模块合法地使用执行回执这一业务概念（`action_receipts`、`receipt_id`、`receipt_write`、`one_receipt_per_execution`），所以不恢复对子串 `receipt` 的一刀切禁止；但上一版只查 `author-receipt` 太宽松，会放过封存回执文件名 / 路径。现在由测试中的小 helper `stage6_artifact_violations` 按面向文件 / 路径的模式（大小写不敏感）检查这五个模块的全部可执行字面量：`holdout`、`unseal`、`author-receipt`、`author_receipt`、`seal-receipt`、`seal_receipt`、`receipt.json`、`receipt_path`、`receipt_file`。测试证明 `seal-receipt.json`、`seal_receipt.json`、`/private/receipt.json`、`holdout.json`、`unseal_v2_holdout.py` 等被拦下，`action_receipts`、`receipt_id`、`receipt_write`、`receipt resource`、`one_receipt_per_execution` 被接受；Stage 4/5 的 eval 模块继续使用历史词表 `holdout` / `unseal` / `receipt`，语义不变（测试固定该词表）。
+2. **冻结全部五类最终结论**（`eval/v2/spec/stage6-holdout-plan.json`）。`required_final_values` 由 `["action", "answer"]` 改为恰好 `["answer", "refuse", "handoff", "boundary", "action"]`：Stage 6 必须同时正式覆盖 Stage 5 的四类无动作结论与新的动作路径。现在还没有任何私有数据集，此时冻结是正确时机。新测试把它钉到 `stage6-final-outcomes.json`：`set(required_final_values) == set(definitions)` == 这五个值。分布检查测试改用只含分布字段的合成 fixture（不是数据集内容），对 holdout 25 / DEV 40 / VALIDATION 40 三个 split 分别证明：一个其他方面都合规的 split 只要缺少任一类 final（answer / refuse / handoff / boundary / action），检查就恰好报告这一条；每个 split 每个 scenario 至少 1 条的规则保持不变（25 个 scenario、holdout 25 条，因此每个 scenario 恰好 1 条）。
+3. **不变的部分**：DEV 40 / VALIDATION 40 / holdout 25；`per_scenario_min = 1`；scenario 词表；`action_selection_ok` 的语义（`expected_action == null` 时要求没有被接受的 ActionIntent，且没有被协议拒绝的已知 Stage 6 动作调用，符合 §19.3）；Guard 读取钩子与决定观察器（API 不扩展）。
+
+测试：`tests/test_v2_eval_runtime.py` 62 → 65（+3）；`tests/test_v2_stage6_case_contract.py` 25 → 28（+3）；6.4A 四个模块共 101；全量本地离线套件 **2470 个测试，0 失败，0 错误，0 跳过**，排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
+
+数据集状态不变：没有 `stage6-dev.json`、`stage6-validation.json`、作者 bundle、私有 holdout、holdout manifest，也没有任何正式 LLM 运行。

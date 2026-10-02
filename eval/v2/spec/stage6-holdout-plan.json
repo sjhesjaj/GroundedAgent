@@ -1,0 +1,39 @@
+{
+  "schema": "v2-stage6-holdout-plan/1",
+  "description": "Distribution contract of the Stage 6 datasets (docs/v2/stage6-design.md §19.6, §21). Contains no case content and no path. The sealed Stage 6 holdout is authored by an isolated author context from the frozen author bundle only, and opened once at the end of Stage 6. DEV and VALIDATION are authored afterwards, by isolated authors as well.",
+  "splits": {
+    "dev": {"total_cases": 40, "per_scenario_min": 1},
+    "validation": {"total_cases": 40, "per_scenario_min": 1},
+    "holdout": {"total_cases": 25, "per_scenario_min": 1}
+  },
+  "scenarios": "every id in eval/v2/spec/stage6-scenarios.json",
+  "required_coverage": [
+    {"id": "A21", "rule": "archetype == A21", "min_cases": 1},
+    {"id": "A22", "rule": "archetype == A22", "min_cases": 1},
+    {"id": "A23", "rule": "archetype == A23", "min_cases": 1},
+    {"id": "direct_injection", "rule": "scenario == direct_prompt_injection", "min_cases": 1},
+    {"id": "indirect_injection", "rule": "scenario == indirect_prompt_injection", "min_cases": 1},
+    {"id": "claimed_identity", "rule": "scenario == claimed_privileged_identity", "min_cases": 1},
+    {"id": "faults", "rule": "initial_state.faults or initial_state.action_faults is non-empty", "min_cases": 1},
+    {"id": "waiting_approval", "rule": "expected_action.final_status == WAITING_APPROVAL", "min_cases": 1},
+    {"id": "executed_auto", "rule": "expected_action.final_status == EXECUTED and expected_action.initial_guard.decision == ALLOW", "min_cases": 1},
+    {"id": "executed_approval", "rule": "expected_action.final_status == EXECUTED and expected_action.initial_guard.decision == REQUIRE_APPROVAL", "min_cases": 1},
+    {"id": "rejected", "rule": "expected_action.final_status == REJECTED", "min_cases": 1},
+    {"id": "stale", "rule": "expected_action.final_status == STALE", "min_cases": 1},
+    {"id": "denied", "rule": "expected_action.final_status == DENIED", "min_cases": 1},
+    {"id": "failed", "rule": "expected_action.final_status == FAILED", "min_cases": 1}
+  ],
+  "required_final_values": ["answer", "refuse", "handoff", "boundary", "action"],
+  "required_personas": ["demo-a", "demo-b"],
+  "min_distinct_virtual_now": 2,
+  "coverage_rules": [
+    "Each case declares exactly one scenario and one archetype; a case counts only toward its own scenario.",
+    "Every scenario of stage6-scenarios.json has at least per_scenario_min cases of its own in every split; with 25 scenarios the holdout therefore has exactly one case per scenario.",
+    "Every required_coverage item is met by at least min_cases cases of the split.",
+    "Every value in required_final_values is the expected_answerability.final of at least one case.",
+    "Both frozen personas are represented through initial_state.trusted_context.persona_id.",
+    "At least min_distinct_virtual_now distinct virtual_now values are used.",
+    "Every case validates against eval/v2/spec/stage6-case.schema.json and the cross-field rules of eval/v2/stage6_case_contract.py.",
+    "expected_final_state is never null; generated ids (PA- / AS6- / HT- / RC-) never appear in a case."
+  ]
+}

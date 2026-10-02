@@ -109,9 +109,40 @@ class RuntimeTestCase(unittest.TestCase):
 # --------------------------------------------------------------------------
 
 
+# The historical boundary words of the Stage 4/5 eval modules, unchanged.
+HISTORICAL_BOUNDARY_WORDS = ("holdout", "unseal", "receipt")
+
+# Stage 6.4 evaluation modules legitimately name the business concept of an
+# execution receipt (the action_receipts table, receipt_id, receipt_write,
+# one_receipt_per_execution; docs/v2/stage6-design.md §7.2). For them the
+# guard is about private author / seal ARTIFACTS - files and paths - not that
+# concept, so the bare word "receipt" is replaced by these file/path patterns.
+STAGE6_EVAL_MODULES = frozenset({"stage6_oracle.py", "stage6_runner.py", "stage6_runtime.py",
+                                 "stage6_scoring.py", "stage6_state.py"})
+STAGE6_FORBIDDEN_ARTIFACT_PATTERNS = (
+    "holdout", "unseal",
+    "author-receipt", "author_receipt",
+    "seal-receipt", "seal_receipt",
+    "receipt.json", "receipt_path", "receipt_file",
+)
+
+
+def stage6_artifact_violations(literal: str) -> tuple[str, ...]:
+    """The private author / seal artifact patterns an executable literal contains.
+
+    Case-insensitive substring match on file / path oriented patterns only.
+    """
+    text = literal.lower()
+    return tuple(pattern for pattern in STAGE6_FORBIDDEN_ARTIFACT_PATTERNS if pattern in text)
+
+
 class PackageBoundaryTests(unittest.TestCase):
     def sources(self):
         return {path: path.read_text(encoding="utf-8") for path in sorted(PACKAGE.glob("*.py"))}
+
+    def test_stage6_eval_modules_exist(self):
+        for name in STAGE6_EVAL_MODULES:
+            self.assertTrue((PACKAGE / name).is_file(), name)
 
     def test_runtime_does_not_read_the_system_clock_or_make_ids(self):
         for path, source in self.sources().items():
@@ -143,8 +174,34 @@ class PackageBoundaryTests(unittest.TestCase):
                 literals = [node.value.lower() for node in ast.walk(tree)
                             if isinstance(node, ast.Constant) and isinstance(node.value, str)
                             and id(node) not in docstrings]
-                for word in ("holdout", "unseal", "receipt"):
+                if path.name in STAGE6_EVAL_MODULES:
+                    self.assertFalse([text for text in literals if stage6_artifact_violations(text)])
+                    continue
+                for word in HISTORICAL_BOUNDARY_WORDS:
                     self.assertFalse([text for text in literals if word in text], word)
+
+    def test_stage6_artifact_patterns_catch_private_artifacts(self):
+        for literal in ("seal-receipt.json", "seal_receipt.json", "/private/receipt.json",
+                        "holdout.json", "unseal_v2_holdout.py", "SEAL-RECEIPT.JSON",
+                        "eval/v2/dev-author-receipt.json", "author_receipt", "receipt_path",
+                        "receipt_file", r"C:\sealed\Receipt.Json"):
+            with self.subTest(literal=literal):
+                self.assertTrue(stage6_artifact_violations(literal))
+
+    def test_stage6_domain_receipt_vocabulary_is_allowed(self):
+        for literal in ("action_receipts", "receipt_id", "receipt_write", "receipt resource",
+                        "one_receipt_per_execution", "RC-0123456789ABCDEF", "after_sales_case",
+                        " has no EXECUTED receipt"):
+            with self.subTest(literal=literal):
+                self.assertEqual(stage6_artifact_violations(literal), ())
+
+    def test_stage4_5_modules_keep_the_historical_words(self):
+        self.assertEqual(HISTORICAL_BOUNDARY_WORDS, ("holdout", "unseal", "receipt"))
+        stage6 = {path.name for path in PACKAGE.glob("*.py")} & STAGE6_EVAL_MODULES
+        self.assertEqual(stage6, STAGE6_EVAL_MODULES)
+        for name in ("runner.py", "runtime.py", "faults.py", "scoring.py", "e2e.py", "dataset.py",
+                     "tool_loop.py", "generation.py", "baseline.py", "evidence.py", "control.py"):
+            self.assertNotIn(name, STAGE6_EVAL_MODULES)
 
     def test_case_contract_is_the_frozen_file_loaded_by_path(self):
         from eval.v2 import case_contract as frozen

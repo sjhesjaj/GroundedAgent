@@ -1,0 +1,638 @@
+{
+  "schema": "v2-stage6-actions/1",
+  "description": "Machine-readable Stage 6 action contract (docs/v2/stage6-design.md §5, §6, §11, §12, §15.3, §16, §17, §19.2). docs/v2/stage6-domain-spec.md is its human-readable projection. Closed vocabularies only; no agent behaviour.",
+  "action_spec_version": "s6-actions/1",
+  "risk_policy": {
+    "version": "s6-risk/1",
+    "dispositions": {
+      "create_return": "REQUIRE_APPROVAL",
+      "create_exchange": "ALLOW",
+      "escalate_to_human": "ALLOW"
+    }
+  },
+  "policy_build_id": "build-0001",
+  "actions": [
+    {
+      "name": "create_return",
+      "label": "退货",
+      "description": "为一件订单商品提交退货售后申请。提交不等于执行：是否允许、是否需要人工审批由系统决定。",
+      "resource_type": "after_sales_case",
+      "case_type": "return",
+      "parameters": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "订单号，例如 ORD-1001。"
+        },
+        {
+          "name": "order_item_id",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "要办理的那一件订单商品的明细号，例如 OI-1001-1。"
+        },
+        {
+          "name": "reason_code",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "顾客发起申请的原因类别。",
+          "enum": [
+            "no_longer_wanted",
+            "size_or_spec_mismatch",
+            "quality_issue"
+          ]
+        }
+      ],
+      "risk_disposition": "REQUIRE_APPROVAL"
+    },
+    {
+      "name": "create_exchange",
+      "label": "换货",
+      "description": "为一件订单商品提交换货售后申请（不发货、不改库存）。是否允许由系统决定。",
+      "resource_type": "after_sales_case",
+      "case_type": "exchange",
+      "parameters": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "订单号，例如 ORD-1001。"
+        },
+        {
+          "name": "order_item_id",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "要办理的那一件订单商品的明细号，例如 OI-1001-1。"
+        },
+        {
+          "name": "target_sku",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "换货的目标 SKU，例如 SKU-TSHIRT-L。"
+        },
+        {
+          "name": "reason_code",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "顾客发起申请的原因类别。",
+          "enum": [
+            "size_or_spec_mismatch",
+            "quality_issue"
+          ]
+        }
+      ],
+      "risk_disposition": "ALLOW"
+    },
+    {
+      "name": "escalate_to_human",
+      "label": "转人工",
+      "description": "为一件订单商品创建人工处理工单。只用于已发布规则要求人工处理的问题类别。",
+      "resource_type": "human_handoff_ticket",
+      "case_type": null,
+      "parameters": [
+        {
+          "name": "order_id",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "订单号，例如 ORD-1001。"
+        },
+        {
+          "name": "order_item_id",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "要办理的那一件订单商品的明细号，例如 OI-1001-1。"
+        },
+        {
+          "name": "handoff_trigger",
+          "type": "string",
+          "min_length": 1,
+          "max_length": 128,
+          "description": "需要人工处理的问题类别。",
+          "enum": [
+            "quality_dispute"
+          ]
+        }
+      ],
+      "risk_disposition": "ALLOW"
+    }
+  ],
+  "reason_labels": {
+    "no_longer_wanted": "不想要了（无理由退货）",
+    "size_or_spec_mismatch": "尺码或规格不合适",
+    "quality_issue": "商品质量问题"
+  },
+  "reason_handoff_trigger": {
+    "quality_issue": "quality_dispute"
+  },
+  "handoff_triggers": [
+    "quality_dispute"
+  ],
+  "forbidden_argument_names": {
+    "identity_and_authority": [
+      "admin",
+      "approver",
+      "approver_ref",
+      "customer_id",
+      "is_admin",
+      "manager",
+      "operator",
+      "persona_id",
+      "role",
+      "subject_id",
+      "user_id"
+    ],
+    "approval_and_control": [
+      "approval",
+      "approval_decision",
+      "approval_required",
+      "approved",
+      "decision",
+      "force",
+      "override",
+      "skip_approval",
+      "status"
+    ],
+    "system_owned_ids": [
+      "case_id",
+      "idempotency_key",
+      "pending_action_id",
+      "receipt_id",
+      "request_id",
+      "run_id",
+      "ticket_id"
+    ]
+  },
+  "guard_decisions": [
+    "ALLOW",
+    "DENY",
+    "REQUIRE_APPROVAL"
+  ],
+  "positive_reason_codes": {
+    "ALLOW": "risk_policy_allows",
+    "REQUIRE_APPROVAL": "risk_policy_requires_approval"
+  },
+  "deny_reason_codes": [
+    "order_not_accessible",
+    "order_item_not_in_order",
+    "business_state_conflict",
+    "order_status_ineligible",
+    "not_delivered",
+    "delivery_not_established",
+    "active_after_sales_case_exists",
+    "item_already_returned",
+    "pending_request_exists",
+    "handoff_required",
+    "non_returnable",
+    "no_applicable_policy",
+    "policy_conflict",
+    "return_window_closed",
+    "exchange_window_closed",
+    "exchange_target_invalid",
+    "exchange_target_incompatible",
+    "inventory_unavailable",
+    "handoff_not_required",
+    "handoff_ticket_exists"
+  ],
+  "deny_reason_codes_by_action": {
+    "create_return": [
+      "order_not_accessible",
+      "order_item_not_in_order",
+      "business_state_conflict",
+      "order_status_ineligible",
+      "not_delivered",
+      "delivery_not_established",
+      "active_after_sales_case_exists",
+      "item_already_returned",
+      "pending_request_exists",
+      "handoff_required",
+      "non_returnable",
+      "no_applicable_policy",
+      "policy_conflict",
+      "return_window_closed"
+    ],
+    "create_exchange": [
+      "order_not_accessible",
+      "order_item_not_in_order",
+      "business_state_conflict",
+      "order_status_ineligible",
+      "not_delivered",
+      "delivery_not_established",
+      "active_after_sales_case_exists",
+      "item_already_returned",
+      "pending_request_exists",
+      "handoff_required",
+      "no_applicable_policy",
+      "policy_conflict",
+      "exchange_window_closed",
+      "exchange_target_invalid",
+      "exchange_target_incompatible",
+      "inventory_unavailable"
+    ],
+    "escalate_to_human": [
+      "order_not_accessible",
+      "order_item_not_in_order",
+      "policy_conflict",
+      "handoff_not_required",
+      "handoff_ticket_exists"
+    ]
+  },
+  "preconditions": {
+    "create_return": [
+      {
+        "id": "R-1",
+        "check": "订单属于受信顾客",
+        "deny": [
+          "order_not_accessible"
+        ]
+      },
+      {
+        "id": "R-2",
+        "check": "这件商品（订单明细）属于该订单",
+        "deny": [
+          "order_item_not_in_order"
+        ]
+      },
+      {
+        "id": "R-3",
+        "check": "订单状态与物流状态不冲突",
+        "deny": [
+          "business_state_conflict"
+        ]
+      },
+      {
+        "id": "R-4",
+        "check": "订单未取消",
+        "deny": [
+          "order_status_ineligible"
+        ]
+      },
+      {
+        "id": "R-5",
+        "check": "已确立可信签收（签收确立规则 D）",
+        "deny": [
+          "not_delivered",
+          "delivery_not_established"
+        ]
+      },
+      {
+        "id": "R-6",
+        "check": "这件商品没有进行中的售后单",
+        "deny": [
+          "active_after_sales_case_exists"
+        ]
+      },
+      {
+        "id": "R-7",
+        "check": "这件商品未曾完成退货",
+        "deny": [
+          "item_already_returned"
+        ]
+      },
+      {
+        "id": "R-8",
+        "check": "这件商品没有其他待审批动作",
+        "deny": [
+          "pending_request_exists"
+        ]
+      },
+      {
+        "id": "R-9",
+        "check": "规则不要求这类请求改走人工",
+        "deny": [
+          "handoff_required"
+        ]
+      },
+      {
+        "id": "R-10",
+        "check": "品类可退（不适用不可退规则）",
+        "deny": [
+          "non_returnable"
+        ]
+      },
+      {
+        "id": "R-11",
+        "check": "有适用的退货窗口规则",
+        "deny": [
+          "no_applicable_policy"
+        ]
+      },
+      {
+        "id": "R-12",
+        "check": "在退货窗口内",
+        "deny": [
+          "return_window_closed"
+        ]
+      },
+      {
+        "id": "R-13",
+        "check": "风险策略 s6-risk/1",
+        "result": {
+          "decision": "REQUIRE_APPROVAL",
+          "reason_code": "risk_policy_requires_approval"
+        }
+      }
+    ],
+    "create_exchange": [
+      {
+        "id": "E-1",
+        "check": "订单属于受信顾客",
+        "deny": [
+          "order_not_accessible"
+        ]
+      },
+      {
+        "id": "E-2",
+        "check": "这件商品（订单明细）属于该订单",
+        "deny": [
+          "order_item_not_in_order"
+        ]
+      },
+      {
+        "id": "E-3",
+        "check": "订单状态与物流状态不冲突",
+        "deny": [
+          "business_state_conflict"
+        ]
+      },
+      {
+        "id": "E-4",
+        "check": "订单未取消",
+        "deny": [
+          "order_status_ineligible"
+        ]
+      },
+      {
+        "id": "E-5",
+        "check": "已确立可信签收（签收确立规则 D）",
+        "deny": [
+          "not_delivered",
+          "delivery_not_established"
+        ]
+      },
+      {
+        "id": "E-6",
+        "check": "这件商品没有进行中的售后单",
+        "deny": [
+          "active_after_sales_case_exists"
+        ]
+      },
+      {
+        "id": "E-7",
+        "check": "这件商品未曾完成退货",
+        "deny": [
+          "item_already_returned"
+        ]
+      },
+      {
+        "id": "E-8",
+        "check": "这件商品没有其他待审批动作",
+        "deny": [
+          "pending_request_exists"
+        ]
+      },
+      {
+        "id": "E-9",
+        "check": "规则不要求这类请求改走人工",
+        "deny": [
+          "handoff_required"
+        ]
+      },
+      {
+        "id": "E-10",
+        "check": "目标 SKU 有效且与原商品同一规格分组",
+        "deny": [
+          "exchange_target_invalid",
+          "exchange_target_incompatible"
+        ]
+      },
+      {
+        "id": "E-11",
+        "check": "有适用的换货窗口规则",
+        "deny": [
+          "no_applicable_policy"
+        ]
+      },
+      {
+        "id": "E-12",
+        "check": "在换货窗口内",
+        "deny": [
+          "exchange_window_closed"
+        ]
+      },
+      {
+        "id": "E-13",
+        "check": "目标 SKU 的可售库存不少于这件商品的数量",
+        "deny": [
+          "inventory_unavailable"
+        ]
+      },
+      {
+        "id": "E-14",
+        "check": "风险策略 s6-risk/1",
+        "result": {
+          "decision": "ALLOW",
+          "reason_code": "risk_policy_allows"
+        }
+      }
+    ],
+    "escalate_to_human": [
+      {
+        "id": "H-1",
+        "check": "订单属于受信顾客",
+        "deny": [
+          "order_not_accessible"
+        ]
+      },
+      {
+        "id": "H-2",
+        "check": "这件商品（订单明细）属于该订单",
+        "deny": [
+          "order_item_not_in_order"
+        ]
+      },
+      {
+        "id": "H-3",
+        "check": "当前结构化规则确实把这一问题类别路由给人工",
+        "deny": [
+          "handoff_not_required"
+        ]
+      },
+      {
+        "id": "H-4",
+        "check": "这件商品同一类别没有未关闭的人工工单",
+        "deny": [
+          "handoff_ticket_exists"
+        ]
+      },
+      {
+        "id": "H-5",
+        "check": "风险策略 s6-risk/1",
+        "result": {
+          "decision": "ALLOW",
+          "reason_code": "risk_policy_allows"
+        }
+      }
+    ]
+  },
+  "stale_reason_codes": [
+    "record_set_changed",
+    "record_version_changed",
+    "policy_changed",
+    "action_policy_changed",
+    "guard_decision_changed"
+  ],
+  "approval_rejected_code": "approval_rejected",
+  "failure_codes": [
+    "guard_internal_error",
+    "id_generation_failed",
+    "identity_unresolvable",
+    "invariant_violation",
+    "policy_unavailable",
+    "state_malformed",
+    "state_read_failed",
+    "state_version_missing",
+    "transaction_failed",
+    "write_failed"
+  ],
+  "final_statuses": [
+    "EXECUTED",
+    "WAITING_APPROVAL",
+    "DENIED",
+    "REJECTED",
+    "STALE",
+    "FAILED"
+  ],
+  "pending_statuses": [
+    "PENDING_APPROVAL",
+    "APPROVED",
+    "REJECTED",
+    "EXECUTED",
+    "STALE",
+    "DENIED",
+    "FAILED"
+  ],
+  "terminal_pending_statuses": [
+    "REJECTED",
+    "EXECUTED",
+    "STALE",
+    "DENIED",
+    "FAILED"
+  ],
+  "approval_decisions": [
+    "APPROVE",
+    "REJECT"
+  ],
+  "trusted_operators": [
+    "op-demo-1"
+  ],
+  "ticket_statuses": [
+    "处理中",
+    "已关闭",
+    "待处理"
+  ],
+  "request_ids": {
+    "main": "req-1",
+    "replay_submission": "req-1",
+    "rerun_request": "req-1",
+    "new_request": "req-2"
+  },
+  "operator_events": [
+    "approve",
+    "reject",
+    "record_decision",
+    "execute_approved",
+    "mutate",
+    "advance_clock",
+    "restart",
+    "replay_submission",
+    "rerun_request",
+    "new_request"
+  ],
+  "action_fault_points": [
+    "guard_read",
+    "policy_catalog",
+    "business_write",
+    "receipt_write",
+    "commit"
+  ],
+  "guard_reads": [
+    "order",
+    "order_item",
+    "logistics",
+    "item_cases",
+    "inventory",
+    "variants",
+    "tickets",
+    "pendings"
+  ],
+  "action_fault_modes": {
+    "error": [
+      "guard_read",
+      "policy_catalog",
+      "business_write",
+      "receipt_write",
+      "commit"
+    ],
+    "malformed": [
+      "guard_read"
+    ]
+  },
+  "generated_id_kinds": {
+    "PA": "pending_action_id",
+    "AS6": "after_sales_cases.case_id",
+    "HT": "human_handoff_tickets.ticket_id",
+    "RC": "receipt_id"
+  },
+  "generated_id_pattern": "^(PA|AS6|HT|RC)-[0-9A-F]{16,32}$",
+  "id_namespace": "eval",
+  "audit_events": [
+    "action.executed",
+    "action.not_executed",
+    "action.pending_created",
+    "action.replay_hit",
+    "approval.conflict",
+    "approval.recorded",
+    "guard.evaluated",
+    "guard.failed",
+    "resume.started",
+    "resume.version_check",
+    "transaction.rolled_back"
+  ],
+  "protocol_diagnostics": [
+    "no_tool_call",
+    "multiple_tool_calls",
+    "unknown_function",
+    "tool_not_allowed",
+    "function_not_offered",
+    "identity_argument",
+    "invalid_arguments",
+    "invalid_ask_user_slots",
+    "invalid_finish_disposition",
+    "retry_cap_exceeded",
+    "batch_exceeds_step_budget",
+    "action_not_single_call",
+    "action_not_allowed",
+    "invalid_action_arguments",
+    "forbidden_action_argument"
+  ],
+  "completion_claim_markers": [
+    "已提交",
+    "已为您提交",
+    "已办理",
+    "已退款",
+    "已创建",
+    "已为您创建",
+    "已转人工",
+    "已为您换",
+    "已受理"
+  ]
+}
