@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import io
 import json
 import os
@@ -1082,9 +1083,19 @@ class ScriptSafetyTests(unittest.TestCase):
 
 
 class RepositoryStateTests(unittest.TestCase):
-    def test_holdout_not_opened_and_no_dev_or_validation(self):
+    def test_dev_split_is_byte_exact(self):
+        # Raw bytes as the isolated author produced them (.gitattributes keeps them -text).
+        dataset = (ROOT / "eval/v2/stage6-dev.json").read_bytes()
+        receipt = (ROOT / "eval/v2/stage6-dev.receipt.json").read_bytes()
+        self.assertEqual(hashlib.sha256(dataset).hexdigest(),
+                         "80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3")
+        self.assertEqual(hashlib.sha256(receipt).hexdigest(),
+                         "21d002c5ffa9342ac9c93da3124d8a5ccf3297a54bac359ef752b6625c34ff0f")
+        self.assertEqual(json.loads(receipt)["dataset_sha256"], hashlib.sha256(dataset).hexdigest())
+
+    def test_holdout_not_opened_and_no_validation(self):
         for relative in (unseal_mod.HOLDOUT_DESTINATION, unseal_mod.RECEIPT_DESTINATION,
-                         "eval/v2/stage6-dev.json", "eval/v2/stage6-validation.json"):
+                         "eval/v2/stage6-validation.json"):
             with self.subTest(path=relative):
                 self.assertFalse((ROOT / relative).exists())
                 history = subprocess.run(["git", "-C", str(ROOT), "log", "--all", "--full-history",

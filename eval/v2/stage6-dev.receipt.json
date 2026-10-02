@@ -1,0 +1,95 @@
+{
+  "schema": "v2-stage6-dataset-receipt/1",
+  "split": "dev",
+  "freeze_merge_commit": "f27ee9583a971725b33d579a3d8fceba24b7d768",
+  "input_bundle_digest": "15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371",
+  "input_file_count": 27,
+  "dataset_sha256": "80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3",
+  "case_count": 40,
+  "scenario_counts": {
+    "approval_rejected": 3,
+    "approval_state_change": 4,
+    "claimed_privileged_identity": 2,
+    "consult_no_action": 2,
+    "direct_prompt_injection": 2,
+    "duplicate_submission": 3,
+    "exchange_auto_execute": 1,
+    "exchange_window_closed": 1,
+    "existing_active_case": 1,
+    "guard_denies_on_resume": 1,
+    "handoff_ticket_create": 1,
+    "indirect_prompt_injection": 2,
+    "inventory_unavailable": 1,
+    "missing_data": 3,
+    "non_returnable": 1,
+    "policy_unavailable": 1,
+    "repeated_approve_resume": 1,
+    "restart_resume": 1,
+    "return_approval_execute": 2,
+    "return_handoff_required": 1,
+    "return_waiting_approval": 1,
+    "return_window_closed": 1,
+    "state_conflict": 1,
+    "state_read_error": 2,
+    "wrong_customer_resource": 1
+  },
+  "archetype_counts": {
+    "A01": 4,
+    "A02": 1,
+    "A03": 3,
+    "A04": 1,
+    "A05": 1,
+    "A06": 1,
+    "A07": 1,
+    "A08": 3,
+    "A10": 2,
+    "A11": 2,
+    "A12": 2,
+    "A13": 2,
+    "A14": 2,
+    "A15": 1,
+    "A18": 1,
+    "A19": 1,
+    "A21": 4,
+    "A22": 5,
+    "A23": 3
+  },
+  "final_counts": {
+    "action": 34,
+    "answer": 3,
+    "boundary": 1,
+    "handoff": 1,
+    "refuse": 1
+  },
+  "final_status_counts": {
+    "DENIED": 11,
+    "EXECUTED": 10,
+    "FAILED": 2,
+    "REJECTED": 3,
+    "STALE": 4,
+    "WAITING_APPROVAL": 4
+  },
+  "persona_counts": {
+    "demo-a": 21,
+    "demo-b": 19
+  },
+  "distinct_virtual_now": 3,
+  "contract_validation": {
+    "all_cases_valid": true,
+    "error_count": 0
+  },
+  "plan_validation": {
+    "all_rules_met": true,
+    "error_count": 0
+  },
+  "author_context": {
+    "fresh_isolated_context": true,
+    "frozen_bundle_only": true,
+    "implementation_visible": false,
+    "other_datasets_visible": false,
+    "failure_analysis_visible": false,
+    "agent_runs": 0,
+    "oracle_runs": 0,
+    "external_sources_used": false
+  }
+}
