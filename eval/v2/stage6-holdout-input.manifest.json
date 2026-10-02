@@ -1,0 +1,144 @@
+{
+  "schema": "v2-stage6-holdout-input-manifest/1",
+  "description": "The only files an isolated Stage 6 case author may read (stage6-design §21, docs/v2/stage6-4b-design.md). sha256 is over LF-normalized content. content_digest covers schema and (path, sha256) pairs only.",
+  "base_commit": "44efea23ae12fb9ee659139afec152d75768389e",
+  "hash_normalization": "crlf-to-lf",
+  "content_digest": "15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371",
+  "files": [
+    {
+      "path": "aftersales/action_schema.sql",
+      "sha256": "7405aa835394e5cba89b61a272eed0e89cd4164591f5036bd9f0766a98de9665",
+      "bytes": 6331
+    },
+    {
+      "path": "aftersales/schema.sql",
+      "sha256": "22f60242694b4b5909f49428410dda8ad40c82a143d4f6a1726c16273129b4a7",
+      "bytes": 2711
+    },
+    {
+      "path": "docs/v2/holdout-domain-spec.md",
+      "sha256": "3ddd7bd90604a9959ca35cc16737c2ce2f15efba9bde1503e1ac3a9e57a596ae",
+      "bytes": 19399
+    },
+    {
+      "path": "docs/v2/stage4.3-frozen-manifest.json",
+      "sha256": "ffbe61cf95ab1ef512e7664b77913e4a5eae891f2ac8d9b11d973ef7b9b11b1c",
+      "bytes": 5961
+    },
+    {
+      "path": "docs/v2/stage6-author-brief.md",
+      "sha256": "32e86deda4393fe2708a46c96eb24227135e6ad3e19c70c174805ba721b271f0",
+      "bytes": 7182
+    },
+    {
+      "path": "docs/v2/stage6-domain-spec.md",
+      "sha256": "a749ff7e214e40e3197bfbd4edcbfee766bb4476fb7a2f4a1ad7295b309cf9b3",
+      "bytes": 25709
+    },
+    {
+      "path": "eval/v2/case_contract.py",
+      "sha256": "b68b6ec6fad17674f59ac0c92496b214ed4803833cade6db91e2b729b56533c3",
+      "bytes": 14677
+    },
+    {
+      "path": "eval/v2/spec/archetypes.json",
+      "sha256": "f2a85a5bda98851e8759d5caef056493f2e15f631b9da1cf0be9e989bb8c3d55",
+      "bytes": 4715
+    },
+    {
+      "path": "eval/v2/spec/case.schema.json",
+      "sha256": "7a8c79eb9834f0beb84c33717db2a1648b91122c39ba8523b28bad764da813f0",
+      "bytes": 47353
+    },
+    {
+      "path": "eval/v2/spec/final-outcomes.json",
+      "sha256": "5294403003ae5642074e075570cfe6e705b995f90233b663de77718b2c18fde6",
+      "bytes": 4818
+    },
+    {
+      "path": "eval/v2/spec/personas.json",
+      "sha256": "e85a18e2f056f90d7c35c8db767830f1afac3f0b60f34c712ddc8314c8b496b0",
+      "bytes": 566
+    },
+    {
+      "path": "eval/v2/spec/slots.json",
+      "sha256": "211ce58fcc601212d4db891e40dc852fe5632cfc4188fecfdf162a20dde891fb",
+      "bytes": 966
+    },
+    {
+      "path": "eval/v2/spec/stage6-actions.json",
+      "sha256": "72996b7baf99d2adf22b28b68e838a65c0109a5ad44e8b35f77efe71dd4a2240",
+      "bytes": 15528
+    },
+    {
+      "path": "eval/v2/spec/stage6-case.schema.json",
+      "sha256": "61b164d40b27e577ef5888900c9a0b14679d7707a98477defe4c6d7b4af1c01f",
+      "bytes": 78300
+    },
+    {
+      "path": "eval/v2/spec/stage6-final-outcomes.json",
+      "sha256": "8bae774bcc6dfcc77666ce4e5cb81b7ca092fc5c73d110beee8d19b168238dd1",
+      "bytes": 4074
+    },
+    {
+      "path": "eval/v2/spec/stage6-holdout-plan.json",
+      "sha256": "06b6d263522960ded25fc67a601cb12b28041da9cf0e1ad70304b4a44b212777",
+      "bytes": 3146
+    },
+    {
+      "path": "eval/v2/spec/stage6-scenarios.json",
+      "sha256": "3b18db0481abdd09fb6f245080a886617c5e68c7b82bfb06aed06f2a28592f07",
+      "bytes": 4887
+    },
+    {
+      "path": "eval/v2/stage6_case_contract.py",
+      "sha256": "2cb6a518df926d9563eb8718fd9700292bff7493506b636aee209063daf5ecaa",
+      "bytes": 29508
+    },
+    {
+      "path": "eval/v2/stage6_dataset_receipt.py",
+      "sha256": "8fa671a9b2a4383042c1a3e212c3f99f700982e8994a29ac24f3606ea19842e6",
+      "bytes": 15208
+    },
+    {
+      "path": "policy_sources/apparel-exchange.md",
+      "sha256": "5e592759ab2dd2822ec67e67d99aa94a8dd05c0a433a1cbe04dfb451c7fa1fa4",
+      "bytes": 824
+    },
+    {
+      "path": "policy_sources/custom-non-returnable.md",
+      "sha256": "b46ee7f4018da257f20f439142c46164b0d902fa30bbe6be9ecfb72a60219cb5",
+      "bytes": 700
+    },
+    {
+      "path": "policy_sources/november-promo-return.md",
+      "sha256": "4d4fe0217a428e031351a9898c658789bccfe264cdb0efe4552a946a198f8d5c",
+      "bytes": 984
+    },
+    {
+      "path": "policy_sources/quality-handoff.md",
+      "sha256": "81514f70848f49911d6279d55a7acfca977dbf154a25180126245b8d7b15d060",
+      "bytes": 728
+    },
+    {
+      "path": "policy_sources/standard-exchange.md",
+      "sha256": "7347049c362d6bbaaab96f06f6f90ee7ba828e0739e0737980b6f009360df64c",
+      "bytes": 819
+    },
+    {
+      "path": "policy_sources/standard-return.md",
+      "sha256": "0f1a0d333a4536f147748cfd304ded3c8515fa3223b4c763dc3b89d3248b66d1",
+      "bytes": 865
+    },
+    {
+      "path": "system_fixtures/aftersales_demo_seed.sql",
+      "sha256": "a69c830417d78937349bbc84664eb03087c59352bcb483684bccaac3299faa9d",
+      "bytes": 4777
+    },
+    {
+      "path": "system_fixtures/aftersales_stage6_seed.sql",
+      "sha256": "c6c2923e64bdc7dd6bde64c7355bc6caed4670a276d96895c27406d3bd3f2e25",
+      "bytes": 1031
+    }
+  ]
+}
