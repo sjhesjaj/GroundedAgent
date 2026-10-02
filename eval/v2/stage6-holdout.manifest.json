@@ -1,0 +1,96 @@
+{
+  "schema": "v2-stage6-sealed-holdout-manifest/1",
+  "status": "sealed",
+  "sealed_against_repo_commit": "f27ee9583a971725b33d579a3d8fceba24b7d768",
+  "input_bundle_digest": "15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371",
+  "input_file_count": 27,
+  "holdout_sha256": "64925a4d8e7d66f2e150a9a8f2286b4bfdcac74e077448a990798ab6d62d3057",
+  "author_receipt_sha256": "89e5834fcc1efa8017da54b2dd957002af8861a496d7c58bb6144aeb3915d46b",
+  "case_count": 25,
+  "scenario_counts": {
+    "approval_rejected": 1,
+    "approval_state_change": 1,
+    "claimed_privileged_identity": 1,
+    "consult_no_action": 1,
+    "direct_prompt_injection": 1,
+    "duplicate_submission": 1,
+    "exchange_auto_execute": 1,
+    "exchange_window_closed": 1,
+    "existing_active_case": 1,
+    "guard_denies_on_resume": 1,
+    "handoff_ticket_create": 1,
+    "indirect_prompt_injection": 1,
+    "inventory_unavailable": 1,
+    "missing_data": 1,
+    "non_returnable": 1,
+    "policy_unavailable": 1,
+    "repeated_approve_resume": 1,
+    "restart_resume": 1,
+    "return_approval_execute": 1,
+    "return_handoff_required": 1,
+    "return_waiting_approval": 1,
+    "return_window_closed": 1,
+    "state_conflict": 1,
+    "state_read_error": 1,
+    "wrong_customer_resource": 1
+  },
+  "archetype_counts": {
+    "A01": 2,
+    "A02": 1,
+    "A03": 3,
+    "A04": 1,
+    "A05": 1,
+    "A06": 1,
+    "A07": 1,
+    "A08": 1,
+    "A10": 2,
+    "A11": 1,
+    "A12": 1,
+    "A13": 1,
+    "A14": 2,
+    "A18": 1,
+    "A19": 1,
+    "A21": 2,
+    "A22": 2,
+    "A23": 1
+  },
+  "final_counts": {
+    "action": 21,
+    "answer": 1,
+    "boundary": 1,
+    "handoff": 1,
+    "refuse": 1
+  },
+  "final_status_counts": {
+    "DENIED": 10,
+    "EXECUTED": 6,
+    "FAILED": 1,
+    "REJECTED": 1,
+    "STALE": 1,
+    "WAITING_APPROVAL": 2
+  },
+  "persona_counts": {
+    "demo-a": 12,
+    "demo-b": 13
+  },
+  "distinct_virtual_now": 6,
+  "contract_validation": {
+    "all_cases_valid": true,
+    "error_count": 0
+  },
+  "plan_validation": {
+    "all_rules_met": true,
+    "error_count": 0
+  },
+  "author_context": {
+    "fresh_isolated_context": true,
+    "frozen_bundle_only": true,
+    "implementation_visible": false,
+    "other_datasets_visible": false,
+    "failure_analysis_visible": false,
+    "agent_runs": 0,
+    "oracle_runs": 0,
+    "external_sources_used": false
+  },
+  "isolation_note": "Process/context isolation, not filesystem access control. Hashes prove immutability of the sealed bytes, not that filesystem permissions made the files unreadable."
+}

@@ -131,11 +131,12 @@ class SpecFileTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
     def test_no_stage6_dataset_exists(self):
+        # The sealed manifest holds safe metadata only; no dataset or opened holdout is in the repo.
         found = [path.relative_to(ROOT).as_posix() for path in ROOT.joinpath("eval").rglob("*")
                  if path.is_file() and "stage6" in path.name.lower()
                  and any(token in path.name.lower() for token in ("dev", "validation", "holdout.json",
-                                                                   "holdout.manifest", "sealed"))]
-        self.assertEqual(found, [])
+                                                                   "holdout.manifest", "sealed", "receipt.json"))]
+        self.assertEqual(found, ["eval/v2/stage6-holdout.manifest.json"])
 
 
 class SeedReaderTests(unittest.TestCase):
