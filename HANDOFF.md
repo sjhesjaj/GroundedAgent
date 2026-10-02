@@ -2413,3 +2413,45 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 - 最后按同一 base 约定（`44efea2`）重新生成输入清单：**27 个文件，最终 content digest `15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371`**（只有 brief 与回执工具两个条目变化）。
 - 全量本地离线套件：**2508 个测试，0 失败，0 错误，0 跳过**；排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
 - 数据集状态不变：没有 Stage 6 数据集、私有 holdout、封存 manifest 或开封工具，没有导出真实的冻结 bundle，也没有启动作者。
+
+## 29. GroundedAgent V2 Stage 6.4B：holdout 封存
+
+### 冻结基线
+
+- Stage 6.4B（PR #26，head `4057e26`，含 6.4B.1）以 merge commit 合入：**STAGE6_AUTHOR_FREEZE_COMMIT = `f27ee9583a971725b33d579a3d8fceba24b7d768`**（本地 main 与 origin/main 一致）。
+- 冻结的作者输入：**27 个文件，bundle 摘要 `15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371`**；合入后与封存前两次核对，`eval/v2/stage6-holdout-input.manifest.json` 不变。
+
+### 隔离作者的报告（封存 manifest 只登记这些）
+
+`eval/v2/stage6-holdout.manifest.json`（`v2-stage6-sealed-holdout-manifest/1`，status `sealed`）：
+
+- split `holdout`，**25 条**；sealed against `f27ee95`，输入 27 个文件、摘要 `15ac3593…d371`。
+- **holdout sha256 `64925a4d8e7d66f2e150a9a8f2286b4bfdcac74e077448a990798ab6d62d3057`**
+- **作者回执 sha256 `89e5834fcc1efa8017da54b2dd957002af8861a496d7c58bb6144aeb3915d46b`**
+- scenario：25 个 scenario 各 1 条。
+- archetype：A01 2、A02 1、A03 3、A04 1、A05 1、A06 1、A07 1、A08 1、A10 2、A11 1、A12 1、A13 1、A14 2、A18 1、A19 1、A21 2、A22 2、A23 1。
+- final：action 21、answer 1、boundary 1、handoff 1、refuse 1。
+- final_status：DENIED 10、EXECUTED 6、FAILED 1、REJECTED 1、STALE 1、WAITING_APPROVAL 2。
+- persona：demo-a 12、demo-b 13；distinct virtual_now 6。
+- 契约校验 all_cases_valid = true、error_count = 0；分布计划校验 all_rules_met = true、error_count = 0。
+- 作者声明：fresh_isolated_context、frozen_bundle_only 为 true；implementation_visible、other_datasets_visible、failure_analysis_visible、external_sources_used 为 false；**agent_runs = 0，oracle_runs = 0**。
+- 说明：隔离是流程与上下文上的隔离，不是文件系统权限；哈希证明封存字节不可变，不证明文件在权限上不可读。
+- manifest 不含路径、文件名、目录、用户文本、case id、动作参数、期望证据或期望终态。
+
+### 预先提交的开封工具
+
+`tools/unseal_v2_stage6_holdout.py` 在任何 DEV / VALIDATION 编写之前提交，钉住 freeze commit、bundle 摘要、27、holdout sha256、回执 sha256、25；开封时只接受人提供的两个位置参数（封存的 holdout、作者回执），不搜索、不推导、不记录路径。只校验、开封、原样复制，不运行 Agent、LLM、oracle 或评分；开封后的两个文件不提交。
+
+### 封存 PR
+
+- 分支 `stage6-holdout-seal`（从 `f27ee95` 切出）→ `main`，提交 `eval(v2): seal Stage 6 holdout metadata`；本 PR 的 merge commit 即 seal commit，合入时记录。
+- 新增：封存 manifest、开封工具、`tests/test_v2_stage6_holdout_seal.py`（54 个，只用合成 fixture）、本节。两个已有的「仓库中没有 Stage 6 封存产物」边界测试改为只放行封存 manifest 与开封工具（`tests/test_v2_stage6_author_bundle.py`、`tests/test_v2_stage6_case_contract.py`），仍禁止任何数据集或已开封文件。
+- 不改动：27 个冻结输入、实现与评测器代码、Stage 4/5 的封存 manifest、开封工具与输入清单。
+- 全量本地离线套件：**2562 个测试，0 失败，0 错误，0 跳过**；排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
+
+### 状态
+
+- **私有 holdout 的内容实现会话从未见过；私有 holdout 与回执的路径实现会话不知道。**
+- **holdout 未开封**：`eval/v2/stage6-holdout.json` 与 `eval/v2/stage6-holdout.receipt.json` 不存在，开封工具没有运行。
+- 没有对 holdout 运行 Agent 或 oracle（agent_runs = 0，oracle_runs = 0）；没有任何正式 Agent 运行。
+- 没有 `stage6-dev.json`、`stage6-validation.json`；`v2-stage6-action-core` 未创建。

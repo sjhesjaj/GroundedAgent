@@ -557,13 +557,18 @@ print(json.dumps({"digest": digest, "count": count, "receipt_digest": built["inp
 
 
 class DatasetStateTests(unittest.TestCase):
-    def test_no_stage6_dataset_seal_or_unseal_exists(self):
+    # Committed at the holdout seal, before any DEV / VALIDATION authoring: safe
+    # metadata and the precommitted opening tool, never a dataset or an opened file.
+    SEAL_ARTIFACTS = frozenset({"eval/v2/stage6-holdout.manifest.json", "tools/unseal_v2_stage6_holdout.py"})
+
+    def test_no_stage6_dataset_or_opened_holdout_exists(self):
         names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "eval").rglob("*") if path.is_file()]
         names += [path.relative_to(ROOT).as_posix() for path in (ROOT / "tools").glob("*")]
+        self.assertLessEqual(self.SEAL_ARTIFACTS, set(names))
         for name in names:
             lowered = name.lower()
             with self.subTest(name=name):
-                if "stage6" in lowered:
+                if "stage6" in lowered and name not in self.SEAL_ARTIFACTS:
                     self.assertFalse(any(token in lowered for token in (
                         "dev.json", "validation.json", "holdout.json", "holdout.manifest", "receipt.json",
                         "unseal", "seal_")), name)
