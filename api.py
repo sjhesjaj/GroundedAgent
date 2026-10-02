@@ -30,6 +30,7 @@ from rag import (
 )
 from storage import SQLiteStorage
 from wiki_maintenance import derive_document_id
+from aftersales_service.routes import router as aftersales_router
 
 
 app = FastAPI(title="Enterprise Knowledge Agent API", version="1.2.0")
@@ -40,6 +41,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# GroundedAgent V2 M0: the after-sales product runtime (/api/aftersales/*).
+app.include_router(aftersales_router)
 
 storage = SQLiteStorage()
 chunks: list[Chunk] = storage.load_chunks()
