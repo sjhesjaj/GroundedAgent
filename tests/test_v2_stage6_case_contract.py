@@ -114,6 +114,14 @@ class SpecFileTests(unittest.TestCase):
         self.assertFalse({"path", "paths", "location", "cases"} & set(plan))
         self.assertNotIn("case_id", json.dumps(plan, ensure_ascii=False))
 
+    def test_plan_requires_every_final_outcome_class(self):
+        required = load("stage6-holdout-plan.json")["required_final_values"]
+        definitions = load("stage6-final-outcomes.json")["definitions"]
+        self.assertEqual(required, ["answer", "refuse", "handoff", "boundary", "action"])
+        self.assertEqual(set(required), set(definitions))
+        self.assertEqual(set(definitions), {"answer", "refuse", "handoff", "boundary", "action"})
+        self.assertEqual(len(required), len(set(required)))
+
     def test_frozen_stage4_5_inputs_are_byte_identical(self):
         # Every Stage 4/5 holdout author input keeps its sealed sha256 (LF-normalized).
         manifest = json.loads((ROOT / "eval" / "v2" / "holdout-input.manifest.json").read_text(encoding="utf-8"))
@@ -352,32 +360,62 @@ class CaseRuleTests(unittest.TestCase):
         self.assert_rule(case, "no conditional turn")
 
 
+FINAL_VALUES = ("answer", "refuse", "handoff", "boundary", "action")
+
+
 class DatasetPlanTests(unittest.TestCase):
+    """Synthetic contract fixtures only: just the fields the distribution check reads."""
+
+    SIZES = (("holdout", 25), ("dev", 40), ("validation", 40))
+
     def minimal(self, index, scenario, *, final="action", status="DENIED", decision="DENY",
-                archetype="A01", persona="demo-a", now="2026-11-15T10:00:00+08:00", faults=False):
+                archetype="A01", persona="demo-a", now="2026-11-15T10:00:00+08:00", faults=False,
+                action=True):
         return {"case_id": "p" + str(index), "scenario": scenario, "archetype": archetype,
                 "virtual_now": now, "expected_answerability": {"final": final},
                 "initial_state": {"trusted_context": {"persona_id": persona}, "faults": [],
                                   "action_faults": [{"point": "commit"}] if faults else []},
-                "expected_action": {"final_status": status, "initial_guard": {"decision": decision}}}
+                "expected_action": ({"final_status": status, "initial_guard": {"decision": decision}}
+                                    if action else None)}
 
-    def plan_cases(self):
-        contract = stage6_contract()
-        cases = [self.minimal(i, scenario) for i, scenario in enumerate(contract.scenario_ids())]
+    def plan_cases(self, total=25):
+        scenarios = stage6_contract().scenario_ids()
+        cases = [self.minimal(i, scenario) for i, scenario in enumerate(scenarios)]
         overrides = {
             0: dict(status="EXECUTED", decision="ALLOW"), 1: dict(status="EXECUTED", decision="REQUIRE_APPROVAL"),
             2: dict(status="WAITING_APPROVAL", decision="REQUIRE_APPROVAL"),
             12: dict(status="FAILED", decision="ALLOW", faults=True),
+            13: dict(final="refuse", action=False),                 # state_read_error, model side
+            14: dict(final="answer", action=False),                 # direct_prompt_injection, consultation
+            16: dict(final="boundary", action=False),               # claimed_privileged_identity
             18: dict(archetype="A21"), 20: dict(archetype="A22", status="STALE", decision="REQUIRE_APPROVAL"),
             21: dict(archetype="A23", status="REJECTED", decision="REQUIRE_APPROVAL"),
-            24: dict(final="answer", persona="demo-b", now="2026-12-01T10:00:00+08:00"),
+            24: dict(final="handoff", action=False, persona="demo-b", now="2026-12-01T10:00:00+08:00"),
         }
         for index, values in overrides.items():
             cases[index] = self.minimal(index, cases[index]["scenario"], **values)
+        for index in range(len(cases), total):
+            cases.append(self.minimal(index, scenarios[5 + index % 10]))
         return cases
 
-    def test_a_conforming_holdout_distribution(self):
-        self.assertEqual(stage6_contract().dataset_plan_errors(self.plan_cases(), "holdout"), [])
+    def test_conforming_distributions(self):
+        for split, total in self.SIZES:
+            with self.subTest(split=split):
+                cases = self.plan_cases(total)
+                self.assertEqual({case["expected_answerability"]["final"] for case in cases}, set(FINAL_VALUES))
+                self.assertEqual(stage6_contract().dataset_plan_errors(cases, split), [])
+
+    def test_every_final_outcome_class_is_required(self):
+        for split, total in self.SIZES:
+            for value in FINAL_VALUES:
+                cases = self.plan_cases(total)
+                replacement = "answer" if value == "action" else "action"
+                for case in cases:
+                    if case["expected_answerability"]["final"] == value:
+                        case["expected_answerability"]["final"] = replacement
+                with self.subTest(split=split, missing=value):
+                    self.assertEqual(stage6_contract().dataset_plan_errors(cases, split),
+                                     [split + ": no case has final " + value])
 
     def test_missing_coverage_is_reported(self):
         cases = self.plan_cases()
@@ -389,6 +427,14 @@ class DatasetPlanTests(unittest.TestCase):
         self.assertTrue(any("consult_no_action" in error for error in errors))
         self.assertTrue(any("25" in error for error in errors))
         self.assertNotEqual(stage6_contract().dataset_plan_errors(self.plan_cases(), "dev"), [])
+
+    def test_scenario_rule_is_kept_for_every_split(self):
+        for split, total in self.SIZES:
+            cases = [case for case in self.plan_cases(total) if case["scenario"] != "restart_resume"]
+            cases += [self.minimal(100 + index, "missing_data") for index in range(total - len(cases))]
+            with self.subTest(split=split):
+                self.assertIn(split + ": scenario restart_resume has 0 case(s)",
+                              stage6_contract().dataset_plan_errors(cases, split))
 
 
 if __name__ == "__main__":

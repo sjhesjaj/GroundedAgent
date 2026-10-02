@@ -23,7 +23,7 @@
     {"id": "denied", "rule": "expected_action.final_status == DENIED", "min_cases": 1},
     {"id": "failed", "rule": "expected_action.final_status == FAILED", "min_cases": 1}
   ],
-  "required_final_values": ["action", "answer"],
+  "required_final_values": ["answer", "refuse", "handoff", "boundary", "action"],
   "required_personas": ["demo-a", "demo-b"],
   "min_distinct_virtual_now": 2,
   "coverage_rules": [

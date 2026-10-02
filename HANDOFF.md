@@ -2274,7 +2274,7 @@ Stage 5 `ControlState` 的全部字段（同名同义、同顺序）+ 紧跟 `al
 | `eval/v2/spec/stage6-actions.json` | 动作契约、参数枚举、原因标签、风险策略、前置条件顺序、每个动作能产生的 DENY 码、STALE / 失败码、待审批状态、审批决定、受信操作方、请求编号、operator 事件、action fault 点 / 读取 / 模式、生成编号格式与命名空间、审计事件名、协议诊断码、完成声明词表。由代码常量生成，测试逐项对照代码 |
 | `eval/v2/spec/stage6-scenarios.json` | §19.6 的 25 个 scenario（闭合）及其 archetype 族 |
 | `eval/v2/spec/stage6-final-outcomes.json` | `answer / refuse / handoff / boundary / action` 的定义、规则与示例 |
-| `eval/v2/spec/stage6-holdout-plan.json` | 只有分布约束：DEV 40、VALIDATION 40、holdout 25；每个 split 每个 scenario 至少 1 条（holdout 因此每个 scenario 恰好 1 条）；必需覆盖 A21、A22、A23、直接注入、间接注入、声称身份、故障、WAITING_APPROVAL、自动执行 EXECUTED、审批后 EXECUTED、REJECTED、STALE、DENIED、FAILED；必需 final `action`、`answer`；两个 persona；≥ 2 个不同的 virtual_now。不含任何路径或 case 内容 |
+| `eval/v2/spec/stage6-holdout-plan.json` | 只有分布约束：DEV 40、VALIDATION 40、holdout 25；每个 split 每个 scenario 至少 1 条（holdout 因此每个 scenario 恰好 1 条）；必需覆盖 A21、A22、A23、直接注入、间接注入、声称身份、故障、WAITING_APPROVAL、自动执行 EXECUTED、审批后 EXECUTED、REJECTED、STALE、DENIED、FAILED；必需 final 为全部五类 `answer`、`refuse`、`handoff`、`boundary`、`action`（6.4A.1 修正）；两个 persona；≥ 2 个不同的 virtual_now。不含任何路径或 case 内容 |
 | `eval/v2/stage6_case_contract.py` | 只依赖标准库：按路径加载冻结的 `case_contract.py`，用它的 `schema_errors` / `lint_schema` 校验 Stage 6 schema，再加 §19.2 的全部跨字段规则（1–11）、action_faults 形状规则与预期终态一致性规则；用一个只读字面量的小 INSERT 读取器读冻结 seed（测试证明与真实 Stage 6 数据库逐行相同），以检查 mutate 的版本递增、键存在性、同一商品进行中售后单 / 未关闭工单唯一与外键；`dataset_plan_errors(cases, split)` 校验分布 |
 
 ### Case 格式要点
@@ -2330,7 +2330,7 @@ A21-a / b / c / d、A22-a / b / c / d、A23 reject / reject→approve（冲突�
 ### 有意的测试调整
 
 - `tests/test_v2_tool_registry.py`：动作名白名单加入五个 Stage 6.4 eval 模块。
-- `tests/test_v2_eval_runtime.py::test_runtime_is_decoupled_from_unseal_and_holdout`：原测试禁止 eval 包中任何可执行字符串含 `holdout` / `unseal` / `receipt`，其中 `receipt` 针对作者回执文件（`eval/v2/*-author-receipt.json`）。Stage 6 评测模块必须使用领域表名 `action_receipts`。改为：五个 Stage 6.4 eval 模块用 `holdout`、`unseal`、`author-receipt`、`author_receipt` 检查；其他所有模块保持原词表不变。不采用改写字符串来绕过扫描的做法。
+- `tests/test_v2_eval_runtime.py::test_runtime_is_decoupled_from_unseal_and_holdout`：原测试禁止 eval 包中任何可执行字符串含 `holdout` / `unseal` / `receipt`，其中 `receipt` 针对作者回执文件（`eval/v2/*-author-receipt.json`）。Stage 6 评测模块必须使用领域表名 `action_receipts`。改为：五个 Stage 6.4 eval 模块用面向文件 / 路径的私有作者 / 封存工件模式检查（见下文 6.4A.1）；其他所有模块保持原词表不变。不采用改写字符串来绕过扫描的做法。
 - 6.3 的 `ActionRunRecord` 增加两个只在内存中的字段 `accepted_action`、`outcome`（不序列化），供 harness 回放与评分；6.3 runner 在读网关带故障账本时按 Stage 5 语义处理 malformed。
 
 ### 实现中的具体选择
@@ -2354,3 +2354,15 @@ A21-a / b / c / d、A22-a / b / c / d、A23 reject / reject→approve（冲突�
 - **不存在私有 Stage 6 holdout**：没有编写、封存或开封任何 holdout；没有作者 bundle、manifest 或导出 / 开封工具（属于 6.4B）。
 - **没有任何正式 LLM 运行**，也没有调整控制策略的 prompt。
 - 下一步 6.4B（review 之后）：冻结 bundle → 隔离作者上下文 → 在仓库外编写并封存 holdout → 再编写 DEV / VALIDATION。
+
+### 6.4A.1 review 修正（CONDITIONAL PASS 之后，评测器冻结之前）
+
+review 对 head `6c16296` 给出 CONDITIONAL PASS，只要求两处修正；评测器实现（契约、harness、B/F 比较器、L1–L6、指标、oracle、operator_script、故障注入、Guard 钩子、决定观察器）与冻结设计都没有改动，没有任何生产代码改动。
+
+1. **私有工件边界测试收紧**（`tests/test_v2_eval_runtime.py`）。Stage 6.4 eval 模块合法地使用执行回执这一业务概念（`action_receipts`、`receipt_id`、`receipt_write`、`one_receipt_per_execution`），所以不恢复对子串 `receipt` 的一刀切禁止；但上一版只查 `author-receipt` 太宽松，会放过封存回执文件名 / 路径。现在由测试中的小 helper `stage6_artifact_violations` 按面向文件 / 路径的模式（大小写不敏感）检查这五个模块的全部可执行字面量：`holdout`、`unseal`、`author-receipt`、`author_receipt`、`seal-receipt`、`seal_receipt`、`receipt.json`、`receipt_path`、`receipt_file`。测试证明 `seal-receipt.json`、`seal_receipt.json`、`/private/receipt.json`、`holdout.json`、`unseal_v2_holdout.py` 等被拦下，`action_receipts`、`receipt_id`、`receipt_write`、`receipt resource`、`one_receipt_per_execution` 被接受；Stage 4/5 的 eval 模块继续使用历史词表 `holdout` / `unseal` / `receipt`，语义不变（测试固定该词表）。
+2. **冻结全部五类最终结论**（`eval/v2/spec/stage6-holdout-plan.json`）。`required_final_values` 由 `["action", "answer"]` 改为恰好 `["answer", "refuse", "handoff", "boundary", "action"]`：Stage 6 必须同时正式覆盖 Stage 5 的四类无动作结论与新的动作路径。现在还没有任何私有数据集，此时冻结是正确时机。新测试把它钉到 `stage6-final-outcomes.json`：`set(required_final_values) == set(definitions)` == 这五个值。分布检查测试改用只含分布字段的合成 fixture（不是数据集内容），对 holdout 25 / DEV 40 / VALIDATION 40 三个 split 分别证明：一个其他方面都合规的 split 只要缺少任一类 final（answer / refuse / handoff / boundary / action），检查就恰好报告这一条；每个 split 每个 scenario 至少 1 条的规则保持不变（25 个 scenario、holdout 25 条，因此每个 scenario 恰好 1 条）。
+3. **不变的部分**：DEV 40 / VALIDATION 40 / holdout 25；`per_scenario_min = 1`；scenario 词表；`action_selection_ok` 的语义（`expected_action == null` 时要求没有被接受的 ActionIntent，且没有被协议拒绝的已知 Stage 6 动作调用，符合 §19.3）；Guard 读取钩子与决定观察器（API 不扩展）。
+
+测试：`tests/test_v2_eval_runtime.py` 62 → 65（+3）；`tests/test_v2_stage6_case_contract.py` 25 → 28（+3）；6.4A 四个模块共 101；全量本地离线套件 **2470 个测试，0 失败，0 错误，0 跳过**，排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
+
+数据集状态不变：没有 `stage6-dev.json`、`stage6-validation.json`、作者 bundle、私有 holdout、holdout manifest，也没有任何正式 LLM 运行。
