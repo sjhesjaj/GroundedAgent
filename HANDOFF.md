@@ -2380,7 +2380,7 @@ review 对 head `6c16296` 给出 CONDITIONAL PASS，只要求两处修正；评�
 
 ### 作者 bundle（27 个文件）
 
-- 输入 manifest `eval/v2/stage6-holdout-input.manifest.json`（`v2-stage6-holdout-input-manifest/1`，`base_commit` = `44efea2`，LF 规范化 sha256），**content digest `942c05c5992bd8f01b82583cea3d1365f152f8c79e812a83f8676b8f092df84a`**。
+- 输入 manifest `eval/v2/stage6-holdout-input.manifest.json`（`v2-stage6-holdout-input-manifest/1`，`base_commit` = `44efea2`，LF 规范化 sha256），content digest `942c05c5…df84a`（已被 6.4B.1 取代，最终值见下）。
 - 内容：作者 brief、Stage 6 领域规格、Stage 4/5 只读领域规格、规则发布清单；Stage 6 的五个 spec 与 Stage 4/5 的五个 spec（`case.schema.json`、`slots.json`、`personas.json`、`archetypes.json`、`final-outcomes.json`）；三个只依赖标准库的检查器（`case_contract.py`、`stage6_case_contract.py`、`stage6_dataset_receipt.py`）；两个表结构 SQL；两个 seed；六个规则语料。
 - 排除：全部设计文档（含 `stage6-design.md` 与本阶段设计）、`eval_v2/`、`aftersales/*.py`、`orchestration/`、`tests/`、`tools/`、`HANDOFF.md`、`AGENTS.md`、Stage 5 的 `holdout-plan.json` 与全部 Stage 4/5 数据集 / 回执 / 结果、任何 Stage 6 数据集或 oracle 输出。
 - 导出工具 `tools/export_v2_stage6_author_bundle.py`：与 Stage 4/5 工具同样的机制（新文件；旧工具、旧 manifest 与 17 个旧冻结输入都不变，测试核对旧摘要 `7b3d4684…`）；显式允许清单 + 路径 token 禁止表（另加 `design`、`prompt`、`prompts`、`oracle`、`scoring`、`results`、`harness`、`loop`、`agent`）+ 代码只允许三个标准库检查器；fail-closed，目标必须在仓库外且为空，bundle 根目录写 `bundle-manifest.json`。
@@ -2400,3 +2400,16 @@ review 对 head `6c16296` 给出 CONDITIONAL PASS，只要求两处修正；评�
 
 - 没有 `stage6-dev.json`、`stage6-validation.json`、私有 holdout、封存 manifest（`eval/v2/stage6-holdout.manifest.json`）或开封工具；没有任何正式 LLM 运行。
 - 下一步（合入之后，由人发起）：在仓库外导出 bundle，启动全新的隔离作者上下文编写 holdout（split = holdout，提供 freeze commit）；作者只报告 sha256 与分布。之后实现会话提交封存 manifest 与开封工具。
+
+### 6.4B.1 review 修正（CONDITIONAL PASS 之后，bundle 冻结之前）
+
+review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.json` 当作自己的信任锚（被改过的清单可以删 / 增 / 重算文件哈希并重算自己的摘要）；bundle 中多出的文件只被忽略。修正（bundle 设计、27 个输入、split 规模与流程都不变；没有评测器生产代码改动）：
+
+- **带外摘要锚**：回执 CLI 必须给出 `--expected-bundle-digest <64 位小写十六进制>`，由启动作者的人提供，取自冻结的仓库清单；重新计算的 bundle 摘要必须与它相等，回执的 `input_bundle_digest` 就是这个核对过的值。
+- **精确文件树**：bundle 中恰好是清单列出的文件加 `bundle-manifest.json`，没有其他文件、目录（含空 `__pycache__`）或符号链接；每个文件的 sha256 与字节数一致。清单结构严格校验（schema、`hash_normalization`、字段集合、普通相对路径、唯一且排序、64 位小写 sha256、非负整数字节数），畸形字段一律拒绝而不是崩溃。
+- **只读 bundle**：数据集与回执必须解析到 bundle 之外（跟随 `..` 与符号链接）；工具以 `sys.dont_write_bytecode` 加载检查器，自身运行不产生任何文件；brief 的自查与回执命令改用 `python -B`。
+- 作者 brief 与 6.4B 设计（§2.4）同步：启动作者时提供恰好 split、freeze merge commit、期望的输入 bundle 摘要三样东西；作者不得从本地清单推算期望摘要。
+- 测试 `tests/test_v2_stage6_author_bundle.py` 25 → 38：A 删输入并重算摘要、B 加输入并重算摘要、C 改哈希并重算摘要、D 期望摘要错误、E 根目录多文件、F 嵌套的实现文件 / 其他数据集 / 旧回执 / 临时文件、G `__pycache__`（空目录与 `.pyc`）、H 回执在 bundle 内（含 `..` 穿越）、I 数据集在 bundle 内、J 畸形清单（穿越、绝对、反斜杠、盘符、隐藏、非字符串、重复、未排序、大写 / 短 sha、多余字段、缺字段、schema、hash_normalization、非 JSON）、K 字节数不符（含字符串 / 布尔 / 负数）全部拒绝且不写回执；摘要缺失或格式不对时拒绝；正向端到端：导出干净 bundle，以仓库清单的摘要作为期望值，核对后的 `input_bundle_digest` 等于它；CLI 无论是否用 `-B` 都不在 bundle 中产生文件。
+- 最后按同一 base 约定（`44efea2`）重新生成输入清单：**27 个文件，最终 content digest `15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371`**（只有 brief 与回执工具两个条目变化）。
+- 全量本地离线套件：**2508 个测试，0 失败，0 错误，0 跳过**；排除且只排除 `tests.test_llm_provider_live`（2 个）；没有 DeepSeek 调用。
+- 数据集状态不变：没有 Stage 6 数据集、私有 holdout、封存 manifest 或开封工具，没有导出真实的冻结 bundle，也没有启动作者。

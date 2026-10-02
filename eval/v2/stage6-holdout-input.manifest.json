@@ -3,7 +3,7 @@
   "description": "The only files an isolated Stage 6 case author may read (stage6-design §21, docs/v2/stage6-4b-design.md). sha256 is over LF-normalized content. content_digest covers schema and (path, sha256) pairs only.",
   "base_commit": "44efea23ae12fb9ee659139afec152d75768389e",
   "hash_normalization": "crlf-to-lf",
-  "content_digest": "942c05c5992bd8f01b82583cea3d1365f152f8c79e812a83f8676b8f092df84a",
+  "content_digest": "15ac3593ce55a0b7d04d4f3522ebabc370bf57c98b1dcdef89472e34e9d5d371",
   "files": [
     {
       "path": "aftersales/action_schema.sql",
@@ -27,8 +27,8 @@
     },
     {
       "path": "docs/v2/stage6-author-brief.md",
-      "sha256": "6e1f6b37c9a0cd6dd68368b15618deda839814b925fab7770c5bc59018b6be09",
-      "bytes": 5770
+      "sha256": "32e86deda4393fe2708a46c96eb24227135e6ad3e19c70c174805ba721b271f0",
+      "bytes": 7182
     },
     {
       "path": "docs/v2/stage6-domain-spec.md",
@@ -97,8 +97,8 @@
     },
     {
       "path": "eval/v2/stage6_dataset_receipt.py",
-      "sha256": "210e62beb07dd3e49ad76ce400cf63cbbadc334723476fbab61e5f38b61d9e01",
-      "bytes": 9105
+      "sha256": "8fa671a9b2a4383042c1a3e212c3f99f700982e8994a29ac24f3606ea19842e6",
+      "bytes": 15208
     },
     {
       "path": "policy_sources/apparel-exchange.md",

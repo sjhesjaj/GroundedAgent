@@ -57,6 +57,16 @@
 - **冻结规则：** 本 PR 合入后，27 个文件在 Stage 6 holdout 开封之前不可修改。封存 manifest 与开封工具会重新核对它们（与 Stage 4/5 相同的做法），所以任何修改都会阻止开封。若 review 之后发现必须修改其中的文件，只能在封存之前、以新的 freeze commit 重新冻结，并在 HANDOFF 记录原因；holdout 一旦以某个 freeze commit 编写，就不能再改那些文件。
 - 评测实现（`eval_v2/` 的 harness、比较器、评分器）不在 bundle 中，但 Stage 6 harness 加载的是同一个 `eval/v2/stage6_case_contract.py`，所以契约的语义随 bundle 一起冻结。
 
+### 2.4 信任锚与只读 bundle（6.4B.1 冻结）
+
+review 发现：如果回执工具只信任 bundle 自带的 `bundle-manifest.json`，一个被改过的清单可以删掉、增加或重算某个文件的哈希并重算自己的摘要；多出来的文件也只会被忽略。以下规则随 bundle 一起冻结：
+
+1. **bundle 清单不是它自己的信任锚。** 期望的输入 bundle 摘要由启动作者的人在带外提供，取自 review 之后冻结的仓库清单（`eval/v2/stage6-holdout-input.manifest.json` 的 `content_digest`，即导出工具输出的值）。回执工具重新计算 bundle 的摘要，必须与 `--expected-bundle-digest` 完全相等（64 位小写十六进制），否则拒绝；回执中的 `input_bundle_digest` 就是这个经过核对的值。作者不得从本地 bundle 清单读取或推算期望摘要。
+2. **文件集合必须精确。** 导出的 bundle 目录中恰好是清单列出的文件加 `bundle-manifest.json`：没有其他文件（额外的 `.md` / `.json` / `.py`、其他数据集、实现文件、旧回执、临时输出），没有其他目录（包括空的 `__pycache__`），没有符号链接；每个文件的 LF 规范化 sha256 与字节数都与清单一致。多出的文件不是被忽略，而是拒绝。这使回执中的 `frozen_bundle_only = true` 有机器可核验的依据。
+3. **清单结构严格校验。** `schema`、`input_manifest_schema` 精确匹配，`hash_normalization == "crlf-to-lf"`，字段集合精确；`files` 非空；路径是唯一、排序、普通的相对路径（不得绝对、不得 `..`、不得反斜杠或盘符、不得以 `.` 开头）；sha256 为 64 位小写十六进制；字节数为非负整数并与实际一致；摘要能精确重算。任何畸形字段都映射为拒绝，不会以异常崩溃。
+4. **bundle 只读。** 数据集与回执都必须解析到 bundle 之外（跟随 `..` 与符号链接之后判断）；回执工具不在 bundle 中写任何东西：它以 `sys.dont_write_bytecode` 加载检查器，不产生 `__pycache__`。作者的自查与回执命令都用 `python -B`；以编程方式导入检查器时，导入方的进程也必须用 `-B`（导入时的字节码缓存由导入方决定）。
+5. **启动作者时提供恰好三样东西**：split、freeze merge commit、期望的输入 bundle 摘要。
+
 ## 3. 作者 brief（`docs/v2/stage6-author-brief.md`）
 
 brief 随 bundle 冻结，避免不同作者收到不同的口头指示。它规定：
@@ -71,7 +81,7 @@ brief 随 bundle 冻结，避免不同作者收到不同的口头指示。它规
 
 `eval/v2/stage6_dataset_receipt.py` 只依赖标准库，在导出的 bundle 根目录运行：
 
-1. **核对 bundle**：按 `bundle-manifest.json` 重新计算每个文件的 sha256 与内容摘要；bundle 被改动则拒绝。
+1. **核对路径与 bundle**：数据集与回执都在 bundle 之外；严格校验 `bundle-manifest.json`，重新计算摘要并要求它等于带外提供的期望摘要；bundle 文件集合精确，每个文件的 sha256 与字节数一致（§2.4）。任何一处不通过都拒绝。
 2. **核对数据集**：UTF-8 JSON 数组；每个 case 通过 `stage6_case_contract.case_errors`；case_id 唯一；`dataset_plan_errors(cases, split)` 为空。任何一处不通过都拒绝，不产生回执。
 3. **写出回执**：字段恰好是 `schema`、`split`、`freeze_merge_commit`、`input_bundle_digest`、`input_file_count`、`dataset_sha256`（原始字节）、`case_count`、`scenario_counts`、`archetype_counts`、`final_counts`、`final_status_counts`、`persona_counts`、`distinct_virtual_now`、`contract_validation`、`plan_validation`、`author_context`。`author_context` 是固定的隔离声明（全新隔离上下文、只读冻结 bundle、看不到实现、看不到其他数据集、看不到失败分析、0 次系统运行、0 次 oracle 运行、没有外部资料），作者必须显式 `--attest-isolated` 才会写出；不能如实声明时不得使用。
 4. 回执不含路径，不含任何 case 内容。
@@ -80,7 +90,7 @@ brief 随 bundle 冻结，避免不同作者收到不同的口头指示。它规
 
 ## 5. Holdout 的编写与封存（下一步，不在本 PR）
 
-1. 人（不是实现会话）在仓库外导出 bundle，启动一个全新的隔离作者上下文，告诉它 split = `holdout` 与 freeze commit，只把 bundle 交给它。
+1. 人（不是实现会话）在仓库外导出 bundle，核对导出工具输出的摘要等于冻结的仓库清单摘要，然后启动一个全新的隔离作者上下文，只把 bundle 交给它，并告诉它恰好三样东西：split = `holdout`、freeze commit、期望的输入 bundle 摘要。
 2. 作者在仓库外写出 holdout 文件与回执，报告只含 sha256 与分布。实现会话**不获知**路径与内容。
 3. 实现会话据报告提交封存：`eval/v2/stage6-holdout.manifest.json`（schema `v2-stage6-sealed-holdout-manifest/1`，状态 sealed）记录 freeze commit、输入摘要与文件数、holdout sha256、回执 sha256、条数、scenario / archetype / final / final_status / persona 分布、校验结果与作者声明，以及「隔离是流程与上下文上的隔离，不是文件系统权限」的说明；不含路径或内容。同一 PR 预先提交开封工具 `tools/unseal_v2_stage6_holdout.py`。
 4. 开封工具（与 Stage 4/5 的开封工具同样的规程）：工作区干净、封存 manifest 与钉住的值一致、从未开封过；重新核对 27 个冻结输入与摘要；核对回执原始字节的 sha256 与逐字段内容；核对 holdout 原始字节的 sha256、契约与分布；原样复制（不重新序列化）到仓库并再次核对；不提交 commit。两个文件的位置由人在开封时提供，工具本身不知道、不搜索、不推导它们的位置。
@@ -102,6 +112,6 @@ brief 随 bundle 冻结，避免不同作者收到不同的口头指示。它规
 
 - 输入 manifest 与仓库当前文件逐字节一致、可重复生成；允许清单恰好 27 个文件；没有实现、设计、测试、开发记录或任何数据集；只有三个标准库检查器是代码。
 - 导出的 bundle 自足：在 `-I -S`（没有仓库、没有 site-packages）下运行契约检查器与回执工具，不加载任何非标准库模块；契约的词表一致性检查为空；回执工具能核对 bundle。
-- 回执工具 fail-closed：没有隔离声明、bundle 被改动、数据集无效、case_id 重复或不满足分布约束时都拒绝且不写文件。
+- 回执工具 fail-closed：没有隔离声明、期望摘要缺失或格式不对、bundle 清单自证（删 / 增 / 重算哈希后重算摘要）、期望摘要不符、文件集合不精确（额外文件、嵌套的实现文件、`__pycache__`）、清单字段畸形、字节数不符、数据集或回执在 bundle 之内、数据集无效、case_id 重复或不满足分布约束时都拒绝且不写文件；回执工具自身运行不会在 bundle 中产生任何文件。
 - Stage 4/5 的 17 个冻结作者输入与其摘要 `7b3d4684…` 不变。
 - 仓库中仍然没有任何 Stage 6 数据集、私有 holdout、封存 manifest 或开封工具，没有任何正式 LLM 运行。

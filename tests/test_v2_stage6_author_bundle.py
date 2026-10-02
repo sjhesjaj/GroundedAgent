@@ -50,6 +50,11 @@ def dataset_bytes(*cases) -> bytes:
     return json.dumps(list(cases), ensure_ascii=False, indent=1).encode("utf-8")
 
 
+def tree(root: Path) -> list[str]:
+    """Every file and directory under root, relative POSIX, sorted."""
+    return sorted(p.relative_to(root).as_posix() + ("/" if p.is_dir() else "") for p in root.rglob("*"))
+
+
 class ManifestTests(unittest.TestCase):
     def setUp(self):
         self.manifest = bundle.load_manifest()
@@ -188,8 +193,8 @@ def load(name, path):
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
 c6 = load("c6", "eval/v2/stage6_case_contract.py")
 tool = load("tool", "eval/v2/stage6_dataset_receipt.py")
-cases, invalid = json.load(sys.stdin)
-digest, count = tool.verify_bundle()
+cases, invalid, expected = json.load(sys.stdin)
+digest, count = tool.verify_bundle(expected_digest=expected)
 class Stub:
     case_errors = staticmethod(c6.case_errors)
     @staticmethod
@@ -204,9 +209,12 @@ print(json.dumps({"vocab": c6.vocabulary_errors(), "valid": [c6.case_errors(c) f
                                     and m not in ("__main__", "c6", "tool")),
                   "path": sys.path}))
 '''
-        run = subprocess.run([sys.executable, "-I", "-S", "-c", script], cwd=out,
-                             input=json.dumps([cases, invalid]), capture_output=True, text=True,
+        expected = bundle.load_manifest()["content_digest"]
+        before = tree(out)
+        run = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", script], cwd=out,
+                             input=json.dumps([cases, invalid, expected]), capture_output=True, text=True,
                              encoding="utf-8", timeout=120)
+        self.assertEqual(tree(out), before)  # the bundle is input-only
         self.assertEqual(run.returncode, 0, run.stderr)
         result = json.loads(run.stdout)
         self.assertEqual(result["vocab"], [])
@@ -326,38 +334,226 @@ class ReceiptTests(unittest.TestCase):
                 with self.assertRaises(receipt_tool.ReceiptRefused):
                     self.build(data, **overrides)
 
-    def run_cli(self, cwd: Path, *args: str):
-        return subprocess.run([sys.executable, "-I", "-S", "-X", "utf8", "eval/v2/stage6_dataset_receipt.py",
-                               *args],
-                              cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=120)
+    def test_the_bundle_digest_must_be_well_formed(self):
+        for value in ("abc", "D" * 64, "g" * 64, 64, None):
+            with self.subTest(value=value):
+                with self.assertRaises(receipt_tool.ReceiptRefused):
+                    self.build(dataset_bytes(support.exchange_case("r-1")), input_bundle_digest=value)
 
-    def test_cli_is_fail_closed_from_a_bundle(self):
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, True)
-        out = tmp / "bundle"
-        bundle.export_bundle(out)
-        dataset = tmp / "dataset.json"
-        dataset.write_bytes(dataset_bytes(support.exchange_case("r-1")))
-        common = ["--split", "holdout", "--freeze-commit", "a" * 40, str(dataset)]
-        run = self.run_cli(out, *common)  # no attestation
-        self.assertEqual(run.returncode, 1)
-        self.assertIn("--attest-isolated", run.stderr)
-        run = self.run_cli(out, "--attest-isolated", "--out", str(tmp / "receipt.json"), *common)
-        self.assertEqual(run.returncode, 1)  # one case does not meet the holdout plan
-        self.assertIn("distribution plan", run.stderr)
-        self.assertFalse((tmp / "receipt.json").exists())
-        (out / "eval/v2/spec/stage6-scenarios.json").write_text("{}", encoding="utf-8")
-        run = self.run_cli(out, "--attest-isolated", *common)
-        self.assertEqual(run.returncode, 1)
-        self.assertIn("bundle file was changed", run.stderr)
 
-    def test_cli_refuses_outside_a_bundle(self):
-        err, out = io.StringIO(), io.StringIO()
-        with redirect_stderr(err), redirect_stdout(out):
-            code = receipt_tool.main(["--split", "dev", "--freeze-commit", "a" * 40, "--attest-isolated",
-                                      str(ROOT / "eval/v2/spec/stage6-scenarios.json")])
-        self.assertEqual(code, 1)
-        self.assertIn("exported Stage 6 author bundle", err.getvalue())
+class BundleAttestationTests(unittest.TestCase):
+    """The receipt trusts an out-of-band expected digest and an exact, input-only bundle tree."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.bundle = self.tmp / "bundle"
+        exported = bundle.export_bundle(self.bundle)
+        self.expected = bundle.load_manifest()["content_digest"]  # the trusted, reviewed value
+        self.assertEqual(exported["content_digest"], self.expected)
+        self.dataset = self.tmp / "dataset.json"
+        self.dataset.write_bytes(dataset_bytes(support.exchange_case("r-1")))
+        self.receipt = self.tmp / "receipt.json"
+
+    def cli(self, *, digest=None, out=None, dataset=None, flags=("-B",), attest=True):
+        command = [sys.executable, "-I", "-S", "-X", "utf8", *flags, "eval/v2/stage6_dataset_receipt.py",
+                   "--split", "holdout", "--freeze-commit", "a" * 40,
+                   "--expected-bundle-digest", self.expected if digest is None else digest,
+                   "--out", str(self.receipt if out is None else out),
+                   str(self.dataset if dataset is None else dataset)]
+        if attest:
+            command.insert(command.index("--out"), "--attest-isolated")
+        return subprocess.run(command, cwd=self.bundle, capture_output=True, text=True,
+                              encoding="utf-8", timeout=120)
+
+    def assert_refused(self, run, fragment, out=None):
+        self.assertEqual(run.returncode, 1, run.stderr)
+        self.assertIn("refused", run.stderr)
+        self.assertIn(fragment, run.stderr)
+        self.assertFalse((self.receipt if out is None else out).exists())
+
+    def manifest(self) -> dict:
+        return json.loads((self.bundle / bundle.BUNDLE_MANIFEST_NAME).read_text(encoding="utf-8"))
+
+    def write_manifest(self, manifest: dict, *, redigest: bool = True) -> None:
+        if redigest:  # the attacker recomputes the manifest's own digest
+            manifest["content_digest"] = receipt_tool.content_digest(bundle.MANIFEST_SCHEMA, manifest["files"])
+        (self.bundle / bundle.BUNDLE_MANIFEST_NAME).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    def entry_for(self, relative: str) -> dict:
+        data = (self.bundle / relative).read_bytes().replace(b"\r\n", b"\n")
+        return {"path": relative, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+
+    # -- the positive path ---------------------------------------------------------
+
+    def test_a_clean_bundle_verifies_against_the_external_digest(self):
+        before = tree(self.bundle)
+        script = r'''
+import importlib.util, json, sys
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
+tool = load("tool", "eval/v2/stage6_dataset_receipt.py")
+cases, expected = json.load(sys.stdin)
+digest, count = tool.verify_bundle(expected_digest=expected)
+real = tool.load_contract()
+class Stub:
+    case_errors = staticmethod(real.case_errors)
+    @staticmethod
+    def dataset_plan_errors(cases, split): return []
+built = tool.build_receipt(json.dumps(cases).encode("utf-8"), split="holdout", freeze_merge_commit="a" * 40,
+                           input_bundle_digest=digest, input_file_count=count, contract=Stub)
+print(json.dumps({"digest": digest, "count": count, "receipt_digest": built["input_bundle_digest"]}))
+'''
+        # Programmatic use runs under -B, as the brief says: an importer's own process decides
+        # whether the imported tool module is cached. The CLI suppresses bytecode itself
+        # (test_the_cli_never_writes_into_the_bundle).
+        run = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", script], cwd=self.bundle,
+                             input=json.dumps([[support.exchange_case("r-1"), support.a23()], self.expected]),
+                             capture_output=True, text=True, encoding="utf-8", timeout=120)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        result = json.loads(run.stdout)
+        self.assertEqual((result["digest"], result["receipt_digest"], result["count"]),
+                         (self.expected, self.expected, 27))
+        self.assertEqual(tree(self.bundle), before)  # nothing was added to the bundle
+
+    def test_the_cli_never_writes_into_the_bundle(self):
+        before = tree(self.bundle)
+        for flags in (("-B",), ()):  # the tool itself suppresses bytecode
+            with self.subTest(flags=flags):
+                run = self.cli(flags=flags)
+                self.assert_refused(run, "distribution plan")  # got all the way to the contract
+                self.assertEqual(tree(self.bundle), before)
+
+    def test_the_external_digest_and_the_attestation_are_required(self):
+        run = self.cli(attest=False)
+        self.assert_refused(run, "--attest-isolated")
+        for value in ("abc", self.expected.upper(), self.expected[:-1]):
+            with self.subTest(value=value):
+                self.assert_refused(self.cli(digest=value), "64 lowercase hex")
+        command = [sys.executable, "-I", "-S", "-B", "eval/v2/stage6_dataset_receipt.py", "--split", "holdout",
+                   "--freeze-commit", "a" * 40, "--attest-isolated", "--out", str(self.receipt), str(self.dataset)]
+        run = subprocess.run(command, cwd=self.bundle, capture_output=True, text=True, encoding="utf-8",
+                             timeout=120)
+        self.assertNotEqual(run.returncode, 0)  # --expected-bundle-digest is a required argument
+        self.assertFalse(self.receipt.exists())
+
+    # -- A-D: the bundle manifest is not its own authority --------------------------
+
+    def test_a_dropped_input_with_a_recomputed_digest(self):
+        manifest = self.manifest()
+        dropped = manifest["files"].pop(0)
+        (self.bundle / dropped["path"]).unlink()
+        self.write_manifest(manifest)
+        self.assert_refused(self.cli(), "differs from the expected bundle digest")
+
+    def test_b_added_input_with_a_recomputed_digest(self):
+        (self.bundle / "docs/v2/extra-guidance.md").write_text("x", encoding="utf-8")
+        manifest = self.manifest()
+        manifest["files"] = sorted(manifest["files"] + [self.entry_for("docs/v2/extra-guidance.md")],
+                                   key=lambda entry: entry["path"])
+        self.write_manifest(manifest)
+        self.assert_refused(self.cli(), "differs from the expected bundle digest")
+
+    def test_c_rehashed_input_with_a_recomputed_digest(self):
+        target = "eval/v2/spec/stage6-holdout-plan.json"
+        (self.bundle / target).write_bytes((self.bundle / target).read_bytes() + b" ")
+        manifest = self.manifest()
+        manifest["files"] = [self.entry_for(target) if entry["path"] == target else entry
+                             for entry in manifest["files"]]
+        self.write_manifest(manifest)
+        self.assert_refused(self.cli(), "differs from the expected bundle digest")
+
+    def test_d_wrong_expected_digest(self):
+        self.assert_refused(self.cli(digest="f" * 64), "differs from the expected bundle digest")
+
+    # -- E-G: the tree is exact ---------------------------------------------------
+
+    def test_e_extra_file_at_the_root(self):
+        (self.bundle / "notes.md").write_text("draft", encoding="utf-8")
+        self.assert_refused(self.cli(), "file set is not exact")
+
+    def test_f_extra_implementation_file_nested(self):
+        (self.bundle / "eval_v2").mkdir()
+        (self.bundle / "eval_v2" / "action_loop.py").write_text("x = 1\n", encoding="utf-8")
+        self.assert_refused(self.cli(), "file set is not exact")
+        shutil.rmtree(self.bundle / "eval_v2")
+        for extra in ("eval/v2/stage6-dev.json", "eval/v2/old-receipt.json", "docs/v2/tmp.out"):
+            (self.bundle / extra).write_text("{}", encoding="utf-8")
+            with self.subTest(extra=extra):
+                self.assert_refused(self.cli(), "file set is not exact")
+            (self.bundle / extra).unlink()
+
+    def test_g_python_cache(self):
+        cache = self.bundle / "eval/v2/__pycache__"
+        cache.mkdir()
+        self.assert_refused(self.cli(), "extra directory")  # even an empty cache directory
+        (cache / "stage6_case_contract.cpython-312.pyc").write_bytes(b"\x00")
+        self.assert_refused(self.cli(), "file set is not exact")
+
+    # -- H-I: the bundle is input-only -----------------------------------------------
+
+    def test_h_receipt_inside_the_bundle(self):
+        for out in (self.bundle / "receipt.json", self.bundle / "eval" / ".." / "receipt.json",
+                    self.bundle / "eval/v2/receipt.json"):
+            with self.subTest(out=str(out)):
+                self.assert_refused(self.cli(out=out), "outside the bundle", out=out)
+        self.assertFalse((self.bundle / "receipt.json").exists())
+
+    def test_i_dataset_inside_the_bundle(self):
+        inside = self.bundle / "dataset.json"
+        shutil.copyfile(self.dataset, inside)
+        self.assert_refused(self.cli(dataset=inside), "outside the bundle")
+        traversal = self.bundle / "eval" / ".." / "dataset.json"
+        self.assert_refused(self.cli(dataset=traversal), "outside the bundle")
+
+    # -- J-K: the manifest itself is strictly validated -------------------------------
+
+    def test_j_malformed_manifest_entries(self):
+        original = self.manifest()
+        variants = {
+            "traversal": lambda m: m["files"][0].update(path="../outside.md"),
+            "absolute": lambda m: m["files"][0].update(path="/abs.md"),
+            "backslash": lambda m: m["files"][0].update(path="docs\\x.md"),
+            "drive": lambda m: m["files"][0].update(path="C:/x.md"),
+            "hidden": lambda m: m["files"][0].update(path=".hidden/x.md"),
+            "not a string": lambda m: m["files"][0].update(path=5),
+            "manifest name": lambda m: m["files"][0].update(path="bundle-manifest.json"),
+            "unsorted": lambda m: m["files"].reverse(),
+            "duplicate": lambda m: m["files"].append(dict(m["files"][-1])),
+            "upper sha": lambda m: m["files"][0].update(sha256=m["files"][0]["sha256"].upper()),
+            "short sha": lambda m: m["files"][0].update(sha256="ab"),
+            "extra entry key": lambda m: m["files"][0].update(note="x"),
+            "entry not an object": lambda m: m["files"].__setitem__(0, "x"),
+            "no files": lambda m: m.update(files=[]),
+            "files not a list": lambda m: m.update(files={}),
+            "schema": lambda m: m.update(schema="v2-author-bundle/1"),
+            "input schema": lambda m: m.update(input_manifest_schema="x"),
+            "normalization": lambda m: m.update(hash_normalization="none"),
+            "extra field": lambda m: m.update(note="x"),
+            "missing field": lambda m: m.pop("base_commit"),
+        }
+        for label, mutate in variants.items():
+            manifest = copy.deepcopy(original)
+            mutate(manifest)
+            self.write_manifest(manifest, redigest=False)
+            with self.subTest(variant=label):
+                run = self.cli()
+                self.assert_refused(run, "bundle")
+                self.assertNotIn("Traceback", run.stderr)
+        (self.bundle / bundle.BUNDLE_MANIFEST_NAME).write_text("{not json", encoding="utf-8")
+        self.assert_refused(self.cli(), "not UTF-8 JSON")
+
+    def test_k_incorrect_byte_counts(self):
+        original = self.manifest()
+        for label, value in (("off by one", original["files"][0]["bytes"] + 1), ("string", "12"),
+                             ("bool", True), ("negative", -1)):
+            manifest = copy.deepcopy(original)
+            manifest["files"][0]["bytes"] = value
+            self.write_manifest(manifest)  # bytes are not part of the digest
+            with self.subTest(variant=label):
+                fragment = "byte count does not match" if label == "off by one" else "non-negative integer"
+                self.assert_refused(self.cli(), fragment)
 
 
 class DatasetStateTests(unittest.TestCase):
