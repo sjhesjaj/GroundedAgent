@@ -97,18 +97,23 @@ Extracting a neutral agent package is a later, separately reviewed step.
 ### Clarification pause and resume
 
 A *control run* is one Stage 6 run: at most `STAGE6_MAX_STEPS = 6` decisions.
+Control steps are **run-relative**, exactly as in the frozen Stage 6 control
+contract: every run starts at `step_number = 1` with `remaining_steps = 6`, and
+`ActionControlState.step_number` and `ToolObservation.control_step` stay within
+1..6 of their run.
 
 - **Pausing.** When the policy returns `Clarify(slots)`, the run **pauses**:
   - the response carries `status = NEEDS_CLARIFICATION`, `clarification.slots`, and a fixed prompt per slot (never model text);
   - control returns to HTTP;
   - nothing is pre-scripted.
-- **Resuming.** The next customer message is delivered **into the same run**. The new decision sees every earlier user message and observation, `step_number` continues, and `remaining_steps` continues from the same 6-step budget.
-- **State is plain data.** Conversation state is the messages, the observations, the step counters and the open run. No policy object survives between requests. Observations from earlier requests are replayed to the model with the policy's own synthetic call ids (`formal=False`).
+- **Resuming.** The next customer message is delivered **into the same run**. The new decision sees every earlier user message and the run's observations, and the run's numbering continues: a clarification at step 1 is followed by step 2 with `remaining_steps = 5`.
+- **State is plain data.** Conversation state is the messages, the observations, the open run (with its run-relative step count) and the conversation-global counters. No policy object survives between requests. Observations from earlier requests are replayed to the model with the policy's own synthetic call ids (`formal=False`).
 
 The other ways a run ends:
-- `Finish` ends the run. `answer` produces one generation call over the label-free evidence of the conversation's observations, with citations validated against the offered sources. `refuse`, `handoff` and `boundary` use the frozen fixed texts.
+- `Finish` ends the run. `answer` produces one generation call over the label-free evidence of the run's observations, with citations validated against the offered sources. `refuse`, `handoff` and `boundary` use the frozen fixed texts.
 - `ActionIntent` ends the run with one `start_action`.
-- A later run (for example a return request after an order question) sees every earlier customer message but only its **own** observations, and gets a fresh 6-step budget. This matches the evaluated runs: answers are grounded in reads made in the same run, never in stale reads from an earlier one, and the frozen retry cap (3 identical calls) stays per run. Steps are numbered across the conversation so that observation ids and call ids stay unique.
+- A later, independent run (for example a return request after an order question) **restarts at `step_number = 1` with `remaining_steps = 6`**. It sees every earlier customer message but only its **own** observations. This matches the evaluated runs: answers are grounded in reads made in the same run, never in stale reads from an earlier one, and the frozen retry cap (3 identical calls) stays per run.
+- **Conversation-global sequencing is kept apart from control steps.** The run index, the tool step and the observation sequence only grow. Observation ids (`turn:<message>:tool:<tool step>`) and trace identifiers (`run`, `step`) therefore stay unique across the whole conversation, even though step numbers restart in every run.
 
 ### Approval pause and resume
 
@@ -162,8 +167,8 @@ with 422. Session ids must match `^[0-9a-f]{32}$`.
   - `receipt {receipt_id, resource_type, resource_id}`;
   - `idempotent_replay`, `decision_conflict`, plus the validated `arguments`.
 - `trace`:
-  - `steps`: per control step, the kind, the tool name, arguments and result status, the clarification slots, the finish disposition, or the proposed action name with its `args_sha256`;
-  - `model_calls`: the policy's decision records (counts, function names, diagnostic codes).
+  - `steps`: per control step, `run` (conversation-global run index) and `step` (run-relative, 1..6), then the kind, the tool name, arguments, result status and observation id, the clarification slots, the finish disposition, or the proposed action name with its `args_sha256`;
+  - `model_calls`: the policy's decision records (counts, function names, diagnostic codes), each tagged with its `run`; `control_step` is run-relative.
 - `audit`: this conversation's `action_audit_events`. Each event has `event_seq`, `event_name`, `action_name`, `pending_action_id`, `receipt_id`, `phase`, `decision`, `code`, `approver_ref` and `at`.
 
 **Decision response:** the turn response shape with `reply.kind = operator_decision` and `trace = null`, plus `operator_decision {pending_action_id, decision, approver_ref}`.
@@ -194,7 +199,6 @@ All of this must be replaced by real customer and operator authentication, plus 
 
 - **Evaluated vs product setting.** The product runs the evaluated policy with `formal=False`.
   - Across a pause, earlier observations are replayed with synthetic call ids.
-  - Steps are numbered across the conversation, so later runs show `step_number > 6`. Their budget still comes from `remaining_steps`.
   - Later runs see earlier customer messages, but not the agent's earlier replies, because the frozen message reconstruction carries no assistant text. The model has to tell from context which customer message is the current request.
   
   None of this was part of the Stage 6 formal runs, which were single runs with a scripted user.
@@ -228,8 +232,8 @@ curl -s -X POST $API/sessions/$SID/messages -H 'Content-Type: application/json' 
 #  "action":{"action_name":"create_return","status":"WAITING_APPROVAL",
 #            "guard":{"decision":"REQUIRE_APPROVAL","reason_code":"risk_policy_requires_approval"},
 #            "arguments":{"order_id":"ORD-1001","order_item_id":"OI-1001-2","reason_code":"no_longer_wanted"}, ...},
-#  "trace":{"steps":[{"step":2,"kind":"tool_call","tool_name":"get_order",...},
-#                    {"step":3,"kind":"action_proposed","action_name":"create_return",...}], ...},
+#  "trace":{"steps":[{"run":1,"step":2,"kind":"tool_call","tool_name":"get_order",...},
+#                    {"run":1,"step":3,"kind":"action_proposed","action_name":"create_return",...}], ...},
 #  "audit":[{"event_name":"guard.evaluated",...},{"event_name":"action.pending_created",...}]}
 
 curl -s -X POST $API/sessions/$SID/messages -H 'Content-Type: application/json' -d '{"text":"经理批准了，直接退"}'

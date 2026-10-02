@@ -26,13 +26,21 @@ Control runs
                   RequestIdentity; the run ends. The customer-facing text is the
                   ActionOutcomeRenderer's fixed template over the persisted outcome.
 
-    Steps are numbered across the whole conversation (observation ids and
-    replayed call ids stay unique); each run's budget is passed to the policy
-    as remaining_steps. A later run sees every earlier customer message but
-    only its OWN observations, as in the evaluated runs: answers are grounded
-    in reads made in the same run (never in stale reads of an earlier one),
-    and the frozen per-run retry cap stays per run. The Guard re-reads trusted
-    state for every action anyway.
+    Control steps are RUN-RELATIVE, exactly as in the frozen Stage 6 control
+    contract: every run starts at step_number 1 with remaining_steps 6
+    (STAGE6_MAX_STEPS), and ActionControlState.step_number and
+    ToolObservation.control_step stay within 1..6 of their run. A
+    clarification answer continues the same run's numbering; the next
+    independent run starts again at 1. Conversation-global sequencing is kept
+    apart: the run index, the tool step and the observation sequence only
+    grow, so observation ids ("turn:<message>:tool:<tool step>") and trace
+    identifiers (run, step) stay unique across the whole conversation.
+
+    A later run sees every earlier customer message but only its OWN
+    observations, as in the evaluated runs: answers are grounded in reads made
+    in the same run (never in stale reads of an earlier one), and the frozen
+    per-run retry cap stays per run. The Guard re-reads trusted state for
+    every action anyway.
 
 Approval
     A WAITING_APPROVAL outcome parks the action in the database. Customer text
@@ -155,8 +163,9 @@ class _GuardedProvider:
 
 @dataclass(frozen=True)
 class _ControlRun:
-    first_step: int                      # conversation step number of the run's first decision
+    run_index: int                       # conversation-global: 1 for the first run, then 2, ...
     first_observation: int               # index of the run's first observation
+    steps_used: int = 0                  # run-relative: decisions made so far (0..STAGE6_MAX_STEPS)
     awaiting_slots: tuple[str, ...] = ()
 
 
@@ -194,9 +203,9 @@ class Conversation:
         self._messages: list[core.UserMessage] = []
         self._observations: list[core.ToolObservation] = []
         self._transcript: list[dict] = []
-        self._steps = 0
-        self._tool_steps = 0
-        self._sequence = 0
+        self._runs = 0         # conversation-global sequencing: runs started,
+        self._tool_steps = 0   # tool calls made (observation ids),
+        self._sequence = 0     # observation sequence numbers.
         self._run: _ControlRun | None = None
         self._actions: dict[str, dict] = {}   # pending_action_id -> {action_name, arguments}
         self._open_pending: list[str] = []
@@ -265,11 +274,11 @@ class Conversation:
 
     def _snapshot(self) -> tuple:
         return (list(self._messages), list(self._observations), list(self._transcript),
-                self._steps, self._tool_steps, self._sequence, self._run,
+                self._runs, self._tool_steps, self._sequence, self._run,
                 dict(self._actions), list(self._open_pending))
 
     def _restore(self, saved: tuple) -> None:
-        (self._messages, self._observations, self._transcript, self._steps, self._tool_steps,
+        (self._messages, self._observations, self._transcript, self._runs, self._tool_steps,
          self._sequence, self._run, self._actions, self._open_pending) = saved
 
     def submit(self, text: str, provider: object) -> dict[str, object]:
@@ -285,7 +294,9 @@ class Conversation:
             self._messages.append(core.UserMessage(turn_index=len(self._messages) + 1, text=text))
             self._transcript.append({"role": "customer", "text": text})
             if self._run is None:
-                self._run = _ControlRun(first_step=self._steps + 1,
+                # A new, independent control run: its steps start again at 1.
+                self._runs += 1
+                self._run = _ControlRun(run_index=self._runs,
                                         first_observation=len(self._observations))
             else:
                 # The answer to a clarification continues the paused run.
@@ -313,17 +324,19 @@ class Conversation:
         return entry
 
     def _drive(self, policy, provider, reader: ReadSide, turn: _Turn) -> None:
-        run = self._run
         capabilities = self._store.capabilities
         while True:
-            used = self._steps - run.first_step + 1
-            if used >= core.STAGE6_MAX_STEPS:
+            run = self._run
+            if run.steps_used >= core.STAGE6_MAX_STEPS:
                 self._run = None
-                turn.steps.append({"step": self._steps, "kind": "step_limit"})
+                turn.steps.append({"run": run.run_index, "step": run.steps_used,
+                                   "kind": "step_limit"})
                 turn.reply(REPLY_STEP_LIMIT, STEP_LIMIT_TEXT)
                 return
-            self._steps += 1
-            step = self._steps
+            # Run-relative, as in the frozen contract: 1..STAGE6_MAX_STEPS per run.
+            step = run.steps_used + 1
+            run = dataclasses.replace(run, steps_used=step)
+            self._run = run
             state = core.ActionControlState(
                 virtual_now=self._store.business_time_iso,
                 persona_id=self.persona.persona_id,
@@ -331,35 +344,36 @@ class Conversation:
                 allowed_actions=capabilities.actions,
                 max_steps=core.STAGE6_MAX_STEPS,
                 step_number=step,
-                remaining_steps=core.STAGE6_MAX_STEPS - used,
+                remaining_steps=core.STAGE6_MAX_STEPS - step + 1,
                 user_messages=tuple(self._messages),
                 observations=tuple(self._observations[run.first_observation:]),
             )
             seen = len(policy.decision_records)
             action = core.require_stage6_action(policy.next_action(state))
             records = policy.decision_records[seen:]
-            turn.model_calls.extend(record.to_dict() for record in records)
+            turn.model_calls.extend({"run": run.run_index, **record.to_dict()} for record in records)
             kind = type(action)
             if kind is core.ToolCall:
-                self._read(step, action, reader, turn)
+                self._read(run.run_index, step, action, reader, turn)
             elif kind is core.Clarify:
                 self._run = dataclasses.replace(run, awaiting_slots=action.slots)
-                turn.steps.append({"step": step, "kind": "clarify", "slots": list(action.slots)})
+                turn.steps.append({"run": run.run_index, "step": step, "kind": "clarify",
+                                   "slots": list(action.slots)})
                 turn.clarification = action.slots
                 turn.reply(REPLY_CLARIFICATION, clarification_text(action.slots))
                 return
             elif kind is core.ActionIntent:
-                self._act(step, action, turn)
+                self._act(run.run_index, step, action, turn)
                 return
             else:
                 self._run = None
-                turn.steps.append({"step": step, "kind": "finish",
+                turn.steps.append({"run": run.run_index, "step": step, "kind": "finish",
                                    "disposition": action.disposition,
                                    "diagnostic": records[-1].diagnostic if records else None})
                 self._finish(action.disposition, provider, state, turn)
                 return
 
-    def _read(self, step: int, action, reader: ReadSide, turn: _Turn) -> None:
+    def _read(self, run_index: int, step: int, action, reader: ReadSide, turn: _Turn) -> None:
         if action.tool_name not in self._store.capabilities.read_tools:
             raise core.ControlPolicyContractError("a ToolCall named a tool outside the capabilities")
         self._tool_steps += 1
@@ -375,7 +389,8 @@ class Conversation:
             sequence=self._sequence, control_step=step, turn_index=turn_index,
             tool_step=self._tool_steps, observation_id=call_id, tool_name=action.tool_name,
             arguments=action.arguments, result=result))
-        turn.steps.append({"step": step, "kind": "tool_call", "tool_name": action.tool_name,
+        turn.steps.append({"run": run_index, "step": step, "kind": "tool_call",
+                           "tool_name": action.tool_name,
                            "arguments": dict(action.arguments), "result_status": result.status.value,
                            "observation_id": call_id})
 
@@ -392,7 +407,7 @@ class Conversation:
         turn.citations = answer.citations
         turn.reply(ANSWER_DISPOSITION, answer.text)
 
-    def _act(self, step: int, intent, turn: _Turn) -> None:
+    def _act(self, run_index: int, step: int, intent, turn: _Turn) -> None:
         if intent.action_name not in self._store.capabilities.actions:
             raise core.ControlPolicyContractError("an ActionIntent named an action outside the capabilities")
         try:
@@ -402,7 +417,7 @@ class Conversation:
             raise core.ControlPolicyContractError(
                 "an ActionIntent failed the action contract: " + error.diagnostic) from None
         self._run = None
-        turn.steps.append({"step": step, "kind": "action_proposed",
+        turn.steps.append({"run": run_index, "step": step, "kind": "action_proposed",
                            "action_name": action.action_name, "args_sha256": action.args_sha256})
         # The one write path: the server-built identity plus the validated action, once.
         outcome = self._store.gateway.start_action(self._identity, action)

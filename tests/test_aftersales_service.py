@@ -160,6 +160,18 @@ class ProductTestCase(unittest.TestCase):
         finally:
             connection.close()
 
+    # -- control contract --------------------------------------------------
+
+    def decisions(self, start: int = 0) -> list[tuple[int, int]]:
+        """(step_number, remaining_steps) of every control decision the model was asked for."""
+        return [(context["step_number"], context["remaining_steps"])
+                for context in (runtime_context(request) for request in self.provider.requests[start:]
+                                if request["tools"] is not None)]
+
+    def observations(self, session_id: str) -> list:
+        """White-box: the ToolObservations the conversation recorded, in order."""
+        return list(self.service._sessions[session_id]._observations)
+
     def pending(self, pending_action_id: str) -> dict:
         columns = ("status", "approval_decision", "approver_ref", "receipt_id", "outcome_code")
         rows = self.rows("SELECT " + ", ".join(columns)
@@ -207,10 +219,13 @@ class ReturnRequestTests(ProductTestCase):
         self.assertEqual(action["guard"], {"decision": "REQUIRE_APPROVAL",
                                            "reason_code": "risk_policy_requires_approval"})
         self.assertIsNone(action["receipt"])
-        self.assertEqual([step["kind"] for step in payload["trace"]["steps"]],
-                         ["tool_call", "action_proposed"])
+        self.assertEqual([(step["run"], step["step"], step["kind"]) for step in payload["trace"]["steps"]],
+                         [(1, 1, "tool_call"), (1, 2, "action_proposed")])
         self.assertEqual(payload["trace"]["steps"][0]["result_status"], "ok")
         self.assertEqual(len(payload["trace"]["model_calls"]), 2)
+        # A. the first run starts at step 1 with the full frozen budget.
+        self.assertEqual(self.decisions(), [(1, 6), (2, 5)])
+        self.assertEqual([item.control_step for item in self.observations(session_id)], [1])
         self.assertEqual([event["event_name"] for event in payload["audit"]],
                          ["guard.evaluated", "action.pending_created"])
 
@@ -229,6 +244,8 @@ class ReturnRequestTests(ProductTestCase):
         self.assertIn("订单号", first["reply"]["text"])
         self.assertIsNone(first["action"])
         self.assertEqual(len(self.provider.requests), 1)  # control returned to HTTP
+        self.assertEqual(self.decisions(), [(1, 6)])
+        self.assertEqual([(step["run"], step["step"]) for step in first["trace"]["steps"]], [(1, 1)])
         self.assertEqual(self.count("pending_actions"), 0)
 
         second = self.say(session_id, "ORD-1001，里面那件内衣，不想要了",
@@ -241,10 +258,13 @@ class ReturnRequestTests(ProductTestCase):
         resumed = self.provider.requests[1]
         users = [message["content"] for message in resumed["messages"] if message["role"] == "user"]
         self.assertEqual(users, ["我要退货", "ORD-1001，里面那件内衣，不想要了"])
-        self.assertEqual(runtime_context(resumed)["step_number"], 2)
-        self.assertEqual(runtime_context(resumed)["remaining_steps"], 5)
-        # ...and the read made after resuming is visible to the next decision.
-        self.assertEqual(runtime_context(self.provider.requests[2])["remaining_steps"], 4)
+        # B. the answer continues the SAME run: step 2, then 3, of the same 6-step budget.
+        self.assertEqual(self.decisions(), [(1, 6), (2, 5), (3, 4)])
+        self.assertEqual([(step["run"], step["step"]) for step in second["trace"]["steps"]],
+                         [(1, 2), (1, 3)])
+        # D. the read made after resuming carries its run-relative step...
+        self.assertEqual([item.control_step for item in self.observations(session_id)], [2])
+        # ...and is visible to the next decision.
         self.assertTrue(any(message["role"] == "tool" for message in self.provider.requests[2]["messages"]))
 
         transcript = self.view(session_id)["messages"]
@@ -270,27 +290,58 @@ class ReturnRequestTests(ProductTestCase):
         self.assertEqual(self.count("pending_actions"), 0)
         self.assertEqual(self.rows("SELECT COUNT(*) FROM action_audit_events")[0][0], 0)
 
-    def test_a_later_run_keeps_the_conversation_but_reads_afresh(self):
+    def test_every_new_run_restarts_at_step_one_and_ids_stay_conversation_unique(self):
         session_id = self.session()
-        self.say(session_id, "ORD-1001 签收了吗？",
-                 decision(call("get_order", {"order_id": "ORD-1001"}, "c1"),
-                          call("get_logistics", {"order_id": "ORD-1001"}, "c2")),
-                 decision(call("finish", {"disposition": "answer"})),
-                 cite_first_source("已签收。"))
-        asked = len(self.provider.requests)
-        payload = self.say(session_id, "那我要退里面那件内衣，不想要了",
-                           decision(call("get_order", {"order_id": "ORD-1001"})),
-                           decision(call("create_return", RETURN_ARGS)))
-        self.assertEqual(payload["status"], "WAITING_APPROVAL")
-        first = self.provider.requests[asked]
-        users = [message["content"] for message in first["messages"] if message["role"] == "user"]
-        self.assertEqual(users, ["ORD-1001 签收了吗？", "那我要退里面那件内衣，不想要了"])
-        # A new run: a fresh 6-step budget and only its own reads (none yet).
+        payloads = []
+        # Run 1: clarify (step 1), then the answer continues it: read (2), action (3).
+        payloads.append(self.say(session_id, "我要退货",
+                                 decision(call("ask_user", {"slots": ["order_id"]}))))
+        payloads.append(self.say(session_id, "ORD-1001，里面那件内衣，不想要了",
+                                 decision(call("get_order", {"order_id": "ORD-1001"})),
+                                 decision(call("create_return", RETURN_ARGS))))
+        self.assertEqual(payloads[-1]["status"], "WAITING_APPROVAL")
+        run_two = len(self.provider.requests)
+        # Run 2: a read batch (steps 1 and 2, the second drained without a model call), finish (3).
+        payloads.append(self.say(session_id, "ORD-1001 签收了吗？",
+                                 decision(call("get_order", {"order_id": "ORD-1001"}, "c1"),
+                                          call("get_logistics", {"order_id": "ORD-1001"}, "c2")),
+                                 decision(call("finish", {"disposition": "answer"})),
+                                 cite_first_source("已签收。")))
+        # Run 3: read (1), finish (2).
+        payloads.append(self.say(session_id, "那 ORD-1002 呢？",
+                                 decision(call("get_order", {"order_id": "ORD-1002"})),
+                                 decision(call("finish", {"disposition": "refuse"}))))
+
+        # A / B / C: every run starts at step 1 with the full budget; a clarification
+        # answer continues its run; a later independent run restarts at 1.
+        self.assertEqual(self.decisions(), [(1, 6), (2, 5), (3, 4),   # run 1
+                                            (1, 6), (3, 4),           # run 2 (step 2 drained)
+                                            (1, 6), (2, 5)])          # run 3
+        first = self.provider.requests[run_two]
         self.assertEqual(runtime_context(first), {"virtual_now": "2026-11-15T10:00:00+08:00",
-                                                  "persona_id": "demo-a", "step_number": 4,
+                                                  "persona_id": "demo-a", "step_number": 1,
                                                   "remaining_steps": 6})
+        # A later run keeps the conversation's customer messages but reads afresh.
+        users = [message["content"] for message in first["messages"] if message["role"] == "user"]
+        self.assertEqual(users, ["我要退货", "ORD-1001，里面那件内衣，不想要了", "ORD-1001 签收了吗？"])
         self.assertFalse(any(message["role"] == "tool" for message in first["messages"]))
-        self.assertEqual(payload["trace"]["steps"][0]["observation_id"], "turn:2:tool:3")
+
+        # D: observations carry run-relative control steps.
+        observations = self.observations(session_id)
+        self.assertEqual([item.control_step for item in observations], [2, 1, 2, 1])
+        # E: conversation-global sequencing keeps observation ids and trace ids unique.
+        self.assertEqual([item.observation_id for item in observations],
+                         ["turn:2:tool:1", "turn:3:tool:2", "turn:3:tool:3", "turn:4:tool:4"])
+        self.assertEqual([item.sequence for item in observations], [1, 2, 3, 4])
+        steps = [step for payload in payloads for step in payload["trace"]["steps"]]
+        self.assertEqual([(step["run"], step["step"]) for step in steps],
+                         [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2)])
+        traced_ids = [step["observation_id"] for step in steps if step["kind"] == "tool_call"]
+        self.assertEqual(traced_ids, [item.observation_id for item in observations])
+        calls = [(call["run"], call["control_step"])
+                 for payload in payloads for call in payload["trace"]["model_calls"]]
+        self.assertEqual(len(set(calls)), len(calls))
+        self.assertTrue(all(1 <= step <= 6 for _, step in calls))
 
 
 # --------------------------------------------------------------------------
