@@ -1,15 +1,201 @@
-# 企业知识问答 Agent：可追踪、可诊断、可复现评测
+# GroundedAgent V2：面向电商售后的可靠客服 Agent
 
-面向企业制度/知识问答的 **Agent 工程项目**，不只是一个 RAG Demo。除了检索和生成，项目的重点是这套工程链路：请求先被**规划**，再按计划取证，证据不足就**拒答**；模型通过统一接口**可替换**；每一步都有 **Trace**；失败能被**定位到具体阶段**；评测在**版本化、可校验的环境**里运行，模型对照可以复现。
+GroundedAgent 是一个**电商售后客服 Agent**。它能查询订单、物流、售后规则和库存，根据查到的业务状态回答售后问题，也能为顾客发起**退货、换货和转人工**。带副作用的操作**不会由 LLM 直接执行**：模型只提出动作意图，动作先由确定性的 **Policy Guard** 判定；需要审批的动作进入 `WAITING_APPROVAL`，人工批准后恢复（resume），执行前重新读取状态并复核（revalidate）；最后由唯一的幂等写入网关 **ActionGateway** 执行，并留下回执（receipt）和审计记录（audit）。
 
-**主链路：** Planner / Executor / Evidence Policy → LLM Provider → Run/Span Trace → Diagnostic Eval → Versioned Eval Environment → Model Comparison
+> 这不是一个只会回答问题的 RAG Demo。GroundedAgent 能读取真实（本地模拟）的订单与售后状态，并把自然语言请求推进到可审计的业务动作；LLM 只负责提出意图，真正的写操作由确定性的 Guard、审批恢复和 ActionGateway 控制。
 
-**GroundedAgent V2（Stage 4–6）** 把同一套工程方法用到模拟的电商售后场景：Stage 4 是确定性 Baseline，Stage 5 是 LLM-native 的只读工具循环，Stage 6 加入**受控副作用**——模型只能提出动作意图，由**确定性的 Policy Guard** 判定放行 / 拒绝 / 需要审批，经**人工审批与恢复（approval / resume）**、**服务端幂等**和审计后才由唯一的写入网关执行，并用**基于最终数据库状态的评测**（state-based evaluation）加硬安全不变量衡量。见 [Stage 6](#groundedagent-v2-stage-6受控副作用与-sealed-holdout)。
+**核心演示流程**
 
-| 当前已验证 | 结果 |
+```text
+查订单 → 判断售后条件 → 发起退货/换货 → Policy Guard → WAITING_APPROVAL
+      → 人工批准 → resume / revalidate → EXECUTED → receipt / audit
+```
+
+![GroundedAgent 售后客服界面：退货申请经 Policy Guard 判定为 REQUIRE_APPROVAL，正在等待人工审批](docs/assets/groundedagent-aftersales-demo.png)
+
+<sub>真实界面截图：M0-A2 前端，DeepSeek `deepseek-flash` 真实调用，本地演示数据。顾客要求退货后，模型提出 `create_return`；Policy Guard 判定 `REQUIRE_APPROVAL`（`risk_policy_requires_approval`），动作停在 `WAITING_APPROVAL`，等待操作员批准或拒绝。批准之前不会写入售后单。</sub>
+
+> [!IMPORTANT]
+> **这是一个本地工程演示，不是生产系统。**
+> - 订单与售后数据来自本地 fixture 数据库（SQLite），重置或重启后从同一份种子数据重建；
+> - 没有接入任何真实的支付、退款、履约或 CRM 系统；
+> - 演示客户（persona）只是已登录顾客的替身，**不是身份认证**；
+> - 审批操作员 `op-demo-1` 是服务端的演示常量，**不是真实的 RBAC**；
+> - 不声称可以用于生产部署。
+
+## What it can do
+
+- 查询订单、物流、库存和售后规则（5 个只读工具，身份来自服务端，不来自模型或浏览器）
+- 根据可信业务状态回答售后问题
+- LLM-native Tool Calling
+- 发起退货 / 换货 / 转人工
+- Policy Guard 对动作做确定性判定：ALLOW / DENY / REQUIRE_APPROVAL
+- 高风险动作进入 `WAITING_APPROVAL`（风险策略 `s6-risk/1`：退货一律需要人工审批）
+- 人工 APPROVE / REJECT
+- resume 时重新读取状态并 revalidate：状态变了就是 `STALE`，不执行
+- 幂等执行，避免重复副作用
+- receipt + audit timeline
+- Agent Trace / sealed holdout evaluation
+
+## Product architecture
+
+```mermaid
+flowchart TB
+    C([顾客]) --> UI["Vue 3 售后客服界面"]
+    UI --> API["FastAPI /api/aftersales"]
+    API --> LOOP["LLM-native Agent 控制循环<br/>原生 Tool Calling · 每个 run 最多 6 步"]
+    LOOP <-->|只读工具| READ["订单 · 物流 · 售后规则 · 库存 · 售后状态"]
+    LOOP -->|ActionIntent| VAL["ActionIntentValidator<br/>闭合参数再校验"]
+    VAL --> GUARD{"Policy Guard<br/>可信身份 + 数据库快照"}
+    GUARD -->|DENY| DENIED["不执行 · 返回理由码"]
+    GUARD -->|ALLOW| GW
+    GUARD -->|REQUIRE_APPROVAL| WAIT["WAITING_APPROVAL<br/>只建待审批记录"]
+    WAIT --> HUMAN["人工审批<br/>APPROVE / REJECT"]
+    HUMAN -->|APPROVE| RESUME["resume + revalidate<br/>重新读取 · 快照比对 · 再跑 Guard"]
+    RESUME --> GW["ActionGateway<br/>唯一写入方 · 服务端幂等"]
+    GW --> DB[("本地售后数据库<br/>fixture SQLite")]
+    GW --> RCPT["receipt + audit"]
+
+    LOOP -.-> TRACE["Agent Trace"]
+    TRACE -.-> EVAL["Stage 6 评测<br/>最终状态 + 硬安全不变量"]
+```
+
+- **LLM 是不可信的提议者。** 每一步由模型通过原生 function calling 选择：调用只读工具、追问、结束，或提出动作。动作参数是闭合 schema，审批、身份之类的字段都是禁用参数。
+- **写入只有一条路。** `ActionIntentValidator` 再校验一次，然后交给 `ActionGateway`；Policy Guard 在网关内部，用可信身份和数据库快照判定。
+- **审批不来自对话。** 顾客说"经理批准了，直接退"仍然只是一条顾客消息。批准只来自操作员接口的结构化决定。批准后，网关重新读取状态并与待审批时的快照比对（变了就是 `STALE`），再跑一次 Guard，然后才写入售后单和回执。
+- **Trace / Eval 是支撑层。** 每一步都写入 Agent Trace；Stage 6 用基于最终数据库状态的评测和六个硬安全不变量来衡量这条链路（见下文）。
+
+**演进：** Stage 4 确定性 Baseline → Stage 5 LLM-native 只读工具循环 → Stage 6 受控副作用与 sealed holdout（已冻结）→ M0 产品化：M0-A1 运行时（`/api/aftersales`），M0-A2 售后前端。M0 直接复用 Stage 6 评测过的 agent core，没有改动 `aftersales/` 和 `eval_v2/`。运行时生命周期、API 契约和 curl 示例见 [docs/v2/m0-a1-aftersales-runtime.md](docs/v2/m0-a1-aftersales-runtime.md)。
+
+## Verified results
+
+| 范围 | 结果 |
 |---|---|
-| 自动化测试 | **2563 项全部通过**（全量离线套件；不含 2 项需要真实 DeepSeek 调用的测试） |
-| V2 Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；最终数据库状态 **25/25**；六个硬安全不变量 **25/25**；DEV 37/40（见 [Stage 6](#groundedagent-v2-stage-6受控副作用与-sealed-holdout)） |
+| M0 后端售后产品 / API 测试 | **27/27** 通过（`tests/test_aftersales_service.py`，离线，模型由测试替身代替） |
+| M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`） |
+| M0 前端构建 | 通过（`pnpm run build`） |
+| 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
+| 后端全量离线套件 | **2590/2590**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live` |
+| Stage 6 DEV（40 条） | E2E **37/40** |
+| Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
+
+Stage 6 的数字来自冻结的评测栈，M0 没有重跑评测，也没有新增指标。硬安全不变量 25/25 和 `final_state_ok` 25/25 是**两项独立的结果**：前者是确定性 Guard / Gateway 边界守住的；后者不能全部归功于 Guard / Gateway。holdout 中有 3 条 case，模型没有先读订单就提交了动作，终态正确是因为它碰巧猜对了动作参数。详见下一节。
+
+## GroundedAgent V2 Stage 6：受控副作用与 sealed holdout
+
+Stage 6 在 Stage 5 的只读工具循环上加入三个**模拟**售后动作：`create_return`（提交退货申请）、`create_exchange`（提交换货申请）、`escalate_to_human`（创建转人工工单）。它们只写本地 fixture 数据库，不涉及真实的退款、库存或发货。
+
+- **模型只提出动作意图**：通过原生 function calling 给出动作名和闭合的参数；审批、身份、跳过审批之类的字段都是禁用参数。
+- **确定性 Policy Guard**：从可信身份和数据库状态做一次读取快照，再由纯函数判定 ALLOW / DENY / REQUIRE_APPROVAL，并给出闭合的理由码。风险策略 `s6-risk/1`：退货一律需要人工审批，换货和转人工在规则允许时直接执行。
+- **审批 / 恢复**：需要审批的动作先成为待审批记录。审批只能来自受信操作员的结构化决定，不接受模型或用户文本。审批后执行前会用新的快照重新判定：状态变了就是 STALE，规则不再允许就是 DENIED，都不会执行。
+- **幂等与审计**：服务端幂等键，重放查找先于 Guard；每次执行恰好一张回执；Guard 决定与执行结果写入审计事件。`ActionGateway` 是唯一的写入方。
+- **基于最终状态的评测**：每条 case 在独立的临时数据库中运行，比较最终数据库状态与期望的插入行，同时检查六个**硬安全不变量**：身份边界、能力边界、无未授权写入、被拒绝的不执行、过期（STALE）的不执行、每次执行恰好一张回执。
+
+**正式评测**（DeepSeek `deepseek-flash`，冻结栈 `v2-stage6-action-loop` → `b55d5ed`；DEV 与 holdout 都只跑一轮，0 次重试）：
+
+| | DEV（40 条） | sealed holdout（25 条） |
+|---|---|---|
+| 确定性 oracle | 40/40 | 25/25 |
+| E2E（`stage6_e2e_success`） | 37/40（92.5%） | **21/25（84%）** |
+| 最终数据库状态（`final_state_ok`） | 39/40 | **25/25** |
+| 六个硬安全不变量 | 全部 40/40 | **全部 25/25** |
+| 动作最终状态（状态 + 码） | 40/40 | 24/25 |
+| 基础设施失败 | 0 | 0 |
+
+holdout 由一个隔离上下文编写并封存，它只读过冻结的作者 bundle（规格、case 契约、种子数据、规则语料），没有看过实现、其他数据集或失败分析；开封前栈已冻结，开封后**没有任何调参**，也没有第二次运行。按修订后的计划，Stage 6 没有编写 VALIDATION 集。
+
+**怎么解读这个结果：**
+
+- **LLM 的控制行为并不完美。** holdout 的 4 个失败都属于模型行为：3 个是没先调用 `get_order` 读订单就直接提交动作（参数按编号规律猜对了，所以终态仍然正确，只有"必需能力"一项记为失败）；1 个是追问过度（同时追问订单号和商品明细），对话没能继续。DEV 的 3 个失败中，2 个是同样的跳过读取，1 个是没有追问订单号（见下面的已知限制）。
+- **确定性的 Guard / Gateway 边界守住了六个硬安全不变量（holdout 25/25）**：没有任何未经审批的退货、被拒绝或过期后仍执行的动作，也没有未授权写入。holdout 的最终数据库状态（`final_state_ok`）同样是 25/25，但这不能全部归功于 Guard / Gateway：上面 3 条跳过读取的 case，终态正确是因为模型碰巧猜对了动作参数。Guard 只基于可信身份和数据库状态判定，不能证明模型给出的动作参数来自本轮交互中的观察。
+- 样本量小（40 + 25 条，各一轮，单一模型），不能当作统计意义上的结论；这也**不代表生产可用**。
+
+**已知限制：** 冻结的动作 schema 在参数说明里用 `ORD-1001` / `OI-1001-1` 作示例，而它们恰好是演示数据里一个真实存在的订单。DEV 中有一条 case，模型没有追问订单号，而是照抄了示例编号，对错误的订单提交了退货（进入待审批，未执行）；holdout 中模型也先用这个示例编号探查过。这是受示例影响的模型行为，不是 Guard 的失败；为了不在 holdout 之前或之后调参，示例没有修改。
+
+完整记录见 [HANDOFF §24–§31](HANDOFF.md)。
+
+## Quick start（V2 售后 Demo）
+
+```powershell
+# 1. 依赖
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
+
+# 2. 配置：售后 Agent 依赖原生 function calling，M0 只在 DeepSeek（deepseek-flash）上验证过
+copy .env.example .env   # 设置 LLM_PROVIDER=deepseek，并在 .env 中填入 DEEPSEEK_API_KEY
+
+# 3. 启动 API（http://127.0.0.1:8000）
+.\start_api.ps1
+
+# 4. 启动前端（http://127.0.0.1:5173，/api 代理到 8000）
+cd frontend
+pnpm install --frozen-lockfile   # 没有全局 pnpm 时可以用 corepack pnpm
+pnpm dev
+```
+
+页面默认使用演示客户 `demo-a`。可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`，在动作卡片上点「批准」或「拒绝」，就能走完审批、恢复和执行。左侧的「重置 Demo」会把模拟数据库恢复到种子状态。
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service   # M0 产品 / API 测试（27 项，离线）
+cd frontend; node --test tests/api.test.js                               # 前端 API 测试（20 项）
+```
+
+## Known limitations（V2）
+
+- **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
+- **M0 产品运行时与正式评测的差异**：产品以 `formal=False` 运行同一个被评测过的策略。跨暂停时，早先的观察会用合成 call id 重放；之后的 run 能看到顾客之前的消息，但看不到 agent 之前的回复。这些都不在 Stage 6 正式评测（单轮、脚本化用户）的覆盖范围内。
+- **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
+- **存储**：会话保存在内存里，数据库在临时目录，重启进程就是完全重置。
+- **文案**：冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"。
+
+## Repo structure
+
+```text
+knowledge-agent/           # 仓库名沿用 V1，没有改名
+├── aftersales_service/    # M0 产品运行时：会话、控制循环、审批决定、/api/aftersales 路由
+├── aftersales/            # V2 售后领域：只读业务工具、Stage 6 动作契约、Policy Guard、ActionGateway、审批
+├── eval_v2/               # V2 评测：Stage 5 工具循环，Stage 6 动作循环、runner、scorer、oracle
+├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
+├── system_fixtures/       # 演示用的业务数据（SQLite seed）
+├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
+├── api.py                 # FastAPI：/api/aftersales 路由 + V1 问答接口 / SSE
+├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
+├── tests/                 # 2590 项后端离线自动化测试（含 27 项 M0 产品测试）
+├── docs/v2/               # V2 设计文档与 M0 运行时说明
+│
+│                          # —— V1 / 工程基础 ——
+├── orchestration/         # Planner / Executor / Evidence Policy 与三个通道适配器（纯逻辑）
+├── rag.py                 # 切分、混合检索、重排、生成与答案交付校验
+├── agent_trace.py         # Run/Span Trace：记录、脱敏、失败归属、CLI
+├── diagnostic_eval/       # 规则化的阶段诊断与报告
+├── eval_env/              # 版本化评测环境：make / verify / run / diff
+├── eval/                  # 基线、诊断报告、模型对照（只追加）；environments/ 存放 eval-env-v1
+├── chat_orchestration.py  # HTTP 层与编排链路之间的衔接
+├── storage.py             # SQLite 持久化
+├── wiki_runtime.py        # Wiki 编译任务、发布、回退
+├── wiki_maintenance/      # Wiki 编译器与构建仓库
+├── eval_*.json            # 评测数据集
+├── evaluate*.py           # 评测脚本
+├── HANDOFF.md             # 每个阶段的决策、结果与风险记录
+└── docs/                  # 应用细节、演示指南、M10 报告
+```
+
+---
+
+## V1 / 工程基础：可追踪、可诊断、可复现评测
+
+V2 之前，这个仓库是一个面向企业制度问答的 Agent（V1）。它已经不是当前产品的主线，但 V2 的工程方法都来自这里，代码和评测记录全部保留：
+
+- **混合检索**：Jieba + BM25 + Embedding + RRF，加 LLM 重排；
+- **Planner / Executor / Evidence Policy**：先规划再取证，证据不足就拒答；
+- **Run / Span Trace** 与**规则化的 Diagnostic Eval**：失败能定位到具体阶段；
+- **版本化评测环境**（`eval-env-v1`）与可复现的模型对照；
+- **LLM Provider 抽象**：Ollama（Qwen3）与 DeepSeek 走统一接口，V2 也在用。
+
+**V1 主链路：** Planner / Executor / Evidence Policy → LLM Provider → Run/Span Trace → Diagnostic Eval → Versioned Eval Environment → Model Comparison
+
+| V1 已验证 | 结果 |
+|---|---|
 | Eval Env V1 回答评测（40 题 × 3 轮） | Qwen3-4B 本地：**40/40、40/40、40/40**（Stage 3 之后）；DeepSeek API：39/40 × 3（Stage 3 之前测得，之后没有重跑） |
 | `h008` | Trace + Diagnostic Eval 定位为 **planning 阶段的 freshness 误判**；Stage 3 修复后，Qwen 从 0/3 变为 **3/3** |
 | freshness 修复的泛化（隔离 holdout，24 条） | 误报 5 → **0**，precision 0.545 → **1.000**；但 recall 0.600 → **0.500**。这是一个取舍：误拒答减少了，漏报多了 1 条，而漏报不影响回答（见 [Stage 3](#stage-3从定位到修复)） |
@@ -18,11 +204,9 @@
 > [!IMPORTANT]
 > **`blind_v2` 已经在开发中被使用过**（M10 用它的路由结果做过验收基线），**不能再当作真正的盲测集**。上面的 validation 集同样是开发中见过的回归集。所以 V1 问答链路的这些数字说明的是回归稳定性和链路可用性，**不是**对未见数据的泛化能力。Stage 3 的 temporal holdout 是 V1 唯一一份隔离编写的集合，但它已经开封过一次，以后也不能再当作 holdout 使用。V2 Stage 6 的 holdout 由隔离上下文编写并封存，在栈冻结后只开封、只运行一次；它现在同样已经开封。
 
-> **范围说明**：这是一个本地运行的演示项目，**不是生产系统**。语料是一份模拟的公司制度（约 20 个知识块）；「业务状态」通道读的是仓库内的样例数据，没有接入真实企业系统；没有登录鉴权。V1 问答链路只读。V2 Stage 6 实现了三个**模拟**售后动作（提交退货申请、提交换货申请、创建转人工工单），只写本地 fixture 数据库；**不**连接任何真实的支付、退款、履约、CRM、身份认证或生产系统，审批人也只是一个演示用的受信操作员标识。
+> **V1 范围说明**：这是一个本地运行的演示项目，**不是生产系统**。语料是一份模拟的公司制度（约 20 个知识块）；「业务状态」通道读的是仓库内的样例数据，没有接入真实企业系统；没有登录鉴权。V1 问答链路只读。
 
----
-
-## Architecture
+### V1 architecture
 
 ```mermaid
 flowchart TB
@@ -50,7 +234,7 @@ flowchart TB
 
 上面是在线链路，每个请求在其中经过规划、取证、证据判断和生成，每个阶段都会写入 Trace。下面是评测链路：在固定环境里逐题运行在线链路，读取 Trace 找出每个失败出在哪个阶段，再在同一环境下只替换模型做对比。
 
-## Why this project
+### Why this project
 
 多数 RAG Demo 只能回答"这次答对了吗"。真正做 Agent 时更难的问题是：
 
@@ -60,15 +244,15 @@ flowchart TB
 
 这个项目针对这三个问题各做了一层基础设施，并用它们定位并修复了一个具体问题（h008，见下文）。
 
-## Core capabilities
+### Core capabilities
 
 - **规划与取证**：Planner 判定请求需要哪几条证据通道（Wiki 概览、原文条款、只读业务状态），共八种路由、最多三步；Executor 执行；Evidence Policy 判定证据是否足够，不足时直接拒答，不调用模型。
 - **混合检索**：Jieba + BM25 + Embedding + RRF，高置信问题走 BM25 快速路径，复合问题拆子问题并用 LLM 重排。
 - **答案交付校验**：结构化输出，检查引用编号越界、缺引用、复述问题、无依据的数量；失败时最多复查一次，仍不通过就拒答。只做**形式上可判定**的检查，不判断语义是否正确。
 - **LLM Provider**：统一的 `chat` / `chat_stream` 接口，支持本地 Ollama（Qwen3-4B）和 DeepSeek API（OpenAI 兼容）。通过 `.env` 切换，业务代码不感知。为适配 DeepSeek 的 JSON 模式所做的 prompt 调整会被记录下来，不会悄悄发生。
-- **应用层**：FastAPI + Vue 3，SSE 流式回答，多会话，SQLite 持久化，文档增量更新，Wiki 后台编译与发布/回退。详见 [docs/APP_DETAILS.md](docs/APP_DETAILS.md)。
+- **应用层**：FastAPI + Vue 3（V1 界面；M0-A2 起默认前端换成了售后客服界面），SSE 流式回答，多会话，SQLite 持久化，文档增量更新，Wiki 后台编译与发布/回退。详见 [docs/APP_DETAILS.md](docs/APP_DETAILS.md)。
 
-## Trace / Diagnostic Eval
+### Trace / Diagnostic Eval
 
 **Trace**（[`agent_trace.py`](agent_trace.py)）
 
@@ -109,7 +293,7 @@ flowchart TB
 
 结论：这个失败**与模型无关**，更换模型不会修好它；问题出在 planner 对"目前"的时效性判断。Stage 3 修复了这个问题，过程见下一节。
 
-### Stage 3：从定位到修复
+#### Stage 3：从定位到修复
 
 **根因：**
 
@@ -152,7 +336,7 @@ flowchart TB
 
 两条冻结的路由标签与新语义冲突。它们通过 overlay（[`eval/label_revisions/`](eval/label_revisions)）修订，原数据集没有改动：freshness 信号在原标签下是 79/80，修订后是 80/80，两个数字都会报告，这两条也不算作 planner 的改进。
 
-## Reproducible Eval Environment
+### Reproducible Eval Environment
 
 [`eval_env/`](eval_env) 把一次评测需要的所有输入冻结成一个版本化环境 `eval-env-v1`（[`eval/environments/`](eval/environments)），包括：数据集、诊断标签、原文语料、Wiki 页面和业务样例数据。代码提交、检索配置和索引指纹不锁定在环境里，而是随每次运行记录下来，用于判断两次运行是否可比。
 
@@ -167,7 +351,7 @@ flowchart TB
 .\.venv\Scripts\python.exe -m diagnostic_eval --eval eval\my_run.json --labels eval\diagnostic_labels\validation_v1.labels.json
 ```
 
-## Model comparison
+### Model comparison
 
 [`eval/model_comparison.py`](eval/model_comparison.py) 在同一个 eval environment、同一份代码、同一份检索配置和索引下，**只替换 LLM Provider**，Qwen 和 DeepSeek 各跑 3 轮。两边都经过 Diagnostic Eval，并逐个 case 比较结果是否发生变化。
 
@@ -191,46 +375,10 @@ flowchart TB
 - DeepSeek 的延迟更低，但要付 API 费用，费用还取决于调用时段。Qwen 的延迟取决于本机硬件。
 - 为适配 DeepSeek 的 JSON 模式做了 prompt 调整（`json_object` 加上 schema 说明），这一点已记录在报告里。
 
-## GroundedAgent V2 Stage 6：受控副作用与 sealed holdout
-
-Stage 6 在 Stage 5 的只读工具循环上加入三个**模拟**售后动作：`create_return`（提交退货申请）、`create_exchange`（提交换货申请）、`escalate_to_human`（创建转人工工单）。它们只写本地 fixture 数据库，不涉及真实的退款、库存或发货。
-
-- **模型只提出动作意图**：通过原生 function calling 给出动作名和闭合的参数；审批、身份、跳过审批之类的字段都是禁用参数。
-- **确定性 Policy Guard**：从可信身份和数据库状态做一次读取快照，再由纯函数判定 ALLOW / DENY / REQUIRE_APPROVAL，并给出闭合的理由码。风险策略 `s6-risk/1`：退货一律需要人工审批，换货和转人工在规则允许时直接执行。
-- **审批 / 恢复**：需要审批的动作先成为待审批记录。审批只能来自受信操作员的结构化决定，不接受模型或用户文本。审批后执行前会用新的快照重新判定：状态变了就是 STALE，规则不再允许就是 DENIED，都不会执行。
-- **幂等与审计**：服务端幂等键，重放查找先于 Guard；每次执行恰好一张回执；Guard 决定与执行结果写入审计事件。`ActionGateway` 是唯一的写入方。
-- **基于最终状态的评测**：每条 case 在独立的临时数据库中运行，比较最终数据库状态与期望的插入行，同时检查六个**硬安全不变量**：身份边界、能力边界、无未授权写入、被拒绝的不执行、过期（STALE）的不执行、每次执行恰好一张回执。
-
-**正式评测**（DeepSeek `deepseek-flash`，冻结栈 `v2-stage6-action-loop` → `b55d5ed`；DEV 与 holdout 都只跑一轮，0 次重试）：
-
-| | DEV（40 条） | sealed holdout（25 条） |
-|---|---|---|
-| 确定性 oracle | 40/40 | 25/25 |
-| E2E（`stage6_e2e_success`） | 37/40（92.5%） | **21/25（84%）** |
-| 最终数据库状态（`final_state_ok`） | 39/40 | **25/25** |
-| 六个硬安全不变量 | 全部 40/40 | **全部 25/25** |
-| 动作最终状态（状态 + 码） | 40/40 | 24/25 |
-| 基础设施失败 | 0 | 0 |
-
-holdout 由一个隔离上下文编写并封存，它只读过冻结的作者 bundle（规格、case 契约、种子数据、规则语料），没有看过实现、其他数据集或失败分析；开封前栈已冻结，开封后**没有任何调参**，也没有第二次运行。按修订后的计划，Stage 6 没有编写 VALIDATION 集。
-
-**怎么解读这个结果：**
-
-- **LLM 的控制行为并不完美。** holdout 的 4 个失败都属于模型行为：3 个是没先调用 `get_order` 读订单就直接提交动作（参数按编号规律猜对了，所以终态仍然正确，只有"必需能力"一项记为失败）；1 个是追问过度（同时追问订单号和商品明细），对话没能继续。DEV 的 3 个失败中，2 个是同样的跳过读取，1 个是没有追问订单号（见下面的已知限制）。
-- **确定性的 Guard / Gateway 边界守住了六个硬安全不变量（holdout 25/25）**：没有任何未经审批的退货、被拒绝或过期后仍执行的动作，也没有未授权写入。holdout 的最终数据库状态（`final_state_ok`）同样是 25/25，但这不能全部归功于 Guard / Gateway：上面 3 条跳过读取的 case，终态正确是因为模型碰巧猜对了动作参数。Guard 只基于可信身份和数据库状态判定，不能证明模型给出的动作参数来自本轮交互中的观察。
-- 样本量小（40 + 25 条，各一轮，单一模型），不能当作统计意义上的结论；这也**不代表生产可用**。
-
-**已知限制：** 冻结的动作 schema 在参数说明里用 `ORD-1001` / `OI-1001-1` 作示例，而它们恰好是演示数据里一个真实存在的订单。DEV 中有一条 case，模型没有追问订单号，而是照抄了示例编号，对错误的订单提交了退货（进入待审批，未执行）；holdout 中模型也先用这个示例编号探查过。这是受示例影响的模型行为，不是 Guard 的失败；为了不在 holdout 之前或之后调参，示例没有修改。
-
-完整记录见 [HANDOFF §24–§31](HANDOFF.md)。
-
-## Current metrics
+### V1 metrics
 
 | 指标 | 数值 | 测量范围 |
 |---|---|---|
-| 自动化测试 | 2563 通过 / 2563；0 失败、0 错误、0 跳过 | Stage 6 收尾（`b55d5ed`）全量离线套件，只排除需要真实 DeepSeek 调用的 `tests.test_llm_provider_live`（2 项） |
-| V2 Stage 6 DEV（40 条） | E2E 37/40；六个硬安全不变量 40/40；oracle 40/40 | DeepSeek `deepseek-flash`，一轮，`b55d5ed` |
-| V2 Stage 6 sealed holdout（25 条，已开封） | E2E 21/25；最终状态 25/25；六个硬安全不变量 25/25；oracle 25/25 | 同一冻结栈，一轮，0 次重试，开封后没有调参 |
 | Eval env 校验 | 18/18 | `eval-env-v1` |
 | 路由评测 | validation_v1 1.0；dev 1.0 | 纯逻辑，不调用模型 |
 | freshness 信号（路由集） | 原标签 79/80、79/80；应用 overlay 后 80/80、80/80 | 2 条冻结标签的修订见 [`eval/label_revisions/`](eval/label_revisions) |
@@ -242,66 +390,31 @@ holdout 由一个隔离上下文编写并封存，它只读过冻结的作者 bu
 
 历史结果都保留在 `eval/` 中，不会被覆写：Stage 0 基线、Stage 1 Trace 回归、Stage 2.5 对照、post-main-integration baseline，以及 Stage 3 的 freshness 评测（`eval/stage3/`）。M10 阶段的验收记录见 [docs/M10_CLOSEOUT_REPORT.md](docs/M10_CLOSEOUT_REPORT.md)，每个阶段的完整记录见 [HANDOFF.md](HANDOFF.md)。
 
-## Quick start
+### Quick start（V1 知识问答链路）
+
+V1 的问答接口仍在同一个 API 进程里（`/api/chat`、`/api/chat/stream`、`/api/knowledge/upload` 等，见 http://127.0.0.1:8000/docs）。M0-A2 起，默认前端换成了售后客服界面；V1 的 Vue 界面（多会话、上传文档、「三通道模式」）只保留在 git 历史中（M0-A2 之前的提交，例如 `a3a2686`）。
 
 ```powershell
-# 1. 本地模型
+# 1. 本地模型（V1 的 Embedding 固定使用本地 Ollama；回答默认也用 Ollama）
 ollama pull qwen3:4b
 ollama pull nomic-embed-text
 
-# 2. 依赖
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt -r requirements-dev.txt
+# 2. 依赖与 .env 同上（LLM_PROVIDER=ollama 或 deepseek）
 
-# 3. 配置（默认 LLM_PROVIDER=ollama；若用 DeepSeek，在 .env 中填入 DEEPSEEK_API_KEY）
-copy .env.example .env
-
-# 4. 测试（模型调用使用测试替身；api.py 导入时会初始化 data\ 下的 SQLite，建议在隔离副本中运行）
+# 3. 测试（模型调用使用测试替身；api.py 导入时会初始化 data\ 下的 SQLite，建议在隔离副本中运行）
 .\.venv\Scripts\python.exe -m unittest discover
 
-# 5. 启动 API 与前端
+# 4. 启动 API
 .\start_api.ps1
-cd frontend; npm install; npm run dev
 ```
 
-API 文档在 http://127.0.0.1:8000/docs，页面在 http://127.0.0.1:5173。演示时要先上传 `sample_company_rules.md`，并在页面上打开「三通道模式」。完整的演示步骤见 [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)。
+V1 的完整演示步骤（基于旧前端）见 [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)，应用层说明见 [docs/APP_DETAILS.md](docs/APP_DETAILS.md)。
 
-## Repo structure
-
-```text
-knowledge-agent/
-├── orchestration/         # Planner / Executor / Evidence Policy 与三个通道适配器（纯逻辑）
-├── rag.py                 # 切分、混合检索、重排、生成与答案交付校验
-├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── agent_trace.py         # Run/Span Trace：记录、脱敏、失败归属、CLI
-├── diagnostic_eval/       # 规则化的阶段诊断与报告
-├── eval_env/              # 版本化评测环境：make / verify / run / diff
-├── eval/                  # 基线、诊断报告、模型对照（只追加）；environments/ 存放 eval-env-v1
-├── chat_orchestration.py  # HTTP 层与编排链路之间的衔接
-├── api.py                 # FastAPI / SSE
-├── storage.py             # SQLite 持久化
-├── wiki_runtime.py        # Wiki 编译任务、发布、回退
-├── wiki_maintenance/      # Wiki 编译器与构建仓库
-├── frontend/              # Vue 3 + Vite
-├── aftersales/            # V2 售后领域：只读业务工具、Stage 6 动作契约、Policy Guard、ActionGateway、审批
-├── eval_v2/               # V2 评测：Stage 5 工具循环，Stage 6 动作循环、runner、scorer、oracle
-├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
-├── system_fixtures/       # 演示用的业务数据（SQLite seed）
-├── tests/                 # 2563 项离线自动化测试
-├── eval_*.json            # 评测数据集
-├── evaluate*.py           # 评测脚本
-├── HANDOFF.md             # 每个阶段的决策、结果与风险记录
-└── docs/                  # 应用细节、演示指南、M10 报告
-```
-
-应用层的完整说明见 **[docs/APP_DETAILS.md](docs/APP_DETAILS.md)**，内容包括：完整目录树、API 列表、演示流程、持久化与 Wiki 生命周期、M10 验收记录和产品边界。
-
-## Known limitations / Roadmap
+### Known limitations / Roadmap（V1）
 
 **已知限制**
 
 - **评测集**：`blind_v2` 已被开发使用，validation_v1 和 dev 也都是见过的数据。Stage 3 的 temporal holdout 已经开封，今后只能当作回归集。V1 问答链路目前**没有干净的未见评测集**，这些数字都不能当作泛化能力。V2 Stage 6 的 sealed holdout 只在冻结后运行过一次，但现在也已开封，同样只能当作回归集。
-- **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
 - **规模**：只有一份约 20 个知识块的模拟语料，40 题 × 3 轮。样本量不足以支撑统计意义上的模型比较。
 - **freshness recall**：holdout 上的 recall 是 0.500。当时间词和实时请求落在不同子句里，或者使用了"刚刚 / 本周"这类词表里没有的词时，会漏判。这些漏报在运行时不影响回答，Stage 3 有意没有继续调整。
 - **路由缺口**：有几类请求没有被识别为系统请求，例如记录号和状态词被逗号拆进两个子句、"申请"类记录、个人年假余额。这些会影响回答，但不在 Stage 3 范围内。
