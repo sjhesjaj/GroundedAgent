@@ -1,526 +1,332 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import DOMPurify from 'dompurify'
-import { marked } from 'marked'
-import ConversationList from './components/ConversationList.vue'
-import { api, getActiveConversationId, setActiveConversationId } from './api'
+import { aftersalesApi } from './api'
+import ActionCard from './components/ActionCard.vue'
+import AgentDetails from './components/AgentDetails.vue'
+import AuditTimeline from './components/AuditTimeline.vue'
 
-marked.setOptions({ breaks: true, gfm: true })
-
+const demo = ref(null)
+const selectedPersonaId = ref('')
+const session = ref(null)
 const messages = ref([])
-const conversations = ref([])
-const activeConversationId = ref('')
+const actions = ref({})
+const audit = ref([])
 const question = ref('')
-const files = ref([])
-const status = ref({ ollama_connected: false, chunk_count: 0 })
-const busy = ref(false)
-const uploadBusy = ref(false)
-const historyLoading = ref(false)
+const busy = ref('startup')
+const decidingId = ref('')
 const notice = ref('')
-const streamStatus = ref('')
+const invalidSession = ref(false)
+const syncRequired = ref(false)
 const messageList = ref(null)
-let historyRequestSequence = 0
-let scrollScheduled = false
-let localMessageSequence = 0
+const composer = ref(null)
+let messageSequence = 0
 
-const orchestrated = ref(false)
+const suggestions = [
+  { label: '查询订单', text: 'ORD-1001 现在是什么状态？', icon: '01' },
+  { label: '申请退货', text: '我要退 ORD-1001 里的内衣，不想要了', icon: '02' },
+  { label: '咨询换货', text: 'ORD-1001 的商品可以换货吗？', icon: '03' },
+  { label: '人工协助', text: '我想转人工处理这个售后问题', icon: '04' },
+]
+const statusLabels = { OPEN: '会话进行中', NEEDS_CLARIFICATION: '等待补充信息', WAITING_APPROVAL: '等待人工审批' }
+const locked = computed(() => Boolean(busy.value))
+const canInteract = computed(() => Boolean(session.value) && !invalidSession.value && !syncRequired.value && !locked.value)
+const canSend = computed(() => canInteract.value && question.value.trim().length > 0 && question.value.trim().length <= 2000)
+const sessionStatus = computed(() => invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : statusLabels[session.value?.status] || '尚未连接'))
+const businessTime = computed(() => (session.value?.business_time || demo.value?.business_time || '').replace('T', ' '))
+const unplacedActions = computed(() => Object.entries(actions.value).filter(([key]) => !messages.value.some((message) => message.actionKey === key)))
 
-// Wiki compilation runs in the background after the upload call returns, so it
-// is deliberately absent from `interactionLocked`: waiting minutes for a model
-// before the user may ask anything would undo the point of doing it in the
-// background at all.
-const wikiJob = ref(null)
-const WIKI_POLL_INTERVAL_MS = 2000
-// `idle` means the backend no longer knows this job — job state is in-memory,
-// so a restart loses it. Terminal, or the timer would poll a job that can never
-// report anything again.
-const WIKI_TERMINAL_STATUSES = ['published', 'ignored', 'failed', 'cancelled', 'idle']
-let wikiPollTimer = null
-
-const interactionLocked = computed(() => busy.value || uploadBusy.value || historyLoading.value)
-const activeTitle = computed(() => (
-  conversations.value.find((item) => item.id === activeConversationId.value)?.title || '企业制度问答'
-))
-// Wiki and inventory questions do not need an uploaded document, so the
-// composer must not stay locked behind an empty knowledge base in this mode.
-const canAsk = computed(() => orchestrated.value || status.value.chunk_count > 0)
-
-const WIKI_STATUS_LABELS = {
-  queued: 'Wiki 编译排队中',
-  running: '正在编译 Wiki',
-  published: 'Wiki 已更新',
-  ignored: '文档无需编入 Wiki',
-  failed: 'Wiki 编译失败，继续使用原有 Wiki',
-  cancelled: 'Wiki 编译已取消',
-  idle: 'Wiki 任务状态已丢失，可重新上传',
+async function scrollToEnd() {
+  await nextTick()
+  if (window.matchMedia('(max-width: 760px)').matches) {
+    messageList.value?.lastElementChild?.scrollIntoView({ block: 'end' })
+  } else messageList.value?.scrollTo({ top: messageList.value.scrollHeight, behavior: 'auto' })
 }
 
-const WIKI_STAGE_LABELS = {
-  document_decision: '判断文档是否收录',
-  topic_plan: '规划 Wiki 页面',
-}
-
-function wikiStageLabel(stage) {
-  if (!stage) return ''
-  if (WIKI_STAGE_LABELS[stage]) return WIKI_STAGE_LABELS[stage]
-  if (stage.startsWith('page_compilation:')) return `编写页面「${stage.slice('page_compilation:'.length)}」`
-  return stage
-}
-
-const wikiMessage = computed(() => {
-  const job = wikiJob.value
-  if (!job) return ''
-  const label = WIKI_STATUS_LABELS[job.status] || job.status
-  const parts = [label]
-  if (job.total_documents > 1) parts.push(`${job.completed_documents}/${job.total_documents} 个文件`)
-  const stage = wikiStageLabel(job.stage)
-  if (stage) parts.push(stage)
-  if (job.status === 'failed' && job.error) parts.push(job.error)
-  return parts.join(' · ')
-})
-
-const wikiActive = computed(() => ['queued', 'running'].includes(wikiJob.value?.status))
-
-const EVIDENCE_LABELS = { wiki: 'Wiki', document: '原文', system: '实时状态' }
-const STEP_LABELS = { wiki_query: 'Wiki', document_search: '原文检索', system_query: '实时查询' }
-const ROUTE_LABELS = {
-  direct: '直接回答',
-  wiki_only: 'Wiki',
-  document_only: '原文',
-  system_only: '实时状态',
-  wiki_document: 'Wiki + 原文',
-  wiki_system: 'Wiki + 实时状态',
-  document_system: '原文 + 实时状态',
-  wiki_document_system: 'Wiki + 原文 + 实时状态',
-}
-
-const evidenceLabel = (type) => EVIDENCE_LABELS[type] || type
-const stepLabel = (step) => STEP_LABELS[step] || step
-const routeLabel = (route) => ROUTE_LABELS[route] || route
-const hasValue = (value) => value !== null && value !== undefined
-
-function renderMarkdown(content = '') {
-  return DOMPurify.sanitize(marked.parse(content), {
-    USE_PROFILES: { html: true },
-    FORBID_TAGS: ['img', 'style'],
-    FORBID_ATTR: ['style'],
-  })
-}
-
-function normalizeMessages(items = []) {
-  return items.map((item) => ({
-    id: item.id,
-    role: item.role,
-    content: item.content || '',
-    sources: item.sources || [],
-    trace: item.trace || null,
-    createdAt: item.created_at,
-  }))
-}
-
-function nextLocalMessageId(role) {
-  localMessageSequence += 1
-  return `local-${role}-${localMessageSequence}`
-}
-
-function scheduleScroll() {
-  if (scrollScheduled) return
-  scrollScheduled = true
-  requestAnimationFrame(async () => {
-    await nextTick()
-    if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight
-    scrollScheduled = false
-  })
-}
-
-function formatDuration(value) {
-  const seconds = Number(value)
-  return Number.isFinite(seconds) ? `${seconds.toFixed(2)}s` : ''
-}
-
-async function refreshStatus() {
-  try {
-    status.value = await api.health()
-  } catch (error) {
-    notice.value = error.message
+function updateHeader(data) {
+  session.value = {
+    session_id: data.session_id, persona: data.persona, business_time: data.business_time,
+    status: data.status, pending_action_id: data.pending_action_id,
   }
+  selectedPersonaId.value = data.persona.persona_id
 }
 
-async function refreshConversationList() {
-  try {
-    const result = await api.listConversations()
-    conversations.value = result.items || []
-  } catch (error) {
-    notice.value = error.message
+// GET /sessions owns the transcript; rich metadata survives only when the
+// corresponding entry still matches, since the server does not persist trace.
+function reconcile(data) {
+  const previous = messages.value
+  updateHeader(data)
+  for (const action of data.pending_actions || []) actions.value[action.pending_action_id] = action
+  const placed = new Set()
+  messages.value = data.messages.map((entry, index) => {
+    const old = previous[index]
+    const same = old?.role === entry.role && old?.text === entry.text
+    const item = { ...(same ? old : {}), ...entry, id: same ? old.id : ++messageSequence }
+    const key = entry.pending_action_id || (same ? old.actionKey : null)
+    item.actionKey = entry.role === 'assistant' && key && !placed.has(key) ? key : null
+    if (item.actionKey) placed.add(key)
+    return item
+  })
+  audit.value = data.audit || []
+  invalidSession.value = false
+  syncRequired.value = false
+}
+
+function activate(data) {
+  messages.value = []
+  actions.value = {}
+  audit.value = []
+  question.value = ''
+  reconcile(data)
+}
+
+function applyResponse(data, customerText) {
+  updateHeader(data)
+  if (customerText !== undefined) messages.value.push({ id: ++messageSequence, role: 'customer', text: customerText })
+  const actionKey = data.action ? (data.action.pending_action_id || `turn-${++messageSequence}`) : null
+  if (actionKey) actions.value[actionKey] = data.action
+  // Replays/conflicts return a reply but do not append to the server transcript.
+  const replayedDecision = data.operator_decision && (data.action?.idempotent_replay || data.action?.decision_conflict)
+  if (replayedDecision) notice.value = data.reply.text
+  else messages.value.push({
+    id: ++messageSequence, role: 'assistant', text: data.reply.text, kind: data.reply.kind,
+    citations: data.citations, trace: data.trace, traceAction: data.action,
+    pending_action_id: data.action?.pending_action_id,
+    actionKey: actionKey && !messages.value.some((message) => message.actionKey === actionKey) ? actionKey : null,
+  })
+  audit.value = data.audit || []
+}
+
+function showError(error) {
+  notice.value = error.message
+  if (error.code === 'session_not_found') invalidSession.value = true
+}
+
+async function loadDemo() {
+  demo.value = await aftersalesApi.demo()
+  if (!demo.value.personas.some((persona) => persona.persona_id === selectedPersonaId.value)) {
+    selectedPersonaId.value = demo.value.personas[0]?.persona_id || ''
   }
+  if (!selectedPersonaId.value) throw new Error('Demo 暂无可用客户，请检查后端服务。')
 }
 
-async function initializeConversations() {
-  const sequence = ++historyRequestSequence
-  historyLoading.value = true
+async function newSession(personaId = selectedPersonaId.value) {
+  if (locked.value) return
+  busy.value = 'session'
+  notice.value = ''
   try {
-    const result = await api.listConversations()
-    if (sequence !== historyRequestSequence) return
-    conversations.value = result.items || []
-
-    const savedId = getActiveConversationId()
-    const target = conversations.value.find((item) => item.id === savedId) || conversations.value[0]
-    if (!target) {
-      activeConversationId.value = ''
-      setActiveConversationId('')
-      messages.value = []
-      return
+    if (!demo.value || !personaId) {
+      await loadDemo()
+      personaId = selectedPersonaId.value
     }
-
-    activeConversationId.value = target.id
-    setActiveConversationId(target.id)
-    const history = await api.conversationMessages(target.id)
-    if (sequence !== historyRequestSequence || activeConversationId.value !== target.id) return
-    messages.value = normalizeMessages(history.items)
-    scheduleScroll()
+    activate(await aftersalesApi.createSession(personaId))
   } catch (error) {
-    if (sequence === historyRequestSequence) notice.value = error.message
+    showError(error)
   } finally {
-    if (sequence === historyRequestSequence) historyLoading.value = false
+    busy.value = ''
   }
 }
 
-async function selectConversation(conversationId) {
-  if (!conversationId || interactionLocked.value) return
-
-  const sequence = ++historyRequestSequence
-  historyLoading.value = true
-  notice.value = ''
-  activeConversationId.value = conversationId
-  setActiveConversationId(conversationId)
-  messages.value = []
-
-  try {
-    const result = await api.conversationMessages(conversationId)
-    if (sequence !== historyRequestSequence || activeConversationId.value !== conversationId) return
-    messages.value = normalizeMessages(result.items)
-    scheduleScroll()
-  } catch (error) {
-    if (sequence !== historyRequestSequence) return
-    notice.value = error.message
-    activeConversationId.value = ''
-    setActiveConversationId('')
-    await refreshConversationList()
-  } finally {
-    if (sequence === historyRequestSequence) historyLoading.value = false
-  }
+async function changePersona(event) {
+  const personaId = event.target.value
+  // Keep the bound selection until the new session actually succeeds.
+  event.target.value = selectedPersonaId.value
+  await newSession(personaId)
 }
 
-function activateConversation(item) {
-  conversations.value = [item, ...conversations.value.filter((entry) => entry.id !== item.id)]
-  activeConversationId.value = item.id
-  setActiveConversationId(item.id)
-  messages.value = []
-}
-
-async function createConversation() {
-  if (interactionLocked.value) return
-  const sequence = ++historyRequestSequence
-  historyLoading.value = true
+async function resetDemo() {
+  if (locked.value) return
+  busy.value = 'reset'
   notice.value = ''
   try {
-    const item = await api.createConversation()
-    if (sequence !== historyRequestSequence) return
-    activateConversation(item)
-    notice.value = '已开始新对话，知识库保持不变'
-  } catch (error) {
-    if (sequence === historyRequestSequence) notice.value = error.message
-  } finally {
-    if (sequence === historyRequestSequence) historyLoading.value = false
-  }
-}
-
-async function ensureActiveConversation(title) {
-  if (activeConversationId.value) return activeConversationId.value
-  const item = await api.createConversation(title.slice(0, 60) || '新对话')
-  activateConversation(item)
-  return item.id
-}
-
-async function removeConversation(conversationId) {
-  if (!conversationId || interactionLocked.value) return
-  const item = conversations.value.find((entry) => entry.id === conversationId)
-  if (!globalThis.confirm(`确定删除“${item?.title || '这条对话'}”吗？`)) return
-
-  const sequence = ++historyRequestSequence
-  historyLoading.value = true
-  notice.value = ''
-  try {
-    await api.deleteConversation(conversationId)
-    if (sequence !== historyRequestSequence) return
-    conversations.value = conversations.value.filter((entry) => entry.id !== conversationId)
-
-    if (activeConversationId.value !== conversationId) return
+    await aftersalesApi.resetDemo()
+    // Reset has invalidated the old session even if the following read fails.
+    session.value = null
     messages.value = []
-    const nextConversation = conversations.value[0]
-    if (!nextConversation) {
-      activeConversationId.value = ''
-      setActiveConversationId('')
-      return
-    }
-
-    activeConversationId.value = nextConversation.id
-    setActiveConversationId(nextConversation.id)
-    const result = await api.conversationMessages(nextConversation.id)
-    if (sequence !== historyRequestSequence || activeConversationId.value !== nextConversation.id) return
-    messages.value = normalizeMessages(result.items)
-    scheduleScroll()
+    actions.value = {}
+    audit.value = []
+    question.value = ''
+    syncRequired.value = false
+    invalidSession.value = false
+    await loadDemo()
+    activate(await aftersalesApi.createSession(selectedPersonaId.value))
   } catch (error) {
-    if (sequence === historyRequestSequence) notice.value = error.message
+    showError(error)
+    if (session.value) await recoverSession()
   } finally {
-    if (sequence === historyRequestSequence) historyLoading.value = false
+    busy.value = ''
   }
 }
 
-function resetConversations() {
-  historyRequestSequence += 1
-  historyLoading.value = false
-  conversations.value = []
-  activeConversationId.value = ''
-  setActiveConversationId('')
-  messages.value = []
-}
-
-function choose(event) {
-  files.value = [...event.target.files]
-  event.target.value = ''
-}
-
-async function upload() {
-  if (!files.value.length || interactionLocked.value) return
-  uploadBusy.value = true
-  notice.value = ''
+async function recoverSession() {
+  syncRequired.value = true
   try {
-    const result = await api.upload(files.value)
-    status.value.chunk_count = result.chunks
-    files.value = []
-    resetConversations()
-    notice.value = `已导入 ${result.files.length} 个文件，生成 ${result.chunks} 个知识片段`
-    // Retrieval is already usable; the Wiki catches up in the background.
-    if (result.wiki_job_id) startWikiPolling(result.wiki_job_id)
+    reconcile(await aftersalesApi.session(session.value.session_id))
   } catch (error) {
-    notice.value = error.message
-  } finally {
-    uploadBusy.value = false
+    if (error.code === 'session_not_found') showError(error)
+    else notice.value += ' 无法同步会话，请先刷新状态再继续。'
   }
 }
 
-function stopWikiPolling() {
-  if (wikiPollTimer) {
-    clearTimeout(wikiPollTimer)
-    wikiPollTimer = null
-  }
-}
-
-function startWikiPolling(jobId) {
-  stopWikiPolling()
-  wikiJob.value = { job_id: jobId, status: 'queued', stage: null, files: [], completed_documents: 0, total_documents: 0 }
-  const poll = async () => {
-    try {
-      const job = await api.wikiStatus(jobId)
-      wikiJob.value = job
-      if (WIKI_TERMINAL_STATUSES.includes(job.status)) {
-        stopWikiPolling()
-        return
-      }
-    } catch {
-      // A dropped poll is not a failed compile; keep watching.
-    }
-    wikiPollTimer = setTimeout(poll, WIKI_POLL_INTERVAL_MS)
-  }
-  wikiPollTimer = setTimeout(poll, WIKI_POLL_INTERVAL_MS)
+async function refreshSession() {
+  if (locked.value || !session.value) return
+  busy.value = 'sync'
+  notice.value = ''
+  await recoverSession()
+  busy.value = ''
 }
 
 async function send() {
-  const content = question.value.trim()
-  if (!content || interactionLocked.value) return
-
-  busy.value = true
+  if (!canSend.value) return
+  const text = question.value.trim()
+  busy.value = 'message'
   notice.value = ''
-  let answerIndex = -1
   try {
-    const conversationId = await ensureActiveConversation(content)
-    messages.value.push({ id: nextLocalMessageId('user'), role: 'user', content })
-    answerIndex = messages.value.push({ id: nextLocalMessageId('assistant'), role: 'assistant', content: '', sources: [], trace: null }) - 1
+    applyResponse(await aftersalesApi.sendMessage(session.value.session_id, text), text)
     question.value = ''
-    streamStatus.value = '正在连接 Agent'
-    scheduleScroll()
-
-    await api.chatStream(content, conversationId, (event, data) => {
-      const answer = messages.value[answerIndex]
-      if (!answer) return
-      if (event === 'status') streamStatus.value = data.message
-      if (event === 'delta') answer.content += data.content
-      if (event === 'sources') answer.sources = data.sources
-      if (event === 'done') {
-        answer.trace = data.trace
-        streamStatus.value = ''
-      }
-      scheduleScroll()
-    }, undefined, orchestrated.value ? 'orchestrated' : 'legacy')
-    await refreshConversationList()
   } catch (error) {
-    if (answerIndex < 0) {
-      notice.value = error.message
-    } else {
-      const answer = messages.value[answerIndex]
-      answer.error = true
-      answer.errorMessage = answer.content ? `响应中断：${error.message}` : `请求失败：${error.message}`
+    showError(error)
+    // An interrupted response may already have committed an action. Read its
+    // persisted outcome instead of automatically retrying the mutation.
+    if (!error.status || error.status >= 500 || error.code === 'invalid_response') {
+      const oldCount = messages.value.length
+      await recoverSession()
+      if (messages.value.slice(oldCount).some((entry) => entry.role === 'customer' && entry.text === text)) question.value = ''
     }
   } finally {
-    busy.value = false
-    streamStatus.value = ''
-    scheduleScroll()
+    busy.value = ''
+    await scrollToEnd()
+    composer.value?.focus()
   }
 }
 
-async function clearKnowledge() {
-  if (interactionLocked.value) return
-  uploadBusy.value = true
+async function decide(action, decision) {
+  if (!canInteract.value || action.status !== 'WAITING_APPROVAL' || !action.pending_action_id) return
+  busy.value = 'decision'
+  decidingId.value = action.pending_action_id
+  notice.value = ''
   try {
-    await api.clear()
-    resetConversations()
-    files.value = []
-    status.value.chunk_count = 0
-    stopWikiPolling()
-    wikiJob.value = null
-    notice.value = '知识库已清空'
+    const result = await aftersalesApi.decide(session.value.session_id, action.pending_action_id, decision)
+    applyResponse(result)
+    // A failed approval transaction can leave the persisted action pending.
+    // Keep the failure reply, then restore the current outcome before retrying.
+    if (result.action?.status === 'FAILED' || result.action?.decision_conflict) await recoverSession()
   } catch (error) {
-    notice.value = error.message
+    showError(error)
+    if (error.code !== 'session_not_found') await recoverSession()
   } finally {
-    uploadBusy.value = false
+    busy.value = ''
+    decidingId.value = ''
+    await scrollToEnd()
   }
 }
 
-function handleComposerKeydown(event) {
-  if (event.isComposing || event.key !== 'Enter' || event.shiftKey) return
-  event.preventDefault()
-  send()
+async function chooseSuggestion(text) {
+  if (!canInteract.value) return
+  question.value = text
+  await nextTick()
+  composer.value?.focus()
 }
 
-onMounted(() => Promise.allSettled([refreshStatus(), initializeConversations()]))
+function composerKeydown(event) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+    event.preventDefault()
+    send()
+  }
+}
+
+onMounted(async () => {
+  try {
+    await loadDemo()
+    activate(await aftersalesApi.createSession(selectedPersonaId.value))
+  } catch (error) {
+    showError(error)
+  } finally {
+    busy.value = ''
+  }
+})
 </script>
 
 <template>
   <main class="shell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="演示控制台">
       <div class="brand">
-        <span class="brand-mark">K</span>
-        <div><strong>Knowledge Agent</strong><small>企业知识助手</small></div>
+        <span class="brand-mark" aria-hidden="true">G<span></span></span>
+        <span><strong>GroundedAgent</strong><small>电商售后客服</small></span>
       </div>
-
-      <ConversationList
-        :items="conversations"
-        :active-id="activeConversationId"
-        :disabled="interactionLocked"
-        :loading="historyLoading"
-        @create="createConversation"
-        @select="selectConversation"
-        @remove="removeConversation"
-      />
-
-      <section class="panel status-panel">
-        <div class="section-title">
-          <span>系统状态</span>
-          <span class="status-dot" :class="{ online: status.ollama_connected }"></span>
-        </div>
-        <p class="muted">{{ status.ollama_connected ? 'Ollama 已连接' : 'Ollama 未连接' }}</p>
-        <p class="metric"><strong>{{ status.chunk_count }}</strong><span>知识片段</span></p>
+      <div class="sidebar-label">DEMO WORKSPACE <span>M0</span></div>
+      <section class="panel persona-panel">
+        <label class="section-title" for="persona">演示客户 <span>Demo customer</span></label>
+        <div class="customer-icon" aria-hidden="true">客</div>
+        <select id="persona" :value="selectedPersonaId" :disabled="locked || !demo?.personas.length" @change="changePersona">
+          <option v-if="!demo?.personas.length" value="">正在加载客户…</option>
+          <option v-for="persona in demo?.personas" :key="persona.persona_id" :value="persona.persona_id">{{ persona.display_name }} · {{ persona.persona_id }}</option>
+        </select>
+        <small class="persona-reference">{{ selectedPersonaId }}</small>
+        <p class="helper">Persona 是演示客户的替身，不代表身份认证。切换客户会新建会话。</p>
       </section>
-
-      <section class="panel upload-panel">
-        <div class="section-title">导入知识</div>
-        <label class="dropzone">
-          <input type="file" multiple accept=".pdf,.txt,.md" :disabled="interactionLocked" @change="choose">
-          <span class="upload-icon">↑</span>
-          <strong>选择 PDF / TXT / MD</strong>
-          <small>{{ files.length ? `已选择 ${files.length} 个文件` : '支持多文件上传' }}</small>
-        </label>
-        <button class="primary" :disabled="!files.length || interactionLocked || !status.ollama_connected" @click="upload">
-          {{ uploadBusy ? '正在建立索引…' : '建立知识库' }}
-        </button>
-        <!-- Background compilation: the composer stays usable throughout. -->
-        <p
-          v-if="wikiMessage"
-          class="wiki-job"
-          :class="{ active: wikiActive, failed: wikiJob?.status === 'failed' }"
-          role="status"
-          aria-live="polite"
-        >
-          <i v-if="wikiActive"></i>{{ wikiMessage }}
-        </p>
+      <section class="panel demo-panel">
+        <h2 class="section-title">演示状态 <span>Demo state</span></h2>
+        <dl>
+          <div><dt>业务时间</dt><dd class="business-time">{{ businessTime || '—' }}</dd></div>
+          <div><dt>当前会话</dt><dd class="mono" :title="session?.session_id">{{ session ? `${session.session_id.slice(0, 8)}…${session.session_id.slice(-4)}` : '—' }}</dd></div>
+          <div><dt>会话状态</dt><dd class="session-state" :class="{ waiting: session?.status === 'WAITING_APPROVAL', invalid: invalidSession || syncRequired }"><i></i>{{ sessionStatus }}</dd></div>
+        </dl>
       </section>
-      <button class="ghost danger" :disabled="!status.chunk_count || interactionLocked" @click="clearKnowledge">清空知识库</button>
+      <div class="sidebar-actions">
+        <button class="primary new-session" :disabled="locked" @click="newSession()"><span aria-hidden="true">＋</span>新建会话</button>
+        <button class="secondary" :disabled="locked" @click="resetDemo"><span aria-hidden="true">↻</span>重置 Demo</button>
+        <small>重置将清空所有演示会话与模拟业务记录。</small>
+      </div>
+      <div class="demo-warning"><span aria-hidden="true">◇</span><p>本地演示环境 · 非真实支付/退款/履约系统</p></div>
     </aside>
 
-    <section class="chat">
-      <header>
-        <div><h1>{{ activeTitle }}</h1><p>混合检索 · Agent 工具调用 · 可追溯引用</p></div>
-        <div class="header-actions">
-          <label class="mode-toggle" :class="{ on: orchestrated }">
-            <input v-model="orchestrated" type="checkbox" :disabled="interactionLocked">
-            <span>三通道模式</span>
-          </label>
-          <button :disabled="interactionLocked" @click="createConversation">新对话</button>
-          <span class="badge">Local RAG</span>
-        </div>
+    <section class="chat" aria-label="售后客服会话">
+      <header class="chat-header">
+        <div><div class="eyebrow">GROUNDED IN EVERY STEP</div><h1>电商售后客服</h1><p>订单查询、退换货与人工升级</p></div>
+        <span class="header-badge"><i></i>售后服务 Demo</span>
       </header>
-      <div v-if="notice" class="notice">{{ notice }}</div>
-
-      <div ref="messageList" class="messages" :aria-busy="historyLoading">
-        <div v-if="historyLoading" class="history-loading"><i></i><span>正在恢复会话…</span></div>
-        <div v-else-if="!messages.length" class="empty">
-          <div class="orb">✦</div>
-          <h2>从企业知识中获得可靠答案</h2>
-          <p>上传资料后，可以查询制度、比较规则、列出来源或总结知识库。</p>
+      <div v-if="notice" class="notice" role="alert">
+        <span>{{ notice }}</span>
+        <button v-if="syncRequired && !invalidSession" :disabled="locked" @click="refreshSession">刷新状态</button>
+        <button v-else-if="invalidSession || !session" :disabled="locked" @click="newSession()">{{ invalidSession ? '新建会话' : '重新连接' }}</button>
+        <button v-else class="dismiss" aria-label="关闭提示" @click="notice = ''">×</button>
+      </div>
+      <div ref="messageList" class="messages" :aria-busy="locked">
+        <section v-if="!messages.length" class="welcome">
+          <div class="welcome-symbol" aria-hidden="true">G<span>✓</span></div>
+          <div class="eyebrow">YOUR AFTER-SALES ASSISTANT</div>
+          <h2>售后问题，从这里开始。</h2>
+          <p>告诉我你的订单和遇到的问题。<br>查询有依据，操作有审批，处理有记录。</p>
+          <div class="welcome-steps" aria-label="服务流程"><span>查询订单与规则</span><b>→</b><span>提出售后方案</span><b>→</b><span>审批与执行</span></div>
           <div class="suggestions">
-            <button v-for="item in ['年假如何申请？', '比较年假和调休制度', '列出知识库资料来源']" :key="item" @click="question = item">{{ item }}</button>
+            <button v-for="item in suggestions" :key="item.label" :disabled="!canInteract" @click="chooseSuggestion(item.text)">
+              <span class="suggestion-top"><span>{{ item.icon }}</span><b>{{ item.label }}</b><span aria-hidden="true">↗</span></span>
+              <span class="suggestion-text">{{ item.text }}</span>
+            </button>
           </div>
-        </div>
-
+          <small>示例仅供开始对话，具体处理以实际查询和审核结果为准。</small>
+        </section>
+        <div v-else class="conversation-start"><span></span>本次会话 · {{ session?.persona.display_name }}<span></span></div>
         <article v-for="message in messages" :key="message.id" class="message" :class="message.role">
-          <div class="avatar">{{ message.role === 'user' ? '你' : 'AI' }}</div>
-          <div class="message-body" :class="{ error: message.error }">
-            <div v-if="message.role === 'assistant'" class="markdown" v-html="renderMarkdown(message.content)"></div>
-            <p v-else>{{ message.content }}</p>
-            <span v-if="message.role === 'assistant' && !message.content && busy" class="cursor"></span>
-            <p v-if="message.errorMessage" class="stream-error">{{ message.errorMessage }}</p>
-            <div v-if="message.trace?.route" class="evidence-path">
-              <span class="route">{{ routeLabel(message.trace.route) }}</span>
-              <span v-for="step in message.trace.steps" :key="step" class="step">{{ stepLabel(step) }}</span>
-            </div>
-            <details v-if="message.sources?.length">
-              <summary>查看 {{ message.sources.length }} 条检索依据</summary>
-              <div v-for="source in message.sources" :key="source.rank" class="source">
-                <strong>
-                  <span v-if="source.type" class="evidence-tag" :class="source.type">{{ evidenceLabel(source.type) }}</span>
-                  {{ source.rank }}. {{ source.heading || source.locator || source.source }}
-                </strong>
-                <small>
-                  {{ source.source }}
-                  <template v-if="hasValue(source.chunk_index)"> · 片段 {{ source.chunk_index }}</template>
-                  <template v-if="hasValue(source.score)"> · {{ source.score }}</template>
-                </small>
-                <p>{{ source.content }}</p>
-              </div>
-            </details>
-            <small v-if="message.trace" class="trace">{{ message.trace.tool || routeLabel(message.trace.route) }} · {{ formatDuration(message.trace.total_seconds) }}</small>
+          <div class="avatar" aria-hidden="true">{{ message.role === 'customer' ? '客' : 'G' }}</div>
+          <div class="message-body">
+            <div class="message-label">{{ message.role === 'customer' ? session?.persona.display_name : 'GroundedAgent' }}<span v-if="message.kind === 'operator_decision'">审批结果</span></div>
+            <p class="message-text">{{ message.text }}</p>
+            <AgentDetails v-if="message.role === 'assistant'" :citations="message.citations" :trace="message.trace" :action="message.traceAction" />
+            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :disabled="!canInteract" :deciding="decidingId === actions[message.actionKey].pending_action_id" @decide="decide(actions[message.actionKey], $event)" />
           </div>
         </article>
+        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :disabled="!canInteract" :deciding="decidingId === action.pending_action_id" @decide="decide(action, $event)" />
+        <AuditTimeline :events="audit" />
+        <div v-if="busy" class="processing" role="status"><i></i>{{ busy === 'message' || busy === 'decision' ? '正在处理…' : busy === 'reset' ? '正在重置 Demo…' : busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</div>
       </div>
-
-      <footer>
-        <div v-if="streamStatus" class="stream-status" role="status" aria-live="polite"><i></i>{{ streamStatus }}</div>
-        <div class="composer">
-          <textarea v-model="question" rows="1" :disabled="!canAsk || interactionLocked" :placeholder="orchestrated ? '输入问题，可查询制度或库存…' : '输入企业制度问题…'" @keydown="handleComposerKeydown"></textarea>
-          <button :disabled="!question.trim() || interactionLocked || !canAsk" @click="send">{{ busy ? '回答中' : '发送' }}</button>
-        </div>
-        <small>回答仅基于已导入资料，请核对引用来源。</small>
+      <footer class="chat-footer">
+        <form class="composer" @submit.prevent="send">
+          <label class="sr-only" for="message">售后问题</label>
+          <textarea id="message" ref="composer" v-model="question" rows="2" maxlength="2000" :disabled="!canInteract" placeholder="输入订单号或描述你的售后问题…" @keydown="composerKeydown"></textarea>
+          <button class="primary" type="submit" :disabled="!canSend">{{ busy === 'message' ? '正在处理…' : '发送' }}<span v-if="busy !== 'message'" aria-hidden="true">↑</span></button>
+        </form>
+        <div class="composer-hint"><span>Enter 发送 · Shift + Enter 换行</span><span>{{ question.length }} / 2000</span></div>
       </footer>
     </section>
   </main>
