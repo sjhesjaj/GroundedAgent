@@ -1,154 +1,63 @@
-const CLIENT_KEY = 'knowledge-agent-client-id'
-const ACTIVE_CONVERSATION_KEY = 'knowledge-agent-active-conversation-id'
-let memoryClientId = ''
+const BASE = '/api/aftersales'
 
-function createId(prefix) {
-  const value = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  return `${prefix}-${value}`
+const ERROR_MESSAGES = {
+  session_not_found: '当前会话已失效，请新建会话。已显示的对话仍保留。',
+  pending_action_not_found: '该待审批动作已不可用，请刷新会话状态。',
+  llm_unavailable: '模型服务暂时不可用，请稍后重试。',
+  agent_internal_error: 'Agent 处理失败，请稍后重试。',
+  unknown_persona: '演示客户已不可用，请重新加载 Demo。',
+  empty_message: '请输入消息后再发送。',
+  conversation_full: '当前会话已达到消息上限，请新建会话。',
+  too_many_sessions: '演示会话已达到上限，请重置 Demo。',
+  decision_refused: '本次审批未被接受，请刷新会话后查看动作状态。',
 }
 
-function readLocalStorage(key) {
+export class AftersalesApiError extends Error {
+  constructor(message, status = 0, code = 'network_error') {
+    super(message)
+    this.name = 'AftersalesApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
+async function request(path, body, method = body === undefined ? 'GET' : 'POST') {
+  let response
   try {
-    return globalThis.localStorage?.getItem(key) || ''
+    response = await fetch(`${BASE}${path}`, {
+      method,
+      ...(body === undefined ? {} : {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    })
   } catch {
-    return ''
+    throw new AftersalesApiError('连接中断，暂时无法确认请求结果。')
   }
-}
-
-function writeLocalStorage(key, value) {
-  try {
-    if (value) globalThis.localStorage?.setItem(key, value)
-    else globalThis.localStorage?.removeItem(key)
-  } catch {
-    // The app still works for this page when private-mode storage is unavailable.
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    const code = data?.detail?.code || `http_${response.status}`
+    const fallback = response.status === 422
+      ? '请求未通过校验，请检查输入（消息最多 2000 字）。'
+      : '请求失败，请稍后重试或检查后端服务。'
+    throw new AftersalesApiError(ERROR_MESSAGES[code] || fallback, response.status, code)
   }
-}
-
-export function getClientId() {
-  let clientId = readLocalStorage(CLIENT_KEY) || memoryClientId
-  if (!clientId) {
-    clientId = createId('client')
-    writeLocalStorage(CLIENT_KEY, clientId)
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new AftersalesApiError('服务返回了无法读取的结果，请刷新会话状态。', response.status, 'invalid_response')
   }
-  memoryClientId = clientId
-  return clientId
-}
-
-export function getActiveConversationId() {
-  return readLocalStorage(ACTIVE_CONVERSATION_KEY)
-}
-
-export function setActiveConversationId(conversationId) {
-  writeLocalStorage(ACTIVE_CONVERSATION_KEY, conversationId)
-}
-
-async function request(path, options = {}) {
-  const response = await fetch(path, options)
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(data.detail || '请求失败，请检查后端服务')
   return data
 }
 
-function withClient(path) {
-  const separator = path.includes('?') ? '&' : '?'
-  return `${path}${separator}client_id=${encodeURIComponent(getClientId())}`
-}
+const sessionPath = (id) => `/sessions/${encodeURIComponent(id)}`
 
-function chatPayload(question, conversationId, mode) {
-  return {
-    question,
-    session_id: conversationId,
-    client_id: getClientId(),
-    // Omitted by older callers, so the backend keeps its legacy behavior.
-    mode: mode === 'orchestrated' ? 'orchestrated' : 'legacy',
-  }
-}
-
-export const api = {
-  health: () => request('/api/health'),
-
-  upload(files) {
-    const body = new FormData()
-    files.forEach((file) => body.append('files', file))
-    return request('/api/knowledge/upload', { method: 'POST', body })
-  },
-
-  clear: () => request('/api/knowledge', { method: 'DELETE' }),
-
-  wikiStatus(jobId) {
-    const query = jobId ? `?job_id=${encodeURIComponent(jobId)}` : ''
-    return request(`/api/wiki/status${query}`)
-  },
-
-  listConversations: () => request(withClient('/api/conversations')),
-
-  createConversation(title = '新对话') {
-    return request('/api/conversations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, client_id: getClientId() }),
-    })
-  },
-
-  conversationMessages(conversationId) {
-    return request(withClient(`/api/conversations/${encodeURIComponent(conversationId)}/messages`))
-  },
-
-  deleteConversation(conversationId) {
-    return request(withClient(`/api/conversations/${encodeURIComponent(conversationId)}`), { method: 'DELETE' })
-  },
-
-  chat(question, conversationId, mode) {
-    return request('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(chatPayload(question, conversationId, mode)),
-    })
-  },
-
-  async chatStream(question, conversationId, onEvent, signal, mode) {
-    const response = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify(chatPayload(question, conversationId, mode)),
-      signal,
-    })
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.detail || '无法开始流式回答')
-    }
-    if (!response.body) throw new Error('当前浏览器不支持流式响应')
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let completed = false
-    try {
-      while (true) {
-        const { value, done } = await reader.read()
-        buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
-        buffer = buffer.replace(/\r\n/g, '\n')
-        const blocks = buffer.split('\n\n')
-        buffer = blocks.pop() || ''
-        for (const block of blocks) {
-          const lines = block.split('\n')
-          const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message'
-          const raw = lines
-            .filter((line) => line.startsWith('data:'))
-            .map((line) => line.slice(5).trimStart())
-            .join('\n')
-          if (!raw) continue
-          const data = JSON.parse(raw)
-          if (event === 'error') throw new Error(data.message || '流式回答失败')
-          if (event === 'done') completed = true
-          onEvent(event, data)
-        }
-        if (done) break
-      }
-      if (!completed) throw new Error('流式连接提前结束，请重试')
-    } finally {
-      if (!completed) await reader.cancel().catch(() => {})
-      reader.releaseLock()
-    }
-  },
+export const aftersalesApi = {
+  demo: () => request('/demo'),
+  resetDemo: () => request('/demo/reset', undefined, 'POST'),
+  createSession: (personaId) => request('/sessions', { persona_id: personaId }),
+  session: (sessionId) => request(sessionPath(sessionId)),
+  sendMessage: (sessionId, text) => request(`${sessionPath(sessionId)}/messages`, { text }),
+  decide: (sessionId, pendingActionId, decision) => request(`/operator${sessionPath(sessionId)}/decision`, {
+    pending_action_id: pendingActionId,
+    decision,
+  }),
 }
