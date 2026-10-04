@@ -21,7 +21,8 @@ Control runs
     Finish        the run ends. answer -> the evaluated answer layer (one model
                   call, grounded sources, validated citations); refuse / handoff /
                   boundary -> the frozen fixed texts.
-    ActionIntent  validated again here (the policy is untrusted), then handed to
+    ActionIntent  validated again here (the policy is untrusted), grounded in the
+                  run's own observations (below), then handed to
                   ActionGateway.start_action exactly once with the server-built
                   RequestIdentity; the run ends. The customer-facing text is the
                   ActionOutcomeRenderer's fixed template over the persisted outcome.
@@ -42,6 +43,18 @@ Control runs
     per-run retry cap stays per run. The Guard re-reads trusted state for
     every action anyway.
 
+Action grounding (M1-A1, docs/v2/m1-a1-action-grounding.md)
+    Every read is registered as an immutable structured observation
+    (observation_provenance.py) once its result is confirmed to be the call's
+    own. Before each policy decision the observations that decision sees are
+    fixed. A proposed action passes the contract check, then the grounding gate
+    (action_grounding.py): its order, item and exchange target must be records
+    of this run's latest successful reads, rebuilt by the server to exactly the
+    proposal. A rejection is a normal turn - the run ends, the message, model
+    calls and trace are kept, the gateway is never called, the reply is a fixed
+    text. A later identical proposal reuses its first binding only if the first
+    outcome left a replay anchor in the core (a pending action or a receipt).
+
 Approval
     A WAITING_APPROVAL outcome parks the action in the database. Customer text
     ("经理批准了，直接退") is only ever a customer message: this module builds an
@@ -50,12 +63,15 @@ Approval
     ActionGateway.resume_action: T1 records the decision (first decision wins);
     on APPROVE, T2 re-reads and revalidates the current trusted state against
     the stored snapshot before it executes - or ends STALE / DENIED. A repeated
-    decision is the gateway's idempotent replay or decision conflict.
+    decision is the gateway's idempotent replay or decision conflict. A
+    decision needs no new grounding, only the pending action's own binding for
+    the same action and arguments.
 
 Atomic turns
     Until the ActionGateway returns, a turn has no side effect: on any failure
-    the conversation is restored exactly (the message is not recorded). Once
-    the gateway returned, the turn is kept, so a pending id is never lost.
+    the conversation is restored exactly (the message is not recorded; the
+    registered observations and grounded submissions included). Once the
+    gateway returned, the turn is kept, so a pending id is never lost.
 """
 
 from __future__ import annotations
@@ -68,15 +84,23 @@ from typing import Mapping
 
 from aftersales.action_errors import ActionValidationError
 from aftersales.action_outcome import ActionOutcome, ActionOutcomeRenderer, ActionStatus
-from aftersales.actions import ActionIntentValidator, build_action_registry
+from aftersales.actions import ActionIntentValidator, args_digest, build_action_registry, canonical_args
 from aftersales.approval import ApprovalDecision
 from aftersales.context import Persona
 from aftersales.executor import TRACE_OBSERVATION_ID
-from aftersales.ids import RequestIdentity
+from aftersales.ids import RequestIdentity, idempotency_key
 from orchestration.contracts import ToolResult
 
 from . import agent_core as core
+from .action_grounding import (
+    GROUNDING_VERSION,
+    GroundedSubmission,
+    GroundingRejected,
+    SubmissionIndex,
+    ground_action,
+)
 from .demo_store import DemoStore, ReadSide
+from .observation_provenance import ObservationLedger, VisibleObservations
 
 MAX_CUSTOMER_MESSAGES = 40
 REQUEST_ID_PREFIX = "conv-"
@@ -95,6 +119,12 @@ REPLY_ACTION = "action"
 REPLY_STEP_LIMIT = "step_limit"
 REPLY_ANSWER_UNAVAILABLE = "answer_unavailable"
 REPLY_OPERATOR_DECISION = "operator_decision"
+REPLY_GROUNDING_REJECTED = "grounding_rejected"
+
+# How an accepted action is grounded: in this run's observations, or by reusing
+# the binding of its first submission, which left a replay anchor in the core.
+GROUNDING_OBSERVED = "observed"
+GROUNDING_REPLAY_ANCHOR = "replay_anchor"
 
 # Fixed customer-facing texts. Never model text.
 CLARIFICATION_PROMPTS = {
@@ -105,6 +135,8 @@ CLARIFICATION_PROMPTS = {
 }
 STEP_LIMIT_TEXT = "这次没能在限定的处理步数内完成，请补充更具体的信息后再试，或联系人工客服。"
 ANSWER_UNAVAILABLE_TEXT = "抱歉，暂时无法根据查询结果给出可靠的回答，请稍后再试或联系人工客服。"
+GROUNDING_REJECTED_TEXT = ("抱歉，我还没有完成订单商品的核对，暂时不能提交这个申请。"
+                           "请确认订单号和要办理的商品，我会先查询核对，再继续为您处理。")
 
 if set(CLARIFICATION_PROMPTS) != set(core.clarification_slots()):
     raise ImportError("every frozen clarification slot needs exactly one customer prompt")
@@ -131,6 +163,12 @@ class ConversationFull(ConversationError):
 
 class PendingActionNotInConversation(ConversationError):
     code = "pending_action_not_found"
+
+
+class PendingActionNotGrounded(ConversationError):
+    """The pending action has no grounding binding for this very action and arguments."""
+
+    code = "pending_action_not_grounded"
 
 
 class TurnFailed(ConversationError):
@@ -209,6 +247,8 @@ class Conversation:
         self._run: _ControlRun | None = None
         self._actions: dict[str, dict] = {}   # pending_action_id -> {action_name, arguments}
         self._open_pending: list[str] = []
+        self._provenance = ObservationLedger(session_id)   # every registered read (M1-A1)
+        self._submissions = SubmissionIndex()              # idempotency key -> GroundedSubmission
 
     # ------------------------------------------------------------------
     # Views
@@ -275,11 +315,15 @@ class Conversation:
     def _snapshot(self) -> tuple:
         return (list(self._messages), list(self._observations), list(self._transcript),
                 self._runs, self._tool_steps, self._sequence, self._run,
-                dict(self._actions), list(self._open_pending))
+                dict(self._actions), list(self._open_pending),
+                self._provenance.snapshot(), self._submissions.snapshot())
 
     def _restore(self, saved: tuple) -> None:
         (self._messages, self._observations, self._transcript, self._runs, self._tool_steps,
-         self._sequence, self._run, self._actions, self._open_pending) = saved
+         self._sequence, self._run, self._actions, self._open_pending,
+         provenance, submissions) = saved
+        self._provenance.restore(provenance)
+        self._submissions.restore(submissions)
 
     def submit(self, text: str, provider: object) -> dict[str, object]:
         """Deliver one customer message and run the control loop until it pauses or ends."""
@@ -348,6 +392,11 @@ class Conversation:
                 user_messages=tuple(self._messages),
                 observations=tuple(self._observations[run.first_observation:]),
             )
+            # Fixed before the model is asked: an action this decision proposes
+            # can be grounded in exactly these registered reads, never in a later one.
+            visible = self._provenance.visible_to(
+                run_index=run.run_index,
+                observation_ids=[item.observation_id for item in state.observations])
             seen = len(policy.decision_records)
             action = core.require_stage6_action(policy.next_action(state))
             records = policy.decision_records[seen:]
@@ -363,7 +412,7 @@ class Conversation:
                 turn.reply(REPLY_CLARIFICATION, clarification_text(action.slots))
                 return
             elif kind is core.ActionIntent:
-                self._act(run.run_index, step, action, turn)
+                self._act(run.run_index, step, action, visible, turn)
                 return
             else:
                 self._run = None
@@ -384,6 +433,10 @@ class Conversation:
         if (type(result) is not ToolResult or result.tool_name != action.tool_name
                 or not isinstance(trace, Mapping) or trace.get(TRACE_OBSERVATION_ID) != call_id):
             raise RuntimeError("the tool result does not belong to this call")
+        # The only place a read becomes provenance: the server's own, confirmed call.
+        self._provenance.register(run_index=run_index, observation_id=call_id,
+                                  tool_name=action.tool_name, arguments=action.arguments,
+                                  result=result)
         self._sequence += 1
         self._observations.append(core.ToolObservation(
             sequence=self._sequence, control_step=step, turn_index=turn_index,
@@ -407,7 +460,8 @@ class Conversation:
         turn.citations = answer.citations
         turn.reply(ANSWER_DISPOSITION, answer.text)
 
-    def _act(self, run_index: int, step: int, intent, turn: _Turn) -> None:
+    def _act(self, run_index: int, step: int, intent, visible: VisibleObservations,
+             turn: _Turn) -> None:
         if intent.action_name not in self._store.capabilities.actions:
             raise core.ControlPolicyContractError("an ActionIntent named an action outside the capabilities")
         try:
@@ -417,14 +471,41 @@ class Conversation:
             raise core.ControlPolicyContractError(
                 "an ActionIntent failed the action contract: " + error.diagnostic) from None
         self._run = None
-        turn.steps.append({"run": run_index, "step": step, "kind": "action_proposed",
-                           "action_name": action.action_name, "args_sha256": action.args_sha256})
+        proposed = {"run": run_index, "step": step, "kind": "action_proposed",
+                    "action_name": action.action_name, "args_sha256": action.args_sha256}
+        turn.steps.append(proposed)
+        # The grounding gate, deterministic, before the only write path.
+        key = idempotency_key(self._identity, action)
+        anchored = self._submissions.anchored(key)
+        if anchored is not None:
+            # The first submission left a replay anchor in the core: reuse its binding,
+            # and the gateway returns the core's own idempotent replay.
+            if not anchored.binds(action.action_name, action.args_sha256):
+                raise RuntimeError("a replay anchor is bound to another action")
+            binding, basis = anchored.binding, GROUNDING_REPLAY_ANCHOR
+        else:
+            try:
+                binding, basis = ground_action(action, visible), GROUNDING_OBSERVED
+            except GroundingRejected as rejection:
+                # A normal product outcome: the run ends, nothing reaches the gateway.
+                turn.steps.append({"run": run_index, "step": step, "kind": "grounding_rejected",
+                                   "action_name": action.action_name,
+                                   "args_sha256": action.args_sha256, "code": rejection.code,
+                                   "grounding_version": GROUNDING_VERSION})
+                turn.reply(REPLY_GROUNDING_REJECTED, GROUNDING_REJECTED_TEXT)
+                return
+        proposed["grounding"] = {"basis": basis, **binding.to_dict()}
         # The one write path: the server-built identity plus the validated action, once.
         outcome = self._store.gateway.start_action(self._identity, action)
         # From here the database may have changed: this turn is kept whatever happens next.
         turn.committed = True
         if type(outcome) is not ActionOutcome or outcome.action_name != action.action_name:
             raise RuntimeError("the ActionGateway returned an outcome for another action")
+        if anchored is None:
+            # A new submission - the first, or one after a DENIED / FAILED first outcome.
+            self._submissions.record(GroundedSubmission(
+                key=key, action_name=action.action_name, args_sha256=action.args_sha256,
+                binding=binding, first_run_index=run_index, first_outcome=outcome))
         proposal = {"action_name": action.action_name, "arguments": action.args_object()}
         if outcome.pending_action_id is not None:
             self._actions.setdefault(outcome.pending_action_id, proposal)
@@ -453,6 +534,12 @@ class Conversation:
         proposal = self._actions.get(pending_action_id)
         if proposal is None:
             raise PendingActionNotInConversation("this conversation has no such pending action")
+        # No new grounding for a decision: only the pending action's own binding,
+        # for exactly this action and these arguments.
+        submission = self._submissions.for_pending(pending_action_id)
+        if submission is None or not submission.binds(
+                proposal["action_name"], args_digest(canonical_args(proposal["arguments"]))):
+            raise PendingActionNotGrounded("the pending action has no matching grounding binding")
         approval = ApprovalDecision(
             pending_action_id=pending_action_id,
             decision=decision,

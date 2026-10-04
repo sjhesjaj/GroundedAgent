@@ -15,7 +15,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aftersales.approval import PENDING_ACTION_ID_PATTERN
 
-from .conversation import ConversationError, ConversationFull, PendingActionNotInConversation, TurnFailed
+from .conversation import (
+    ConversationError,
+    ConversationFull,
+    PendingActionNotGrounded,
+    PendingActionNotInConversation,
+    TurnFailed,
+)
 from .service import (
     AftersalesService,
     DecisionRefused,
@@ -32,6 +38,7 @@ _STATUS_CODES = {
     UnknownPersona: 422,
     ConversationFull: 409,
     DecisionRefused: 409,
+    PendingActionNotGrounded: 409,
     TooManySessions: 429,
 }
 _TURN_STATUS_CODES = {"llm_unavailable": 503, "agent_internal_error": 500}

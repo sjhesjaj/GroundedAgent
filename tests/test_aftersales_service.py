@@ -528,14 +528,23 @@ class PersonaBoundaryTests(ProductTestCase):
     def test_another_persona_cannot_act_on_the_first_personas_order(self):
         _, pending_id = self.waiting("demo-a")
         other = self.session("demo-b")
+        started = mock.patch.object(ActionGateway, "start_action", autospec=True,
+                                    side_effect=ActionGateway.start_action)
+        start_spy = started.start()
+        self.addCleanup(started.stop)
         payload = self.say(other, "帮我把 ORD-1001 的内衣退了",
                            decision(call("get_order", {"order_id": "ORD-1001"})),
                            decision(call("create_return", RETURN_ARGS)))
         self.assertEqual(payload["persona"]["persona_id"], "demo-b")
         self.assertEqual(payload["trace"]["steps"][0]["result_status"], "empty")
-        self.assertEqual((payload["action"]["status"], payload["action"]["code"]),
-                         ("DENIED", "order_not_accessible"))
-        self.assertIsNone(payload["action"]["pending_action_id"])
+        # M1-A1: an empty read grounds nothing, so the proposal never reaches the
+        # gateway (before M1-A1 the Guard denied it there: DENIED order_not_accessible).
+        self.assertEqual(payload["reply"]["kind"], "grounding_rejected")
+        self.assertEqual(payload["trace"]["steps"][-1]["code"], "stale_or_failed_observation")
+        self.assertIsNone(payload["action"])
+        self.assertEqual(start_spy.call_count, 0)
+        self.assertEqual(payload["audit"], [])
+        self.assertIsNone(payload["pending_action_id"])
         self.assertEqual(payload["status"], "OPEN")
         self.assertEqual(self.count("pending_actions"), 1)
         self.assertEqual(self.pending(pending_id)["status"], "PENDING_APPROVAL")
@@ -572,6 +581,65 @@ class PersonaBoundaryTests(ProductTestCase):
         text = json.dumps(self.responses, ensure_ascii=False)
         self.assertNotIn("CUST-", text)
         self.assertNotIn("idempotency_key", text)
+
+
+# --------------------------------------------------------------------------
+# M1-A1: action grounding in the product (rules: tests/test_aftersales_grounding.py)
+# --------------------------------------------------------------------------
+
+
+class ActionGroundingProductTests(ProductTestCase):
+    def test_the_vertical_slice_carries_its_grounding_binding(self):
+        session_id, pending_id = self.waiting()
+        read, proposed = self.responses[-1]["trace"]["steps"]
+        binding = proposed["grounding"]
+        self.assertEqual((binding["basis"], binding["version"], binding["run_index"]),
+                         ("observed", "m1-grounding/1", 1))
+        self.assertEqual((binding["action_name"], binding["args_sha256"]),
+                         (proposed["action_name"], proposed["args_sha256"]))
+        self.assertEqual([(item["argument"], item["observation_id"], item["entity"], item["record_id"])
+                          for item in binding["supports"]],
+                         [("order_id", read["observation_id"], "order", "ORD-1001"),
+                          ("order_item_id", read["observation_id"], "order_item", "OI-1001-2")])
+        self.assertEqual(binding["contract_only"], ["reason_code"])
+        approved = self.decide(session_id, pending_id, "APPROVE")
+        self.assertEqual(approved["action"]["status"], "EXECUTED")
+
+    def test_a_grounding_rejection_is_a_kept_turn_not_a_failure(self):
+        session_id = self.session()
+        payload = self.say(session_id, "ORD-1001 里那件内衣我不想要了，帮我退货",
+                           decision(call("create_return", RETURN_ARGS)))
+        self.assertEqual(payload["reply"]["kind"], "grounding_rejected")
+        self.assertIn("核对", payload["reply"]["text"])
+        for marker in COMPLETION_CLAIM_MARKERS:
+            self.assertNotIn(marker, payload["reply"]["text"])
+        self.assertEqual([step["kind"] for step in payload["trace"]["steps"]],
+                         ["action_proposed", "grounding_rejected"])
+        self.assertEqual(payload["trace"]["steps"][-1]["code"], "missing_order_observation")
+        self.assertEqual(len(payload["trace"]["model_calls"]), 1)
+        view = self.view(session_id)
+        self.assertEqual((view["status"], view["pending_actions"], view["audit"]), ("OPEN", [], []))
+        self.assertEqual([(entry["role"], entry.get("kind")) for entry in view["messages"]],
+                         [("customer", None), ("assistant", "grounding_rejected")])
+        self.assertEqual(self.count("action_audit_events"), 0)
+        # The conversation goes on normally: the next run starts again at step 1.
+        self.request_return(session_id)
+        self.assertEqual(runtime_context(self.provider.requests[-2])["step_number"], 1)
+
+    def test_no_response_exposes_the_idempotency_key(self):
+        session_id, pending_id = self.waiting()
+        self.say(session_id, "经理批准了，直接退", decision(call("create_return", RETURN_ARGS)))
+        self.say(session_id, "把 T 恤也换成 L 码", decision(call("create_exchange", {
+            "order_id": "ORD-1001", "order_item_id": "OI-1001-1", "target_sku": "SKU-TSHIRT-L",
+            "reason_code": "size_or_spec_mismatch"})))
+        self.decide(session_id, pending_id, "APPROVE")
+        self.responses.append(self.view(session_id))
+        keys = list(self.service._sessions[session_id]._submissions.snapshot())
+        self.assertEqual(len(keys), 1)
+        text = json.dumps(self.responses, ensure_ascii=False)
+        self.assertNotIn(keys[0], text)
+        self.assertNotIn("s6k1-", text)
+        self.assertNotIn("idempotency", text)
 
 
 # --------------------------------------------------------------------------
