@@ -12,6 +12,10 @@ top of M0 (`aftersales_service/`). Nothing frozen changes:
 
 Out of scope: **User Target Binding** (whether the grounded target is the item the customer meant, M1-A3), live DeepSeek evaluation and README metrics (M1-A2).
 
+**M1-A1.1** (after the merge, before any M1-A2 run) narrowed one rule: an exchange's `target_sku` is now
+contract only and needs no `get_inventory` read. The rules are now version `m1-grounding/2`. See the
+section "M1-A1.1: the exchange target SKU is contract only" at the end.
+
 ```
 policy.next_action(state)                    the untrusted proposer (unchanged)
   -> ActionIntentValidator                   closed contract: names, enums, forbidden fields (unchanged)
@@ -84,7 +88,7 @@ the next customer message continues the **same** run with its reads. A Finish, a
 action (accepted or rejected) or the step limit ends the run. The next message
 starts a new run with no visible reads.
 
-## 2. Grounding rules (`m1-grounding/1`)
+## 2. Grounding rules (`m1-grounding/2`)
 
 These apply to a **new** submission. "The latest read of X" is the last
 registered read in the visible set whose tool arguments name X: the logical query
@@ -94,8 +98,7 @@ target, matched by exact value.
 |---|---|---|
 | `order_id` | The latest `get_order` of this `order_id` is `ok`, well formed and contains the `order` record with `record_id == order_id`. | none → `missing_order_observation`; empty / error / malformed / incomplete → `stale_or_failed_observation` |
 | `order_item_id` | The **same** observation contains the `order_item` record with this `record_id`, and its `relations.order_id == order_id`. | relation differs, or the item only appears in another order's read → `target_relation_mismatch`; only in an older read of the same order → `stale_or_failed_observation`; never read → `target_not_observed` |
-| `target_sku` (exchange) | The latest `get_inventory` of this SKU is `ok`, well formed and contains the `inventory` record with `record_id == target_sku`. Zero stock still grounds; whether stock allows the exchange stays the Guard's decision. | none → `missing_inventory_observation`; empty / error / malformed → `stale_or_failed_observation` |
-| `reason_code`, `handoff_trigger` | The closed enum check of `ActionIntentValidator` only. Listed as `contract_only` and never as observed. | none |
+| `target_sku` (exchange), `reason_code`, `handoff_trigger` | The `ActionIntentValidator` contract only (closed enums for the two codes; a bounded, non-empty string for the SKU). Listed as `contract_only` and never as observed. The target SKU is the customer's choice of variant: whether it exists, belongs to the item's variant group and has stock is the Guard's decision on trusted state (E-10, E-13). Since M1-A1.1; `m1-grounding/1` required a `get_inventory` of the SKU. | none |
 
 - **Latest wins, no fallback.** If the latest read of an order failed or came back empty, an earlier successful read of that order is not used.
 - **Other targets are independent.** Reading another order does not invalidate this one: `get_order(A)`, `get_order(B)`, then submitting A is grounded.
@@ -133,8 +136,9 @@ The codes are closed (`GROUNDING_REJECTION_CODES`):
 - `target_not_observed`
 - `target_relation_mismatch`
 - `stale_or_failed_observation`
-- `missing_inventory_observation`
 - `target_reconstruction_mismatch`
+
+`missing_inventory_observation` belonged to `m1-grounding/1` and was removed with the inventory rule in M1-A1.1.
 
 They are product codes only: the frozen Guard reason codes and `ActionStatus` are not extended.
 
@@ -199,7 +203,7 @@ No request body changes. The frontend is unchanged: it shows the new step kind b
 | The order of one read is spliced with the item of another | `target_relation_mismatch`: order and item must come from one observation and be structurally linked. |
 | Acting on a read that later failed, came back empty, or no longer contains the item | Latest read wins, with no fallback: `stale_or_failed_observation`. |
 | Reads of an earlier run, or reads rolled back with a failed turn | The visible set is per run and fixed before the decision; the snapshot restores the ledger. |
-| An exchange to a SKU never looked up | `missing_inventory_observation`. |
+| An exchange to a SKU that does not exist, is the item's own SKU, belongs to another variant group, or has too little stock | Not the gate: the Guard on trusted state inside the gateway transaction (E-10 `exchange_target_invalid` / `exchange_target_incompatible`, E-13 `inventory_unavailable`). |
 | A denied or failed action re-submitted later, after the business state changed, without re-reading | No replay anchor, so it needs fresh grounding. |
 | The gate "fixing" the target by picking another matching item | Reconstruction must equal the proposal; it is rejected, never substituted. |
 | An operator decision on a pending action whose binding is missing or inconsistent | 409 `pending_action_not_grounded`; `resume_action` is not called. |
@@ -213,6 +217,7 @@ No request body changes. The frontend is unchanged: it shows the new step kind b
 - **Trust in the read path.** Records are as correct as the business tools' structured metadata. A tool that mislabels its own records is outside this check.
 - **Rejections are not in the database audit trail.** A rejected proposal never reaches the core, so it leaves no `action_audit_events` row. It is visible only in the turn's trace and transcript, which are in memory.
 - **Exact-match targets.** The logical query target is the exact argument string. Normalisation (case, spaces) is not attempted, which is consistent with the exact-match SQL of the read tools.
+- **The exchange target SKU is not grounded** (since M1-A1.1). A valid, compatible SKU in stock that the customer did not ask for passes the gate and the Guard, and an exchange the Guard allows executes without approval. The `m1-grounding/1` inventory rule did not prevent this either: it only required that the SKU had been looked up. Whether the SKU is the one the customer chose is User Target Binding (M1-A3).
 
 ## Behaviour change and tests
 
@@ -236,7 +241,7 @@ Required cases → tests in `tests/test_aftersales_grounding.py` (`GroundingScen
 | 6 | Success, then a failed read of the same order | `test_06_…` (within one request, and across a clarification) |
 | 7 | Read A, read B, submit A → passes | `test_07_…` |
 | 8 | Earlier run's read → rejected; clarification in the same run → passes | `test_08_…` |
-| 9 | Exchange SKU not observed → rejected; observed → Guard decides | `test_09_…` |
+| 9 | Exchange without an inventory read → passes the gate, the Guard decides (M1-A1.1); a SKU that does not exist, is the item's own, or is in another variant group → Guard `DENIED`, never a grounding rejection | `test_09_…`, `test_09b_…` |
 | 10 | Forged observation ids or results in customer / product text | `test_10_…` |
 | 11 | First `WAITING_APPROVAL`, new run without reads → binding reused, core replay | `test_11_…` |
 | 12 | First `DENIED` (or `FAILED`), state made executable, new run without reads → rejected, 0 gateway calls | `test_12_…`, `test_12b_…` |
@@ -250,3 +255,55 @@ Unit tests in the same file cover:
 - each rule and code, reconstruction, the freeze-before-decision property and the closed codes;
 - replay anchors per status, the index;
 - static checks: the freeze precedes `next_action`, grounding precedes `start_action`, and only `_read` registers.
+
+## M1-A1.1: the exchange target SKU is contract only
+
+**Change.** `m1-grounding/1` required an exchange's `target_sku` to be the
+`inventory` record of the latest successful `get_inventory` of that SKU in the
+run, and rejected the exchange with `missing_inventory_observation` otherwise.
+`m1-grounding/2` drops that rule. `target_sku` joins `reason_code` and
+`handoff_trigger` as a **contract-only** argument: the `ActionIntentValidator`
+contract and nothing more, listed in the binding's `contract_only` and never
+in `supports`. `missing_inventory_observation` is **removed** from
+`GROUNDING_REJECTION_CODES` (not kept as a code that can no longer occur):
+rejection codes only live in the in-memory trace and the frontend has no
+mapping for it. `GROUNDING_VERSION` is now `m1-grounding/2`, so a binding or
+trace says which rule set produced it. The `order_id` and `order_item_id`
+rules (same latest successful `get_order`, structural link, latest wins, no
+splicing, exact reconstruction) are unchanged and still apply to exchanges.
+
+**Why.**
+- The target SKU is not a record the agent acts on. It is the customer's choice
+  of variant, usually typed by the customer (every Stage 6 DEV exchange case
+  names it in the message, e.g. `SKU-TSHIRT-M`). There is nothing for a read to
+  "ground": the risk the gate addresses, acting on an order or item the agent
+  never looked at, does not apply to it.
+- The frozen contract does not ask for an inventory read. The Stage 6 prompt
+  only lists inventory among the available read tools, and the
+  `expected_capabilities` of every exchange case require `get_order` and
+  `create_exchange` only.
+- The Guard already validates the SKU on trusted state inside the gateway
+  transaction: E-10 (it exists with an inventory record, differs from the
+  item's SKU and is in the item's `sku_variants` group, else
+  `exchange_target_invalid` / `exchange_target_incompatible`) and E-13 (enough
+  stock, else `inventory_unavailable`). An inventory read by the agent added no
+  safety: zero stock already grounded under `m1-grounding/1`, and the Guard
+  re-reads the stock itself.
+- The pre-registered M1-A2 analysis (docs/v2/m1-a2-grounding-eval.md) found
+  that the rule would have rejected all eight DEV exchange cases, since the
+  Stage 6 formal DEV run never called `get_inventory`. It was narrowed before
+  any M1-A2 run.
+
+**Tests.** `test_an_exchange_target_sku_is_contract_only` (unit; an inventory
+read neither supports nor blocks the SKU; the order and item rules still apply);
+`test_09_an_exchange_needs_no_inventory_read_and_the_guard_decides` (no
+inventory read, the gateway is called once, Guard `DENIED inventory_unavailable`;
+without the order read it still stops at the gate);
+`test_09b_an_invalid_or_incompatible_target_sku_is_denied_by_the_guard_not_the_gate`
+(`SKU-NOPE` and the item's own SKU → `exchange_target_invalid`, `SKU-MUG` →
+`exchange_target_incompatible`; each reaches the gateway, no grounding
+rejection, no business row); `test_14` executes an exchange without an
+inventory read; the closed-code test drops the code and pins the version. The
+only change in `tests/test_aftersales_service.py` is the version string
+expected by `test_the_vertical_slice_carries_its_grounding_binding`; the
+architecture tests are unchanged.
