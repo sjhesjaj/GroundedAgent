@@ -42,7 +42,6 @@ from aftersales_service import action_grounding as grounding
 from aftersales_service.action_grounding import (
     GROUNDING_REJECTION_CODES,
     GROUNDING_VERSION,
-    MISSING_INVENTORY_OBSERVATION,
     MISSING_ORDER_OBSERVATION,
     STALE_OR_FAILED_OBSERVATION,
     TARGET_NOT_OBSERVED,
@@ -415,26 +414,31 @@ class GroundingRuleTests(LedgerCase):
         self.read("get_order", {"order_id": "ORD-1004"})
         self.assertEqual(self.rejected("create_return", OTHER_RETURN_ARGS), STALE_OR_FAILED_OBSERVATION)
 
-    def test_an_exchange_target_needs_an_inventory_read_of_that_sku(self):
+    def test_an_exchange_target_sku_is_contract_only(self):
+        # M1-A1.1: the target SKU is the customer's choice of variant. No inventory
+        # read is needed, and none counts: validity, compatibility and stock are the
+        # Guard's decision on trusted state (E-10, E-13).
         self.read("get_order", {"order_id": "ORD-1001"})
-        self.assertEqual(self.rejected("create_exchange", EXCHANGE_ARGS), MISSING_INVENTORY_OBSERVATION)
-        self.read("get_inventory", {"sku": "SKU-TSHIRT-M"})
-        self.assertEqual(self.rejected("create_exchange", EXCHANGE_ARGS), MISSING_INVENTORY_OBSERVATION)
-        self.read("get_inventory", {"sku": "SKU-NOPE"})  # no such SKU: empty
-        self.assertEqual(self.rejected("create_exchange", {**EXCHANGE_ARGS, "target_sku": "SKU-NOPE"}),
-                         STALE_OR_FAILED_OBSERVATION)
-        # Zero stock is still an observation of the SKU: whether it allows the
-        # exchange is the Guard's decision, not grounding's.
+        expected = [("order_id", "turn:1:tool:1", "order", "ORD-1001"),
+                    ("order_item_id", "turn:1:tool:1", "order_item", "OI-1001-1")]
+        for target_sku in ("SKU-TSHIRT-L", "SKU-NOPE", "SKU-MUG"):
+            with self.subTest(target_sku=target_sku):
+                binding = ground_action(validated("create_exchange", {**EXCHANGE_ARGS, "target_sku": target_sku}),
+                                        self.visible())
+                self.assertEqual([(item.argument, item.observation_id, item.entity, item.record_id)
+                                  for item in binding.supports], expected)
+                self.assertEqual(binding.contract_only, ("target_sku", "reason_code"))
+        # An inventory read, failed or not, neither supports nor blocks the target.
         self.read("get_inventory", {"sku": "SKU-TSHIRT-L"})
-        binding = ground_action(validated("create_exchange", EXCHANGE_ARGS), self.visible())
-        self.assertEqual([(item.argument, item.observation_id, item.entity, item.record_id)
-                          for item in binding.supports],
-                         [("order_id", "turn:1:tool:1", "order", "ORD-1001"),
-                          ("order_item_id", "turn:1:tool:1", "order_item", "OI-1001-1"),
-                          ("target_sku", "turn:1:tool:4", "inventory", "SKU-TSHIRT-L")])
-        self.assertEqual(binding.contract_only, ("reason_code",))
         with failing_reads():
             self.read("get_inventory", {"sku": "SKU-TSHIRT-L"})
+        binding = ground_action(validated("create_exchange", EXCHANGE_ARGS), self.visible())
+        self.assertEqual([item.argument for item in binding.supports], ["order_id", "order_item_id"])
+        # The order and item rules are unchanged for an exchange.
+        self.assertEqual(self.rejected("create_exchange", {**EXCHANGE_ARGS, "order_id": "ORD-1004"}),
+                         MISSING_ORDER_OBSERVATION)
+        with failing_reads():
+            self.read("get_order", {"order_id": "ORD-1001"})
         self.assertEqual(self.rejected("create_exchange", EXCHANGE_ARGS), STALE_OR_FAILED_OBSERVATION)
 
     def test_a_handoff_trigger_is_contract_only(self):
@@ -462,7 +466,12 @@ class GroundingRuleTests(LedgerCase):
     def test_rejection_codes_are_closed(self):
         self.assertEqual(GROUNDING_REJECTION_CODES, (
             MISSING_ORDER_OBSERVATION, TARGET_NOT_OBSERVED, TARGET_RELATION_MISMATCH,
-            STALE_OR_FAILED_OBSERVATION, MISSING_INVENTORY_OBSERVATION, TARGET_RECONSTRUCTION_MISMATCH))
+            STALE_OR_FAILED_OBSERVATION, TARGET_RECONSTRUCTION_MISMATCH))
+        self.assertEqual(GROUNDING_VERSION, "m1-grounding/2")
+        # Removed with the inventory rule in M1-A1.1.
+        self.assertFalse(hasattr(grounding, "MISSING_INVENTORY_OBSERVATION"))
+        with self.assertRaises(ValueError):
+            GroundingRejected("missing_inventory_observation")
         with self.assertRaises(ValueError):
             GroundingRejected("verified_by_customer")
 
@@ -808,24 +817,48 @@ class GroundingScenarioTests(ProductTestCase):
 
     # 9 ---------------------------------------------------------------------
 
-    def test_09_an_exchange_target_must_be_observed_and_the_guard_still_decides(self):
+    def test_09_an_exchange_needs_no_inventory_read_and_the_guard_decides(self):
+        # M1-A1.1: the target SKU is contract only; the order and item still need the read.
         started = self.spy_start()
-        unobserved = self.say(self.session(), "ORD-1001 的 T 恤换成 L 码",
-                              decision(call("get_order", {"order_id": "ORD-1001"})),
-                              decision(call("create_exchange", EXCHANGE_ARGS)))
-        self.rejection(unobserved, MISSING_INVENTORY_OBSERVATION)
-        self.assertEqual(started.call_count, 0)
-        observed = self.say(self.session(), "ORD-1001 的 T 恤换成 L 码",
-                            decision(call("get_order", {"order_id": "ORD-1001"}, "c1"),
-                                     call("get_inventory", {"sku": "SKU-TSHIRT-L"}, "c2")),
-                            decision(call("create_exchange", EXCHANGE_ARGS)))
+        payload = self.say(self.session(), "ORD-1001 的 T 恤换成 L 码，L 码编号 SKU-TSHIRT-L",
+                           decision(call("get_order", {"order_id": "ORD-1001"})),
+                           decision(call("create_exchange", EXCHANGE_ARGS)))
         self.assertEqual(started.call_count, 1)
-        # Grounded, then the Guard decides on trusted state: the seed has no L stock.
-        self.assertEqual((observed["action"]["status"], observed["action"]["code"]),
+        # Past the gate, the Guard decides on trusted state: the seed has no L stock (E-13).
+        self.assertEqual((payload["action"]["status"], payload["action"]["code"]),
                          ("DENIED", "inventory_unavailable"))
-        self.assertEqual(self.supports(observed)[-1], ("target_sku", "turn:1:tool:2", "SKU-TSHIRT-L"))
-        self.assertEqual([event["event_name"] for event in observed["audit"]],
+        self.assertNotIn("grounding_rejected", [step["kind"] for step in payload["trace"]["steps"]])
+        self.assertEqual(self.supports(payload), [("order_id", "turn:1:tool:1", "ORD-1001"),
+                                                  ("order_item_id", "turn:1:tool:1", "OI-1001-1")])
+        self.assertEqual(self.grounding(payload)["contract_only"], ["target_sku", "reason_code"])
+        self.assertEqual([event["event_name"] for event in payload["audit"]],
                          ["guard.evaluated", "action.not_executed"])
+        # Without the order read the exchange still stops at the gate.
+        unread = self.say(self.session(), "ORD-1001 的 T 恤换成 L 码",
+                          decision(call("create_exchange", EXCHANGE_ARGS)))
+        self.rejection(unread, MISSING_ORDER_OBSERVATION)
+        self.assertEqual(started.call_count, 1)
+
+    def test_09b_an_invalid_or_incompatible_target_sku_is_denied_by_the_guard_not_the_gate(self):
+        started = self.spy_start()
+        for target_sku, code in (("SKU-NOPE", "exchange_target_invalid"),           # no such SKU (E-10)
+                                 ("SKU-TSHIRT-M", "exchange_target_invalid"),       # the item's own SKU (E-10)
+                                 ("SKU-MUG", "exchange_target_incompatible")):      # another variant group (E-10)
+            with self.subTest(target_sku=target_sku):
+                self.post("/api/aftersales/demo/reset")
+                before = started.call_count
+                payload = self.say(self.session(), "ORD-1001 的 T 恤换成 " + target_sku,
+                                   decision(call("get_order", {"order_id": "ORD-1001"})),
+                                   decision(call("create_exchange", {**EXCHANGE_ARGS, "target_sku": target_sku})))
+                self.assertEqual(started.call_count, before + 1)
+                self.assertNotIn("grounding_rejected", [step["kind"] for step in payload["trace"]["steps"]])
+                self.assertEqual((payload["action"]["status"], payload["action"]["code"]), ("DENIED", code))
+                self.assertEqual(payload["action"]["guard"]["decision"], "DENY")
+                self.assertEqual([event["event_name"] for event in payload["audit"]],
+                                 ["guard.evaluated", "action.not_executed"])
+                for table in ("pending_actions", "action_receipts"):
+                    self.assertEqual(self.count(table), 0, table)
+                self.assertEqual(self.count("after_sales_cases"), SEED_CASES)
 
     # 10 --------------------------------------------------------------------
 
@@ -987,14 +1020,13 @@ class GroundingScenarioTests(ProductTestCase):
         self.post("/api/aftersales/demo/reset")
         self.write(STOCK_TSHIRT_L)
         exchange = self.say(self.session(), "ORD-1001 的 T 恤换成 L 码",
-                            decision(call("get_order", {"order_id": "ORD-1001"}, "c1"),
-                                     call("get_inventory", {"sku": "SKU-TSHIRT-L"}, "c2")),
+                            decision(call("get_order", {"order_id": "ORD-1001"})),
                             decision(call("create_exchange", EXCHANGE_ARGS)))
         self.assertEqual((exchange["action"]["status"], exchange["action"]["receipt"]["resource_type"]),
                          ("EXECUTED", "after_sales_case"))
         self.assertEqual(self.supports(exchange), [("order_id", "turn:1:tool:1", "ORD-1001"),
-                                                   ("order_item_id", "turn:1:tool:1", "OI-1001-1"),
-                                                   ("target_sku", "turn:1:tool:2", "SKU-TSHIRT-L")])
+                                                   ("order_item_id", "turn:1:tool:1", "OI-1001-1")])
+        self.assertEqual(self.grounding(exchange)["contract_only"], ["target_sku", "reason_code"])
         self.assertEqual(self.count("action_receipts"), 1)
 
         self.post("/api/aftersales/demo/reset")
