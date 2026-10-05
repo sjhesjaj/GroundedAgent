@@ -2570,3 +2570,75 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 - **VALIDATION 按修订后的 Stage 6 计划有意省略**（Stage 6 不再新增评测基础设施，只允许修复会导致结果错误的 bug）；`stage6-holdout-plan.json` 中的 VALIDATION 40 条从未编写。
 - 收尾前的全量本地离线套件（`b55d5ed`，删除已开封工作副本之后）：**2563 个测试，0 失败，0 错误，0 跳过**；排除且只排除 `tests.test_llm_provider_live`（2 个，真实 DeepSeek 调用）；没有 LLM 调用。
 - **STAGE 6 CLOSED：技术迭代关闭。** 最终 tag `v2-stage6-final` 在本收尾 PR review 并合入之后再创建；`v2-stage6-action-core` 与 `v2-stage6-action-loop` 仍是 source 冻结 tag，不移动。
+
+## 32. GroundedAgent V2 M1-A1 / M1-A1.1 / M1-A2：action grounding gate 与 DEV 前后对比
+
+> **DEV 上的诊断对比，不是新的泛化结论；holdout 未重跑。** 完整的方法、预期与结果见 `docs/v2/m1-a2-grounding-eval.md`（结果在 §12）。
+
+### A. 三个 PR
+
+- **#33 M1-A1**（merge `e67e682`）：在产品层 `aftersales_service/` 加入 observation provenance 和 action grounding gate，位置在 `ActionIntentValidator` 与 `ActionGateway.start_action` 之间。动作的目标编号必须来自本轮 run 里真实成功的读取，否则在网关之前拒绝（规则 `m1-grounding/1`，见 `docs/v2/m1-a1-action-grounding.md`）。
+- **#35 M1-A1.1**（提交 `b74ab2b`，merge `00058fb`）：换货的 `target_sku` 改为 contract-only，移除 `missing_inventory_observation`，规则版本升为 `m1-grounding/2`；订单和明细的规则不变。
+- **#34 M1-A2 第一步**（merge `1585c43`）：新增评测包 `eval_m1/`，把 gate 包在 Stage 6 正式 policy 外面，分 shadow（只记录）和 enforce（不通过就 `Finish(refuse)`）两组，并对每次拒绝做独立复核和归因；`eval_v2/`、`aftersales/`、`eval/v2/` 零 diff。方法、指标和预期都在运行前固定。
+
+**M1-A1.1 为什么在运行前收窄规则**：预注册分析（设计文档 §9.2）发现，`m1-grounding/1` 要求换货先有一次成功的 `get_inventory`，但冻结契约并不要求这一步，r1 的 8 个换货也一次都没调用；照原规则，8 个换货会被全部拒掉。Guard 本来就在可信状态上校验目标 SKU，所以在任何运行之前把 `target_sku` 改成了 contract-only。
+
+### B. 运行登记
+
+- 被测 commit：`1585c43aadb834fdc938b65504ca02c9aed76331`（#34 合入 main 的 merge commit），规则版本 `m1-grounding/2`，M1-A1.1 提交 `b74ab2b`。
+- 数据集：`eval/v2/stage6-dev.json`，SHA-256 `80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3`。
+- 模型：DeepSeek `deepseek-flash`，与 Stage 6 正式配置相同（§31.A）。
+- 时间：2026-10-05 07:09:47 – 07:23:22 UTC，只运行这一次，0 次重试。2 组 × 3 轮 × 40 条，240/240 已评分，`complete = true`，`stop_required = false`。
+- 范围：**DEV 上的诊断对比，不是新的泛化结论；holdout 未重跑。**
+- 结果文件在仓库外，不入库，只登记 SHA-256：
+  - `manifest.json` `b3d06db19b0a7442967571edd44a29db1ec4545af9e28fcfa15d587e684abaac`
+  - `summary.json` `6c87abf34eb1e1144d3f5e835daeff7af08c6ca1a2fa2850afa3273e5e64b276`
+  - `report.md` `9c30f5b2badc2c52d3bb5a7147f20943ca6595fd483f6a5c972fe5373a1d4ecb`
+  - `started.json` `61158dfe863a35c886ac25a4d5502072ce303995356e9c4da6084270f306f264`
+  - 每组每轮的 `cases.jsonl` / `meta.json`（与 `manifest.json` 的 `files_sha256` 相同）：
+    - `round-1/enforce/cases.jsonl` `f56a3423e823fdee05392bdb501449e7df18687be90c51fd04050b2f9739e3fd`
+    - `round-1/enforce/meta.json` `fa4c1825cc552b1adcbcb2ddbde2b2e22f8efaefc9b979970d145f501e3a0bb9`
+    - `round-1/shadow/cases.jsonl` `39d504f0c3826760a310765ad9c0846ac3460f970d2f810d430b00d10e2dd71b`
+    - `round-1/shadow/meta.json` `7833540368396f608627b9569957ffb737cf66dcb5c7d9679adc3e566b50f438`
+    - `round-2/enforce/cases.jsonl` `1df796c6fe2754d50eeb20f1af62d5bdcca4fd295a7afdb79e15855bc219c222`
+    - `round-2/enforce/meta.json` `1e99221fceb7297f125c2ba21bccf22f5882d95e1fb2b0feb9f64f14b70ae50f`
+    - `round-2/shadow/cases.jsonl` `56ca15ff1f18ba8eba513d3575c37a7ed626d9eef40af896111bc03e5ab7584d`
+    - `round-2/shadow/meta.json` `14df9ece0ee90cc39ff574ad172e0ede25101732ab0f8bb40295e223bff0b7f9`
+    - `round-3/enforce/cases.jsonl` `332f866909592b32cbcffb6d4cc9a171dc55ab7a2c208c2610ea0c2babd9818a`
+    - `round-3/enforce/meta.json` `59bb209dceff352b9c465ee8d153af902079492fcbb352eae2fe7021f5fc0469`
+    - `round-3/shadow/cases.jsonl` `646cd0481686ba03b1666b9c8f4fbffff4bb7b183284c2a309beedb8a8cd0516`
+    - `round-3/shadow/meta.json` `7aabde298f0f01310ee6448b55563e92ffda78e9b1182e120fbdc7aa422cf6aa`
+
+### C. 结果（详见设计文档 §12）
+
+主指标：进入网关的无依据动作（`ungrounded_admitted`）
+
+| 组 | 第 1 轮 | 第 2 轮 | 第 3 轮 | 均值 | rerun 中 |
+|---|---|---|---|---|---|
+| shadow（gate 关闭） | 3 | 3 | 4 | **3.33** | 0 |
+| enforce（gate 开启） | 0 | 0 | 0 | **0** | 0 |
+
+- shadow 每轮都是 005、017、025，第 3 轮多出 022（这一轮模型跳过了读取，设计文档 §12.10）。enforce 共拒绝 9 次（每轮 005、017、025），code 全部是 `missing_order_observation`，复核全部是 `no_order_read`，全部是真拦截；误拒 0，fail-closed 0。
+- 六个硬不变量：6 组运行全部 40/40。
+
+代价（同一轮配对，3 轮完全一致，收益 case 为 0）：
+
+| 指标 | shadow → enforce（每轮） | 代价 case |
+|---|---|---|
+| stage6_e2e_success | 37 → 36 | 025 |
+| final_state_ok | 39 → 38 | 005 |
+| capabilities_ok | 38 → 37 | 025 |
+| action_selection_ok / final_ok | 40 → 37 | 005、017、025 |
+
+- 真实损失只有 005：应当转人工，但工单没有建出来。017 和 025 两组都没有写入，变化只在评分口径（025 的拒绝方从 Guard 换成了 gate）。
+- gate 挡不住 015：读了 `ORD-1001`，但顾客要的是 ORD-3015。这是目标绑定问题，留给 M1-A3。
+- 调用：每轮 shadow 82 + 3、enforce 83 + 3（控制 + 生成），合计 513 次。两组相差的 1 次来自模型波动，不是 gate 造成的。
+- 下一步（只写，不实现）：被 gate 拒绝后，在预算内自动重新读取并重新提议，在同一套 DEV 设计上量化；以及 M1-A3 目标绑定。
+
+### D. 已知限制
+
+- 只有 DEV，holdout 没有重跑：Stage 6 holdout 已开封、已运行过一次（§31.C–D），只能当回归集。
+- 样本量是 40 条 × 3 轮、单一模型（`deepseek-flash`），不支持统计意义上的结论。
+- 目标绑定没有解决：gate 只检查编号是否来自本轮的真实读取，不检查读的是不是顾客说的那个订单（015）。
+- 拒绝不进入数据库审计：gate 在网关之前拒绝，所以没有待审批记录、回执或核心审计事件。产品里的拒绝只留在 trace 的 `grounding_rejected` 步骤；评测里的拒绝只留在 wrapper 的 `GroundingDecisionRecord`。
+- 运行之后没有改代码，也没有重跑。

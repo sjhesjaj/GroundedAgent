@@ -81,6 +81,13 @@ flowchart TB
 
 Stage 6 的数字来自冻结的评测栈，M0 没有重跑评测，也没有新增指标。硬安全不变量 25/25 和 `final_state_ok` 25/25 是**两项独立的结果**：前者是确定性 Guard / Gateway 边界守住的；后者不能全部归功于 Guard / Gateway。holdout 中有 3 条 case，模型没有先读订单就提交了动作，终态正确是因为它碰巧猜对了动作参数。详见下一节。
 
+**M1: action grounding gate (DEV diagnostic)**
+
+- **Problem:** in evaluation the model sometimes skipped `get_order`, guessed business ids from their numbering pattern, and submitted the action directly.
+- **Fix:** a deterministic observation-provenance gate in front of the write gateway: an action's target ids must come from a real read made earlier in the same run.
+- **DEV, 3 rounds × 2 groups (gate off / gate on):** ungrounded actions admitted **3.33 → 0** per round, false rejections **0**, six hard invariants **40/40**; cost: e2e **37 → 36**, `final_state_ok` **39 → 38**.
+- **Scope:** diagnostic comparison on DEV, sealed holdout not re-run. Details: [docs/v2/m1-a2-grounding-eval.md](docs/v2/m1-a2-grounding-eval.md).
+
 ## GroundedAgent V2 Stage 6：受控副作用与 sealed holdout
 
 Stage 6 在 Stage 5 的只读工具循环上加入三个**模拟**售后动作：`create_return`（提交退货申请）、`create_exchange`（提交换货申请）、`escalate_to_human`（创建转人工工单）。它们只写本地 fixture 数据库，不涉及真实的退款、库存或发货。
