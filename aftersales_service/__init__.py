@@ -6,6 +6,10 @@ evaluated Stage 6 agent core (see agent_core.py for the dependency strategy):
     demo_store.py     mutable demo database + trusted server-side configuration
     conversation.py   one resumable conversation: control loop, clarification
                       pause/resume, the single action write path, operator decision
+    observation_provenance.py   M1-A1: registered reads as immutable structured
+                      observations; the set each decision can see
+    action_grounding.py         M1-A1: the grounding gate before the write path
+                      and the grounded-submission (replay) index
     service.py        sessions, locks, reset
     routes.py         the /api/aftersales/* HTTP surface
 

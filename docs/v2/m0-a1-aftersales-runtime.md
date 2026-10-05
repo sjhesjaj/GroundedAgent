@@ -26,7 +26,7 @@ trusted operator approves          -> resume -> re-read + revalidate -> ActionGa
 | `aftersales_service/service.py` | Sessions, locks and reset. |
 | `aftersales_service/routes.py` | The `/api/aftersales/*` HTTP surface. |
 | `api.py` | One `include_router` line. The app title and branding are unchanged. |
-| `tests/test_aftersales_service.py` | 27 offline product/API tests. |
+| `tests/test_aftersales_service.py` | 27 offline product/API tests (30 since M1-A1). |
 
 ## Reused vs deliberately not reused
 
@@ -158,7 +158,7 @@ with 422. Session ids must match `^[0-9a-f]{32}$`.
 - `audit`
 
 **Turn response:** the session header fields, plus:
-- `reply {kind, text}`. `kind` is one of `answer`, `refuse`, `handoff`, `boundary`, `clarification`, `action`, `answer_unavailable` or `step_limit`.
+- `reply {kind, text}`. `kind` is one of `answer`, `refuse`, `handoff`, `boundary`, `clarification`, `action`, `answer_unavailable` or `step_limit`; M1-A1 adds `grounding_rejected` (see `m1-a1-action-grounding.md`).
 - `clarification {slots}` or null
 - `citations [{ref, producer, source_type, locator}]`
 - `action` or null. This is the persisted `ActionOutcome`:
@@ -167,7 +167,7 @@ with 422. Session ids must match `^[0-9a-f]{32}$`.
   - `receipt {receipt_id, resource_type, resource_id}`;
   - `idempotent_replay`, `decision_conflict`, plus the validated `arguments`.
 - `trace`:
-  - `steps`: per control step, `run` (conversation-global run index) and `step` (run-relative, 1..6), then the kind, the tool name, arguments, result status and observation id, the clarification slots, the finish disposition, or the proposed action name with its `args_sha256`;
+  - `steps`: per control step, `run` (conversation-global run index) and `step` (run-relative, 1..6), then the kind, the tool name, arguments, result status and observation id, the clarification slots, the finish disposition, or the proposed action name with its `args_sha256` (since M1-A1 also its `grounding` binding, or a following `grounding_rejected` step);
   - `model_calls`: the policy's decision records (counts, function names, diagnostic codes), each tagged with its `run`; `control_step` is run-relative.
 - `audit`: this conversation's `action_audit_events`. Each event has `event_seq`, `event_name`, `action_name`, `pending_action_id`, `receipt_id`, `phase`, `decision`, `code`, `approver_ref` and `at`.
 
@@ -180,7 +180,7 @@ with 422. Session ids must match `^[0-9a-f]{32}$`.
 | Status | Code |
 |---|---|
 | 404 | `session_not_found`, `pending_action_not_found` (also returned for another session's pending action) |
-| 409 | `conversation_full`, `decision_refused` |
+| 409 | `conversation_full`, `decision_refused`, `pending_action_not_grounded` (M1-A1) |
 | 422 | Validation failures |
 | 429 | `too_many_sessions` |
 | 503 | `llm_unavailable` |
@@ -203,7 +203,7 @@ All of this must be replaced by real customer and operator authentication, plus 
   
   None of this was part of the Stage 6 formal runs, which were single runs with a scripted user.
 - **The idempotency scope is the conversation.** Re-proposing the same action in the same conversation replays its stored outcome, including REJECTED. A fresh request for the same item needs a new session.
-- **Example ids in tool schemas.** The schemas' example ids `ORD-1001` / `OI-1001-1` are real demo-a seed rows. In Stage 6 the model sometimes copied them (a recorded known limitation). The Guard cannot tell a wrong-target request on the customer's own order from a real one; the operator, who sees the proposed arguments, is the human check. This is not changed here because Stage 6 is frozen.
+- **Example ids in tool schemas.** The schemas' example ids `ORD-1001` / `OI-1001-1` are real demo-a seed rows. In Stage 6 the model sometimes copied them (a recorded known limitation). The Guard cannot tell a wrong-target request on the customer's own order from a real one; the operator, who sees the proposed arguments, is the human check. This is not changed here because Stage 6 is frozen. Since M1-A1 a target must also have been read in the same run (`m1-a1-action-grounding.md`); a read of another of the customer's own orders still grounds.
 - **Wording.** The frozen fixed `boundary` text still says "当前只读能力无法执行该操作".
 - **Storage.** Sessions are in memory and the database is in a temporary directory, so a restart is a full reset.
 

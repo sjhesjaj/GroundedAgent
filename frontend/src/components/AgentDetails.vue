@@ -13,6 +13,7 @@ const stepTitles = {
   clarify: '补充信息',
   finish: '生成回复',
   step_limit: '本轮步骤已达上限',
+  grounding_rejected: '未通过订单核对',
 }
 const outcomeTone = computed(() => {
   if (props.action?.status === 'EXECUTED') return 'executed'
@@ -58,6 +59,7 @@ const outcomeTone = computed(() => {
             <span v-else>{{ stepTitles[step.kind] || step.kind }}</span>
           </div>
           <code v-if="step.kind === 'action_proposed' && step.action_name" class="trace-secondary">{{ step.action_name }}</code>
+          <code v-if="step.kind === 'grounding_rejected' && step.code" class="trace-secondary">{{ step.code }}</code>
           <span v-if="step.observation_id" class="trace-secondary">{{ step.observation_id }}</span>
           <span v-if="step.slots?.length" class="trace-secondary">{{ step.slots.join(' · ') }}</span>
           <span v-if="step.disposition" class="trace-secondary">{{ step.disposition }}</span>
