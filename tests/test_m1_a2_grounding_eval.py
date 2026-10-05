@@ -20,9 +20,10 @@ from unittest import mock
 
 from aftersales.action_gateway import ActionGateway
 from aftersales.executor import TRACE_OBSERVATION_ID
-from aftersales_service.action_grounding import GroundingRejected
+from aftersales_service.action_grounding import GROUNDING_VERSION, GroundingRejected
 from eval_m1 import grounding_policy, run_m1_a2, summarize
 from eval_m1.grounding_policy import (
+    AUDIT_RULE_VERSION,
     ATTRIBUTION_FAIL_CLOSED,
     ATTRIBUTION_FALSE,
     ATTRIBUTION_TRUE,
@@ -241,24 +242,29 @@ class RejectionCodeTests(_Fixture):
         self.assert_rejected(wrapper, "stale_or_failed_observation", "order_read_not_ok")
         self.assertTrue(self.decision(wrapper)["audit"]["earlier_order_read_had_target"])
 
-    def test_05_exchange_needs_a_read_of_the_target_sku(self):
+    def test_05_an_exchange_needs_no_inventory_read_since_m1_a1_1(self):
         case = dev_case("s6-dev-001")   # the customer names SKU-TSHIRT-M in the message
         args = case["expected_action"]["args"]
         for mode in ("shadow", "enforce"):
-            with self.subTest(mode=mode, inventory=False):
-                run, wrapper = self.run_script(read_order(args["order_id"]), expected_intent(case), mode=mode,
-                                               case_id="s6-dev-001")
-                self.assert_rejected(wrapper, "missing_inventory_observation", "no_inventory_read")
-                self.assertEqual(self.decision(wrapper)["audit"]["value_sources"]["target_sku"],
-                                 {"in_user_text": True, "in_some_read": False})
-                self.assertEqual(run.main_outcome is None, mode == "enforce")
-            with self.subTest(mode=mode, inventory=True):
-                run, wrapper = self.run_script(read_order(args["order_id"]), read_inventory(args["target_sku"]),
-                                               expected_intent(case), mode=mode, case_id="s6-dev-001")
-                decision = self.decision(wrapper)
-                self.assertTrue(decision["grounded"])
-                self.assertEqual(decision["supports"], ["turn:1:tool:1", "turn:1:tool:2"])
-                self.assertEqual(run.main_outcome.status.value, "EXECUTED")
+            for script in ((read_order(args["order_id"]),),
+                           (read_order(args["order_id"]), read_inventory(args["target_sku"]))):
+                with self.subTest(mode=mode, reads=len(script)):
+                    run, wrapper = self.run_script(*script, expected_intent(case), mode=mode, case_id="s6-dev-001")
+                    decision = self.decision(wrapper)
+                    self.assertTrue(decision["grounded"])
+                    self.assertTrue(decision["audit"]["gate_agrees"])
+                    self.assertEqual(decision["supports"], ["turn:1:tool:1"])   # the order read only
+                    self.assertEqual(run.main_outcome.status.value, "EXECUTED")
+                    self.assertEqual(decision["audit"]["value_sources"]["target_sku"],
+                                     {"in_user_text": True, "in_some_read": len(script) == 2})
+        # The order rule still applies to an exchange.
+        run, wrapper = self.run_script(expected_intent(case), case_id="s6-dev-001")
+        self.assertIsNone(run.main_outcome)
+        self.assert_rejected(wrapper, "missing_order_observation", "no_order_read")
+
+    def test_the_recheck_implements_the_gates_rule_version(self):
+        self.assertEqual(AUDIT_RULE_VERSION, "m1-grounding/2")
+        self.assertEqual(GROUNDING_VERSION, AUDIT_RULE_VERSION)
 
 
 class FailClosedTests(_Fixture):
@@ -640,16 +646,22 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(context["commit"], "f" * 40)
         self.assertEqual(context["dataset_sha256"], DEV_SHA256)
         self.assertEqual(context["source_sha256"], {"eval/v2/stage6-dev.json": DEV_SHA256})
+        self.assertEqual((context["m1_a1_1_commit"], context["grounding_version"]),
+                         (run_m1_a2.M1_A1_1_COMMIT, "m1-grounding/2"))
 
     def test_every_precondition_refuses(self):
         refusals = {
             "dirty": dict(status="?? start_demo.bat"),
-            "no M1-A1": {"merge-base": subprocess.CalledProcessError(1, "git")},
+            "no M1-A1.1": {"merge-base": subprocess.CalledProcessError(1, "git")},
             "frozen diff": dict(diff="eval_v2/stage6_runner.py"),
         }
         for name, overrides in refusals.items():
             with self.subTest(name), self.assertRaises(run_m1_a2.PreflightError):
                 self.preflight(**overrides)
+        with self.subTest("another rule version"), \
+                mock.patch("aftersales_service.action_grounding.GROUNDING_VERSION", "m1-grounding/1"), \
+                self.assertRaises(run_m1_a2.PreflightError):
+            self.preflight()
         with self.subTest("inside a checkout"), self.assertRaises(run_m1_a2.PreflightError):
             self.preflight(out=ROOT / "results")
         busy = self.temporary()
@@ -688,21 +700,38 @@ class PreflightTests(unittest.TestCase):
 
 
 class FrozenBoundaryTests(unittest.TestCase):
-    """08: zero diff from main under the frozen and product directories; architecture unchanged."""
+    """08: zero diff under the frozen directories; the product is M1-A1.1's; architecture unchanged."""
+
+    ARCHITECTURE_TEST = "test_only_agent_core_imports_eval_v2_and_only_the_reused_modules"
 
     def git(self, *args):
         return subprocess.run(["git", "-C", str(ROOT), *args], check=True, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE).stdout.decode("utf-8").strip()
 
-    def test_08_frozen_and_product_directories_are_unchanged(self):
-        paths = ("eval_v2/", "aftersales/", "eval/v2/", "aftersales_service/")
+    def test_08_frozen_directories_are_unchanged_from_main(self):
+        paths = ("eval_v2/", "aftersales/", "eval/v2/")
         self.assertEqual(self.git("diff", "--name-only", "main", "--", *paths), "")
         self.assertEqual(self.git("ls-files", "--others", "--exclude-standard", "--", *paths), "")
 
+    def test_08_the_product_is_exactly_m1_a1_1(self):
+        # M1-A2 changes no product file; the only product change is M1-A1.1 (its own PR).
+        self.assertEqual(self.git("diff", "--name-only", run_m1_a2.M1_A1_1_COMMIT, "--", "aftersales_service/"), "")
+        self.assertEqual(self.git("ls-files", "--others", "--exclude-standard", "--", "aftersales_service/"), "")
+
+    def function_source(self, source: str, name: str) -> str:
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.FunctionDef) and node.name == name:
+                return ast.unparse(node)
+        raise AssertionError(name + " not found")
+
     def test_08_the_product_architecture_test_is_unchanged_and_passes(self):
-        self.assertEqual(self.git("diff", "--name-only", "main", "--", "tests/test_aftersales_service.py"), "")
+        path = "tests/test_aftersales_service.py"
+        before = self.git("show", run_m1_a2.M1_A1_MERGE + ":" + path)
+        now = (ROOT / path).read_text(encoding="utf-8")
+        self.assertEqual(self.function_source(now, self.ARCHITECTURE_TEST),
+                         self.function_source(before, self.ARCHITECTURE_TEST))
         module = importlib.import_module("tests.test_aftersales_service")
-        test = module.ProductBoundaryTests("test_only_agent_core_imports_eval_v2_and_only_the_reused_modules")
+        test = module.ProductBoundaryTests(self.ARCHITECTURE_TEST)
         result = unittest.TestResult()
         test.run(result)
         self.assertEqual((result.testsRun, result.errors, result.failures), (1, [], []))

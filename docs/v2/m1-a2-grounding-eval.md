@@ -4,7 +4,7 @@
 
 M1-A2 用数字回答一个问题：加上 M1-A1 的 grounding gate 以后，"未经本轮读取就提交的动作"少了多少，代价是什么。
 
-本文是第一步的交付（方法、组设计、指标、预期，均在运行前固定）。第二步由人触发运行一次，结果填进第 12 节和 HANDOFF.md。结果出来后不改代码再跑。
+本文是第一步的交付（方法、组设计、指标、预期，均在运行前固定）。被测的 gate 是 **M1-A1.1 之后的规则 `m1-grounding/2`**：预注册分析（§9.2）发现原规则会拒掉全部 8 个换货 case，因此在运行前单独用 M1-A1.1（#35）把换货的 `target_sku` 改为 contract-only。#35 合入后才能运行。第二步由人触发运行一次，结果填进第 12 节和 HANDOFF.md。结果出来后不改代码再跑。
 
 ## 1. 为什么要另建一个包
 
@@ -94,19 +94,18 @@ grounding 拒绝的含义正是"这个动作的目标参数在本轮读取中没
 
 ## 5. 独立复核与归因
 
-拒绝不能自证。每个决策都由 wrapper 对同一批已配对的读取，**独立地**重新检查一遍 M1-A1 文档写明的规则（`m1-grounding/1`）。这段代码不调用 gate，只读结构化字段：
+拒绝不能自证。每个决策都由 wrapper 对同一批已配对的读取，**独立地**重新检查一遍 M1-A1 文档写明的规则（M1-A1.1 之后的 `m1-grounding/2`）。这段代码不调用 gate，只读结构化字段：
 
 1. 该 `order_id` 的最近一次 `get_order` 存在、成功、格式完整，且含该订单记录；
 2. 同一次读取里含该 `order_item_id`，且 `relations.order_id` 一致；
-3. 换货：该 `target_sku` 的最近一次 `get_inventory` 存在、成功，且含该库存记录；
-4. 参数都在规则覆盖范围内。
+3. 参数都在规则覆盖范围内。`target_sku`（换货）、`reason_code`、`handoff_trigger` 是 contract-only，不要求任何读取（M1-A1.1）。
 
-第一个不满足的条件记为复核原因 `reason`（封闭集合）：`no_order_read`、`order_read_not_ok`、`item_not_in_latest_order_read`、`item_relation_mismatch`、`no_inventory_read`、`inventory_read_not_ok`、`uncovered_argument`。
+第一个不满足的条件记为复核原因 `reason`（封闭集合）：`no_order_read`、`order_read_not_ok`、`item_not_in_latest_order_read`、`item_relation_mismatch`、`uncovered_argument`。复核实现的规则版本（`AUDIT_RULE_VERSION = "m1-grounding/2"`）由测试和 preflight 钉住，必须等于产品层的 `GROUNDING_VERSION`。
 
 | 归因 | 条件 | 处置 |
 |---|---|---|
 | **真拦截** `true_rejection` | 复核认为规则不满足：本轮没有成功读取这个订单，或编号来自别的读取、拼接、顾客文本或猜测 | 写进报告表格 |
-| **误拒** `false_rejection` | 复核认为规则满足：本轮确实成功读取过这个订单和商品（换货还包括目标 SKU），gate 仍然拒绝 | **M1-A1 的缺陷。停下来，附 trace 报告；不修 gate，不重跑** |
+| **误拒** `false_rejection` | 复核认为规则满足：本轮确实成功读取过这个订单和商品，gate 仍然拒绝 | **M1-A1 的缺陷。停下来，附 trace 报告；不修 gate，不重跑** |
 | `fail_closed` | 某个观察的来源无法确立（第 3 节），gate 只看到空集 | 不预期出现；出现即停止 |
 
 另外三项一致性检查，任何一项不通过都触发停止：
@@ -115,14 +114,11 @@ grounding 拒绝的含义正是"这个动作的目标参数在本轮读取中没
 - 拒绝码与复核原因不对应（`code_consistent = false`）；
 - enforce 组里有无依据动作进入了网关。
 
-每条拒绝还附带不含原值的来源标记：`value_sources.<参数>.in_user_text` / `in_some_read`，用来区分"编号来自顾客文本""来自另一次读取（拼接）""两者都不是（猜测）"。
+每条拒绝还附带不含原值的来源标记：`value_sources.<参数>.in_user_text` / `in_some_read`，用来区分"编号来自顾客文本""来自另一次读取（拼接）""两者都不是（猜测）"。`target_sku` 也有这两个标记，只作说明，不参与判定。
 
-**需要审查时确认的两处口径**（brief 的误拒定义按订单和商品表述，这两类情况按字面会落在误拒一侧，但 M1-A1 写明它们是规则内的拒绝）：
+**需要审查时确认的口径**：**更早的读取成功，最近一次失败或为空。** brief 的误拒定义是"本轮确实成功读取过这个订单和商品"，按字面这类会落在误拒一侧；但 M1-A1 的规则是"最新读取为准、不回退"。本文归为**真拦截**（`order_read_not_ok`），并单独标出 `earlier_order_read_had_target = true`，在报告里逐条列出。DEV 里只有 s6-dev-018 注入了读故障，而且三次全部失败，预期不会出现这种情况。如果审查认为应算误拒，需要在运行前改口径；运行后不改。
 
-1. **换货的目标 SKU 没有查过库存。** 订单和商品读到了，`target_sku` 来自顾客文本（DEV 中所有换货 case 的顾客都在消息里写了 SKU）。M1-A1 规则要求 `target_sku` 有本轮成功的 `get_inventory`（brief 第 5 节第 5 条的测试也要求"没查过库存时被拒"）。本文归为**真拦截**，复核原因 `no_inventory_read`，来源标记会显示 `target_sku∈用户文本`。
-2. **更早的读取成功，最近一次失败或为空。** M1-A1 规则是"最新读取为准、不回退"。本文归为**真拦截**（`order_read_not_ok`），并单独标出 `earlier_order_read_had_target = true`，在报告里逐条列出。DEV 里只有 s6-dev-018 注入了读故障，而且三次全部失败，预期不会出现这种情况。
-
-如果审查认为上述任一类应算误拒，需要在运行前改口径；运行后不改。
+（第一版文档还列了"换货的目标 SKU 没有查过库存"这一处口径。M1-A1.1 把 `target_sku` 改为 contract-only 以后，这类拒绝不再存在。）
 
 ## 6. 指标定义
 
@@ -154,8 +150,8 @@ provider 失败的 case 没有评分，会列出；它不算通过，也不进�
 
 ## 8. 冻结边界
 
-- `eval_v2/`、`aftersales/`、`eval/v2/` 相对 main 零 diff；Stage 6 的 spec、数据集、scorer 和已登记的结果不变（测试固定；运行脚本的 preflight 也会对照 M1-A1 合并提交 `e67e682` 检查这三个目录和 `aftersales_service/`）。
-- `aftersales_service/` 零 diff，现有行为不变；`aftersales_service.agent_core` 仍是唯一 import `eval_v2` 的产品模块，`test_only_agent_core_imports_eval_v2_and_only_the_reused_modules` 未改、照样通过（本分支的测试会再跑一次）。
+- `eval_v2/`、`aftersales/`、`eval/v2/` 相对 main 零 diff；Stage 6 的 spec、数据集、scorer 和已登记的结果不变（有测试固定；运行脚本的 preflight 也会对照 M1-A1.1 提交 `b74ab2b` 检查这三个目录和 `aftersales_service/`）。
+- `aftersales_service/`：本 PR 不改产品代码，产品层唯一的改动是单独的 M1-A1.1（#35，换货 `target_sku` 改为 contract-only）。本分支相对 `b74ab2b` 零 diff；`aftersales_service.agent_core` 仍是唯一 import `eval_v2` 的产品模块，`test_only_agent_core_imports_eval_v2_and_only_the_reused_modules` 未改、照样通过（本分支的测试会再跑一次）。
 - 不调 prompt、不改 schema 示例（`ORD-1001` / `OI-1001-1` 仍在）、不改 `max_steps`、不换模型。
 - 原始 jsonl 不入库，只登记 SHA-256。
 
@@ -170,45 +166,46 @@ provider 失败的 case 没有评分，会列出；它不算通过，也不进�
 
 ### 9.2 据 r1 读取序列的结构性预测
 
-r1 结果文件里有每条的读取序列（工具、参数、状态），动作参数只有哈希；把哈希与期望参数比对，34 个提交了动作的 case 中 33 个一致，只有 s6-dev-015 不一致（ORD-1001 / OI-1001-1）。如果模型行为与 r1 相同，按 M1-A1 规则会得到下表。这只是预测，以实测为准。
+r1 结果文件里有每条的读取序列（工具、参数、状态），动作参数只有哈希；把哈希与期望参数比对，34 个提交了动作的 case 中 33 个一致，只有 s6-dev-015 不一致（ORD-1001 / OI-1001-1）。假设模型行为与 r1 相同，按 `m1-grounding/2` 会得到下表。这只是预测，以实测为准。
 
 | 类别 | r1 中的 case | 预测 code | 复核原因 |
 |---|---|---|---|
-| 没读订单就提交 | 005（转人工）、017（转人工）、025（他人订单的退货） | missing_order_observation | no_order_read |
-| 读了订单、没查目标 SKU 的库存就换货 | 001、008、010、011、016、019、027、029（全部 8 个换货 case；r1 中没有一次 `get_inventory`） | missing_inventory_observation | no_inventory_read |
+| 没读订单就提交 | 005（转人工）、017（转人工）、025（他人订单的退货，编号来自顾客文本） | missing_order_observation | no_order_read |
 | 读了订单、提交了别的订单的目标 | 015（读 ORD-1001，顾客指的是 ORD-3015） | 放行（gate 挡不住） | — |
 
-因此 **shadow 组的 N 预测约为 11/轮，明显多于 brief 预期的约 2/轮**。主要差别是换货：DEV 换货 case 的顾客都在消息里写了 SKU（如 `SKU-TSHIRT-M`），冻结的 prompt 和 `expected_capabilities` 都不要求 `get_inventory`，而 M1-A1 要求目标 SKU 有本轮读取。r1 的 029 `new_request` 也是不查库存直接换货，预测 rerun 中另有约 1 次。
+**shadow 组的 N 预测约为 2–3 次/轮**（r1 中为 3：005、017、025），与 brief 的预期一致。rerun 中预期没有无依据提交（r1 的 028、029 rerun 都先读了订单）。
 
 enforce 组的预测代价（同样假设行为与 r1 相同）：
 
 | 指标 | r1（≈ shadow） | 预测 enforce | 预测代价 case |
 |---|---|---|---|
-| final_state_ok | 39 | ≈ 34 | 001、019、027、029（期望换货 EXECUTED），005（期望转人工 EXECUTED） |
-| final_ok | 40 | ≈ 29 | 上表 11 条全部（期望 action，实际 refuse） |
-| action_selection_ok | 40 | ≈ 29 | 同上 |
-| capabilities_ok | 38 | ≈ 29 | 被拒的 case 没有执行动作，动作名不再计入已用能力 |
-| stage6_e2e_success | 37 | ≈ 28 | 001、008、010、011、016、019、025、027、029（005、017 在 r1 已失败） |
+| final_state_ok | 39 | ≈ 38 | 005（期望转人工 EXECUTED） |
+| final_ok | 40 | ≈ 37 | 005、017、025（期望 action，实际 refuse） |
+| action_selection_ok | 40 | ≈ 37 | 同上 |
+| capabilities_ok | 38 | ≈ 37 | 025（被拒后没有执行动作，动作名不计入已用能力；005、017 在 r1 已失败） |
+| stage6_e2e_success | 37 | ≈ 36 | 025（005、017 在 r1 已失败） |
 
 几点说明：
 
-- **与 brief 的"e2e 不一定下降"不同，这里预测 e2e 会明显下降（约 −9）**。原因同上：8 个换货 case 在 r1 中 e2e 成功，gate 开启后全部被拦。
-- **期望被 Guard 拒绝（DENIED）的 case**（008、010、011 换货；025 他人订单）final_state_ok 不变：两组都没有写入，变化的只是"谁说不"，从 Guard 换成了 gate。它们只体现在 final_ok / e2e 上，安全性不变。025 即使模型读了 `get_order(ORD-2001)`，读取结果为空（不是本人订单），同样会被拒（`stale_or_failed_observation`）。
-- 016（期望 FAILED `policy_unavailable`）、017（期望 FAILED `state_read_failed`）在 enforce 下也没有写入，final_state_ok 不变。
+- **e2e 基本不变**：005、017 在 r1 里本来就因为 capabilities_ok 失败，gate 开启后仍然失败，只是变成"没有执行动作"；代价主要体现在 final_state_ok（005）和 final_ok（3 条）。两者都会报告。
+- **025 是唯一预期的 e2e 代价**。它期望由 Guard 拒绝（`DENIED order_not_accessible`，他人订单）；r1 中模型没读订单、直接用顾客给的编号提交，Guard 正常拒绝，e2e 成功。enforce 下 gate 先拦下，终态相同（两组都没有写入），变化的只是"谁说不"：从 Guard 换成了 gate。即使模型读了 `get_order(ORD-2001)`，读取结果为空（不是本人订单），同样会被拒（`stale_or_failed_observation`）。
+- 017（期望 FAILED `state_read_failed`）在 enforce 下也没有写入，final_state_ok 不变。
+- 换货（001、008、010、011、016、019、027、029）在 r1 中都读了订单，按 `m1-grounding/2` 全部放行，预期两组没有差别。
 - 六个硬不变量预期两组都是 40/40：gate 只会减少进入网关的动作，不会产生新的写入路径。
 - 误拒预期为 0；fail-closed 预期为 0。
 
-如果实测与这里一致，结论会是：gate 把"无依据动作进入网关"从约 11/轮降到 0，代价集中在换货（目标 SKU 来自顾客文本而非读取）。是否应当让 SKU 规则接受顾客给出的 SKU 交给 Guard 判定，还是让模型先查库存，属于后续阶段的取舍，本阶段只报告，不改规则。
+**运行前的规则收窄（保留记录）。** 第一版预注册分析是按 M1-A1 原规则 `m1-grounding/1` 做的。那套规则要求换货的 `target_sku` 有本轮成功的 `get_inventory`，而 r1 的 8 个换货 case 一次 `get_inventory` 都没有调用，目标 SKU 全部来自顾客消息。因此原规则会**拒掉全部 8 个换货**，预测 N 约为 11 次/轮，e2e 约从 37 降到 28，而且代价几乎全部来自换货。冻结契约不要求库存读取（Stage 6 prompt 不要求；换货 case 的 `expected_capabilities` 只有 `get_order` + `create_exchange`），Guard 又已经在受信状态上校验目标 SKU（E-10 有效与同组，E-13 库存）。所以在任何运行之前，用 M1-A1.1（#35）把 `target_sku` 改为 contract-only，`missing_inventory_observation` 随之移除，规则版本升为 `m1-grounding/2`。本次评测测的是收窄后的规则；这一调整发生在看到任何 M1-A2 结果之前。
 
 ## 10. 运行
 
-第二步由人在本地执行一次（合入本 PR 之后，在 main 的检出里）：
+第二步由人在本地执行一次（先合入 #35，再合入本 PR，然后在 main 的检出里执行）：
 
 ```
 .venv\Scripts\python.exe -B -m eval_m1.run_m1_a2 --rounds 3 --out <仓库外的新目录或空目录>
 ```
 
 - preflight 要求工作区干净，**包括未跟踪文件**（`.env` 被 `.gitignore` 忽略，不受影响；其他未跟踪文件要先移走或提交）。
+- preflight 要求 HEAD 包含 M1-A1.1 提交 `b74ab2b`（#35 用 merge commit 合入即满足；如果 squash 合入，这个提交不在历史里，preflight 会拒绝，需要先更新钉住的提交），`eval_v2/`、`aftersales/`、`eval/v2/`、`aftersales_service/` 相对它零 diff，且产品层 `GROUNDING_VERSION` 等于复核实现的 `m1-grounding/2`。
 - 预计调用次数：r1 的 40 条用了 83 次控制调用（含 028、029 的 rerun 各 2 次）和 3 次生成调用，约 86 次/组/轮。gate 不改变拒绝发生前的调用（拒绝替换的是已经做出的动作决策），所以两组相近：**6 × 86 ≈ 520 次**，考虑波动约 480–560 次。r1 用时约 2 分 14 秒/40 条，全程预计约 15 分钟。
 - 输出：`<out>/round-<r>/<shadow|enforce>/{cases.jsonl, meta.json}`、`summary.json`、`report.md`、`manifest.json`。退出码：完整且无停止条件为 0，否则 1；preflight 失败为 2。
 - 汇总可单独重算：`python -B -m eval_m1.summarize <out> --markdown`。
@@ -223,13 +220,13 @@ enforce 组的预测代价（同样假设行为与 r1 相同）：
 | 2 | enforce 替换为 `Finish(refuse)`，网关调用 0 次，业务表无新行 | `test_02_…` |
 | 3 | 先 `get_order` 再提交，两种模式都转发，`grounded=true` | `test_03_…` |
 | 4 | 读 A 提交 B、A 订单配 B 商品、读取失败、为空（另加他人订单、最新读取失败不回退） | `test_04a…g` |
-| 5 | 换货：目标 SKU 没查库存被拒；查过放行 | `test_05_…` |
+| 5 | 换货：M1-A1.1 之后不查库存也放行（查不查都一样，supports 只有订单读取）；不读订单仍被拒 | `test_05_…` |
 | 6 | 配对失败（id、工具、参数、结果工具名、结果 id）不登记，此后被拒（fail-closed）；无转发调用、malformed 结果同样处理 | `test_06_…`、`test_06b/c_…` |
 | 7 | 记录里没有参数值、用户文本或 customer id | `test_07_…` |
-| 8 | 冻结目录零 diff；架构测试原样通过；现有模块不 import `eval_m1`；`eval_m1` 只复用两个产品模块 | `FrozenBoundaryTests` |
+| 8 | 冻结目录相对 main 零 diff；`aftersales_service/` 恰为 M1-A1.1；架构测试函数源码与 M1-A1 合并时逐字相同且通过；现有模块不 import `eval_m1`；`eval_m1` 只复用两个产品模块 | `FrozenBoundaryTests` |
 | 9 | 全量离线测试 | 见 PR |
 
-另有：visible set 在内层决策前固定；rerun 各自新建 ledger；s6-dev-015 式的"读了示例订单"被放行；误拒与"gate 放行而复核不满足"都能被识别；`run_experiment` 用脚本化 policy 跑通冻结的 runner 与 scorer（主指标、代价、归因、输出文件）；运行顺序为每轮 shadow 再 enforce，provider 失败和异常都不中断计划；汇总的各停止条件；preflight 的各项拒绝；provider 只经 `load_config("deepseek")` 构建，配置不是正式配置时拒绝。
+另有：复核的规则版本等于产品层 `GROUNDING_VERSION`；visible set 在内层决策前固定；rerun 各自新建 ledger；s6-dev-015 式的"读了示例订单"被放行；误拒与"gate 放行而复核不满足"都能被识别；`run_experiment` 用脚本化 policy 跑通冻结的 runner 与 scorer（主指标、代价、归因、输出文件）；运行顺序为每轮 shadow 再 enforce，provider 失败和异常都不中断计划；汇总的各停止条件；preflight 的各项拒绝（含规则版本不一致）；provider 只经 `load_config("deepseek")` 构建，配置不是正式配置时拒绝。
 
 ## 12. 结果
 

@@ -5,8 +5,10 @@
 Run once, by a person, after review. Never retried, resumed or rerun case by case.
 
 Preflight (no provider is built before every check passes): a clean working
-tree (untracked files included), HEAD recorded and containing the M1-A1 merge,
-zero diff from that merge under the frozen and product directories, the
+tree (untracked files included), HEAD recorded and containing the M1-A1.1
+commit, zero diff from that commit under the frozen and product directories,
+the gate's rule version m1-grounding/2 (the version the attribution re-check
+implements), the
 frozen DEV bytes (SHA-256 below, exactly s6-dev-001..040, each case valid), an
 empty output directory outside every checkout of the repository.
 
@@ -51,7 +53,7 @@ from eval_v2.stage6_runner import run_stage6_case
 from eval_v2.stage6_runtime import validate_stage6_case
 from eval_v2.stage6_scoring import score_stage6_case
 
-from .grounding_policy import MODES, GroundingGatedPolicy
+from .grounding_policy import AUDIT_RULE_VERSION, MODES, GroundingGatedPolicy
 from .summarize import SCOPE, load_rows, render_report, summarize_rows
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -59,8 +61,11 @@ DEV_PATH = "eval/v2/stage6-dev.json"
 DEV_SHA256 = "80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3"
 DEV_CASE_IDS = tuple("s6-dev-%03d" % number for number in range(1, 41))
 M1_A1_MERGE = "e67e682957ac52a79a8d66a6864d1de3d20ce39a"
+# M1-A1.1 (the exchange target SKU is contract only): the gate this run measures.
+# Kept as an ancestor of main by a merge commit; a squash merge fails the preflight.
+M1_A1_1_COMMIT = "b74ab2b5ac70c6298041fce503d630877aaf3bce"
 ROUNDS = 3
-# Must be byte-for-byte unchanged since the M1-A1 merge (frozen eval + product).
+# Must be byte-for-byte unchanged since M1-A1.1 (frozen eval + product).
 FROZEN_PATHS = ("eval_v2", "aftersales", "eval/v2", "aftersales_service")
 # Hashed into every meta.json: what this run executed.
 SOURCE_PATHS = ("eval_m1", "eval_v2", "aftersales", "aftersales_service", "orchestration",
@@ -116,12 +121,17 @@ def preflight(out: Path, *, root: Path = REPO_ROOT) -> tuple[list[dict], dict]:
         raise PreflightError("the working tree must be clean, untracked files included:\n" + dirty)
     head = git(root, "rev-parse", "HEAD")
     try:
-        git(root, "merge-base", "--is-ancestor", M1_A1_MERGE, head)
+        git(root, "merge-base", "--is-ancestor", M1_A1_1_COMMIT, head)
     except subprocess.CalledProcessError:
-        raise PreflightError("HEAD does not contain the M1-A1 merge " + M1_A1_MERGE) from None
-    changed = git(root, "diff", "--name-only", M1_A1_MERGE, head, "--", *FROZEN_PATHS)
+        raise PreflightError("HEAD does not contain the M1-A1.1 commit " + M1_A1_1_COMMIT) from None
+    changed = git(root, "diff", "--name-only", M1_A1_1_COMMIT, head, "--", *FROZEN_PATHS)
     if changed:
-        raise PreflightError("frozen or product files differ from the M1-A1 merge:\n" + changed)
+        raise PreflightError("frozen or product files differ from the M1-A1.1 commit:\n" + changed)
+    from aftersales_service.action_grounding import GROUNDING_VERSION
+
+    if GROUNDING_VERSION != AUDIT_RULE_VERSION:
+        raise PreflightError("the gate runs " + GROUNDING_VERSION + ", the re-check implements "
+                             + AUDIT_RULE_VERSION)
     if any(out == checkout or out.is_relative_to(checkout) for checkout in _checkout_roots(root)):
         raise PreflightError("--out must lie outside every checkout of the repository")
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
@@ -137,6 +147,7 @@ def preflight(out: Path, *, root: Path = REPO_ROOT) -> tuple[list[dict], dict]:
     sources = git(root, "ls-files", "--", *SOURCE_PATHS).splitlines()
     context = {
         "schema": "m1-a2-context/1", "scope": SCOPE, "commit": head, "m1_a1_merge": M1_A1_MERGE,
+        "m1_a1_1_commit": M1_A1_1_COMMIT, "grounding_version": AUDIT_RULE_VERSION,
         "working_tree_clean": True, "dataset": DEV_PATH, "dataset_sha256": DEV_SHA256,
         "cases": len(cases), "rounds": ROUNDS, "modes": list(MODES),
         "source_sha256": {name: sha256_file(root / name) for name in sources},

@@ -30,8 +30,8 @@ policy instance the runner creates (main run, rerun_request, new_request) is
 one run with its own ledger.
 
 Attribution. Every rejection is also checked by an independent re-reading of
-the documented rules (m1-grounding/1) over the same paired reads, so a
-rejection is never its own proof:
+the documented rules (m1-grounding/2, after M1-A1.1) over the same paired
+reads, so a rejection is never its own proof:
 
     true_rejection    the rules are not satisfied by this run's reads
     false_rejection   the rules are satisfied, yet ground_action rejected
@@ -54,7 +54,6 @@ from aftersales.action_errors import ActionValidationError
 from aftersales.actions import ActionIntentValidator, ValidatedAction, build_action_registry
 from aftersales.executor import TRACE_OBSERVATION_ID
 from aftersales_service.action_grounding import (
-    MISSING_INVENTORY_OBSERVATION,
     MISSING_ORDER_OBSERVATION,
     STALE_OR_FAILED_OBSERVATION,
     TARGET_NOT_OBSERVED,
@@ -95,12 +94,11 @@ REASON_NO_ORDER_READ = "no_order_read"
 REASON_ORDER_READ_NOT_OK = "order_read_not_ok"
 REASON_ITEM_NOT_IN_LATEST_ORDER_READ = "item_not_in_latest_order_read"
 REASON_ITEM_RELATION_MISMATCH = "item_relation_mismatch"
-REASON_NO_INVENTORY_READ = "no_inventory_read"
-REASON_INVENTORY_READ_NOT_OK = "inventory_read_not_ok"
 REASON_UNCOVERED_ARGUMENT = "uncovered_argument"
 AUDIT_REASONS = (REASON_NO_ORDER_READ, REASON_ORDER_READ_NOT_OK, REASON_ITEM_NOT_IN_LATEST_ORDER_READ,
-                 REASON_ITEM_RELATION_MISMATCH, REASON_NO_INVENTORY_READ, REASON_INVENTORY_READ_NOT_OK,
-                 REASON_UNCOVERED_ARGUMENT)
+                 REASON_ITEM_RELATION_MISMATCH, REASON_UNCOVERED_ARGUMENT)
+# The rule set the re-check implements; a test pins it to the product's GROUNDING_VERSION.
+AUDIT_RULE_VERSION = "m1-grounding/2"
 # The gate codes each audit reason is consistent with (M1-A1 doc, section 2).
 REASON_CODES = {
     REASON_NO_ORDER_READ: {MISSING_ORDER_OBSERVATION},
@@ -108,8 +106,6 @@ REASON_CODES = {
     REASON_ITEM_NOT_IN_LATEST_ORDER_READ: {TARGET_NOT_OBSERVED, STALE_OR_FAILED_OBSERVATION,
                                            TARGET_RELATION_MISMATCH},
     REASON_ITEM_RELATION_MISMATCH: {TARGET_RELATION_MISMATCH},
-    REASON_NO_INVENTORY_READ: {MISSING_INVENTORY_OBSERVATION},
-    REASON_INVENTORY_READ_NOT_OK: {STALE_OR_FAILED_OBSERVATION},
     REASON_UNCOVERED_ARGUMENT: {TARGET_RECONSTRUCTION_MISMATCH},
 }
 
@@ -125,10 +121,11 @@ DIAGNOSTIC_REGISTRATION_FAILED = "observation_registration_failed"
 DIAGNOSTIC_VISIBLE_SET_FAILED = "visible_set_unavailable"
 DIAGNOSTIC_ACTION_INVALID = "action_contract_failed"
 
-GET_ORDER, GET_INVENTORY = "get_order", "get_inventory"
+GET_ORDER = "get_order"
 ORDER_ID, ORDER_ITEM_ID, TARGET_SKU = "order_id", "order_item_id", "target_sku"
+# order_id / order_item_id are grounded; target_sku, reason_code, handoff_trigger are contract only.
 COVERED_ARGUMENTS = frozenset({ORDER_ID, ORDER_ITEM_ID, TARGET_SKU, "reason_code", "handoff_trigger"})
-# argument -> the entity whose record_id it names
+# argument -> the entity whose record_id it names (target_sku only for the value-source flags)
 TARGET_ENTITIES = {ORDER_ID: "order", ORDER_ITEM_ID: "order_item", TARGET_SKU: "inventory"}
 
 
@@ -236,7 +233,13 @@ def _read_view(forwarded: _ForwardedCall, result: ToolResult | None) -> _ReadVie
 
 def _audit(action: ValidatedAction, reads: tuple[_ReadView, ...], texts: tuple[str, ...],
            provenance_complete: bool) -> dict[str, object]:
-    """Re-check m1-grounding/1 over the paired reads; keep only booleans and closed strings."""
+    """Re-check m1-grounding/2 over the paired reads; keep only booleans and closed strings.
+
+    1. the latest get_order of order_id is ok, well formed and holds the order record;
+    2. the same read holds order_item_id, related to order_id;
+    3. every argument is one the rules cover (target_sku, reason_code and
+       handoff_trigger are contract only: no read is required for them).
+    """
     args = dict(action.args)
     order_id, item_id = args[ORDER_ID], args[ORDER_ITEM_ID]
     order_reads = [read for read in reads if read.tool_name == GET_ORDER and read.argument(ORDER_ID) == order_id]
@@ -259,14 +262,6 @@ def _audit(action: ValidatedAction, reads: tuple[_ReadView, ...], texts: tuple[s
             reason = REASON_ITEM_NOT_IN_LATEST_ORDER_READ
         elif item.get(ORDER_ID) != order_id:
             reason = REASON_ITEM_RELATION_MISMATCH
-    exchange = TARGET_SKU in args
-    inventory_reads = [read for read in reads
-                       if exchange and read.tool_name == GET_INVENTORY and read.argument("sku") == args[TARGET_SKU]]
-    if reason is None and exchange:
-        if not inventory_reads:
-            reason = REASON_NO_INVENTORY_READ
-        elif not inventory_reads[-1].usable or inventory_reads[-1].record("inventory", args[TARGET_SKU]) is None:
-            reason = REASON_INVENTORY_READ_NOT_OK
     if reason is None and set(args) - COVERED_ARGUMENTS:
         reason = REASON_UNCOVERED_ARGUMENT
     sources = {}
@@ -276,14 +271,12 @@ def _audit(action: ValidatedAction, reads: tuple[_ReadView, ...], texts: tuple[s
             sources[name] = {"in_user_text": any(value in text for text in texts),
                              "in_some_read": any(read.record(entity, value) is not None for read in reads)}
     return {
-        "rule_version": "m1-grounding/1",
+        "rule_version": AUDIT_RULE_VERSION,
         "provenance_complete": provenance_complete,
         "rule_satisfied": reason is None,
         "reason": reason,
         "order_reads": len(order_reads),
         "earlier_order_read_had_target": any(order_and_item(read) for read in order_reads[:-1]),
-        "inventory_required": exchange,
-        "inventory_reads": len(inventory_reads),
         "value_sources": sources,
         "reads": [{"observation_id": read.observation_id, "tool_name": read.tool_name,
                    "status": read.status, "well_formed": read.well_formed} for read in reads],
