@@ -594,7 +594,7 @@ class ActionGroundingProductTests(ProductTestCase):
         read, proposed = self.responses[-1]["trace"]["steps"]
         binding = proposed["grounding"]
         self.assertEqual((binding["basis"], binding["version"], binding["run_index"]),
-                         ("observed", "m1-grounding/1", 1))
+                         ("observed", "m1-grounding/2", 1))
         self.assertEqual((binding["action_name"], binding["args_sha256"]),
                          (proposed["action_name"], proposed["args_sha256"]))
         self.assertEqual([(item["argument"], item["observation_id"], item["entity"], item["record_id"])

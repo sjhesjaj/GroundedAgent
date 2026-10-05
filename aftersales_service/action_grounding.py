@@ -7,7 +7,7 @@ database. Its only input besides the validated action is the
 VisibleObservations fixed before the decision that proposed the action
 (observation_provenance.py).
 
-Rules, grounding version `m1-grounding/1`, for a new submission:
+Rules, grounding version `m1-grounding/2`, for a new submission:
 
     order_id        equals the record_id of the order record of a successful
                     get_order observation of this run.
@@ -18,13 +18,15 @@ Rules, grounding version `m1-grounding/1`, for a new submission:
                     target) is the one that counts. If it is empty, failed or
                     incomplete, the action is rejected: an earlier success is
                     never fallen back to. Reads of other orders change nothing.
-    target_sku      (create_exchange) equals the record_id of the inventory
-                    record of the latest get_inventory of that SKU, which must
-                    be successful. Whether the stock allows the exchange is
-                    still the Guard's decision.
-    contract only   reason_code and handoff_trigger keep their closed enum check
-                    (ActionIntentValidator) and nothing more: a binding never
-                    claims that an observation supports them.
+    contract only   target_sku (create_exchange), reason_code and
+                    handoff_trigger keep the ActionIntentValidator contract and
+                    nothing more: a binding never claims that an observation
+                    supports them. target_sku is the customer's choice of
+                    variant, not a record the agent acts on; whether it is a
+                    valid, compatible SKU with enough stock is the Guard's
+                    decision on trusted state (E-10, E-13). m1-grounding/1 also
+                    required a get_inventory of the target SKU; M1-A1.1 dropped
+                    that rule (docs/v2/m1-a1-action-grounding.md, "M1-A1.1").
 
 When every rule holds, the target arguments are rebuilt from the matched
 records (plus the contract-only arguments) and must equal the proposal
@@ -52,12 +54,12 @@ from dataclasses import dataclass
 
 from aftersales.action_outcome import ActionOutcome, ActionStatus
 from aftersales.actions import ValidatedAction, args_digest, canonical_args
-from aftersales.business_tools import GET_INVENTORY, GET_ORDER
+from aftersales.business_tools import GET_ORDER
 from aftersales.ids import IDEMPOTENCY_KEY_PATTERN
 
 from .observation_provenance import ObservationRecord, ObservedRecord, VisibleObservations
 
-GROUNDING_VERSION = "m1-grounding/1"
+GROUNDING_VERSION = "m1-grounding/2"
 
 # Closed rejection codes.
 MISSING_ORDER_OBSERVATION = "missing_order_observation"          # no get_order of that order this run
@@ -65,28 +67,27 @@ TARGET_NOT_OBSERVED = "target_not_observed"                      # no read of th
 TARGET_RELATION_MISMATCH = "target_relation_mismatch"            # the item belongs to another order
 STALE_OR_FAILED_OBSERVATION = "stale_or_failed_observation"      # the latest read is empty / failed /
                                                                  # incomplete, or no longer has the target
-MISSING_INVENTORY_OBSERVATION = "missing_inventory_observation"  # no get_inventory of the target SKU
 TARGET_RECONSTRUCTION_MISMATCH = "target_reconstruction_mismatch"  # rebuilt arguments != the proposal
 GROUNDING_REJECTION_CODES = (
     MISSING_ORDER_OBSERVATION,
     TARGET_NOT_OBSERVED,
     TARGET_RELATION_MISMATCH,
     STALE_OR_FAILED_OBSERVATION,
-    MISSING_INVENTORY_OBSERVATION,
     TARGET_RECONSTRUCTION_MISMATCH,
 )
+# m1-grounding/1 also had missing_inventory_observation (no get_inventory of an
+# exchange's target SKU). M1-A1.1 removed the rule and, with it, the code.
 
 # Entities and keys as the business tools structure them (aftersales.business_tools).
 ENTITY_ORDER = "order"
 ENTITY_ORDER_ITEM = "order_item"
-ENTITY_INVENTORY = "inventory"
 ORDER_ID = "order_id"
 ORDER_ITEM_ID = "order_item_id"
 TARGET_SKU = "target_sku"
-INVENTORY_SKU = "sku"
 
-# Checked by the closed contract only, never "supported by an observation".
-CONTRACT_ONLY_ARGUMENTS = ("reason_code", "handoff_trigger")
+# Checked by the ActionIntentValidator contract only, never "supported by an observation".
+# target_sku is the customer's choice of variant; the Guard judges it on trusted state.
+CONTRACT_ONLY_ARGUMENTS = (TARGET_SKU, "reason_code", "handoff_trigger")
 
 
 class GroundingRejected(Exception):
@@ -195,13 +196,6 @@ def ground_action(action: ValidatedAction, visible: VisibleObservations) -> Grou
     item = _order_item(visible, order_read, order, action.target_order_item_id)
     supports = [_support(ORDER_ID, order_read, order), _support(ORDER_ITEM_ID, order_read, item)]
     rebuilt = {ORDER_ID: order.record_id, ORDER_ITEM_ID: item.record_id}
-    if TARGET_SKU in args:
-        stock_read = _latest(visible, GET_INVENTORY, INVENTORY_SKU, args[TARGET_SKU])
-        if stock_read is None:
-            raise GroundingRejected(MISSING_INVENTORY_OBSERVATION)
-        stock = _target(stock_read, ENTITY_INVENTORY, args[TARGET_SKU])
-        supports.append(_support(TARGET_SKU, stock_read, stock))
-        rebuilt[TARGET_SKU] = stock.record_id
     contract_only = tuple(name for name in CONTRACT_ONLY_ARGUMENTS if name in args)
     rebuilt.update({name: args[name] for name in contract_only})
     # The server's own reconstruction must be the proposal, exactly.
