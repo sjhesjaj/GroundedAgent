@@ -71,11 +71,12 @@ flowchart TB
 
 | 范围 | 结果 |
 |---|---|
-| M0 后端售后产品 / API 测试 | **27/27** 通过（`tests/test_aftersales_service.py`，离线，模型由测试替身代替） |
+| M0 后端售后产品 / API 测试 | **30/30** 通过（`tests/test_aftersales_service.py`，离线，模型由测试替身代替） |
+| M1 grounding gate 测试 | **50/50** 通过（`tests/test_aftersales_grounding.py`，离线） |
 | M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`） |
 | M0 前端构建 | 通过（`pnpm run build`） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
-| 后端全量离线套件 | **2590/2590**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live` |
+| 后端全量离线套件 | **2685/2685**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
 | Stage 6 DEV（40 条） | E2E **37/40** |
 | Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
 
@@ -143,13 +144,13 @@ pnpm dev
 页面默认使用演示客户 `demo-a`。可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`，在动作卡片上点「批准」或「拒绝」，就能走完审批、恢复和执行。左侧的「重置 Demo」会把模拟数据库恢复到种子状态。
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service   # M0 产品 / API 测试（27 项，离线）
+.\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service   # M0 产品 / API 测试（30 项，离线）
 cd frontend; node --test tests/api.test.js                               # 前端 API 测试（20 项）
 ```
 
 ## Known limitations（V2）
 
-- **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
+- **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察；M1 在网关前加了 grounding gate 来拦截这类动作（见上文 M1），但它只在 DEV 上做过诊断对比，sealed holdout 没有重跑。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
 - **M0 产品运行时与正式评测的差异**：产品以 `formal=False` 运行同一个被评测过的策略。跨暂停时，早先的观察会用合成 call id 重放；之后的 run 能看到顾客之前的消息，但看不到 agent 之前的回复。这些都不在 Stage 6 正式评测（单轮、脚本化用户）的覆盖范围内。
 - **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
 - **存储**：会话保存在内存里，数据库在临时目录，重启进程就是完全重置。
@@ -158,8 +159,8 @@ cd frontend; node --test tests/api.test.js                               # 前�
 ## Repo structure
 
 ```text
-knowledge-agent/           # 仓库名沿用 V1，没有改名
-├── aftersales_service/    # M0 产品运行时：会话、控制循环、审批决定、/api/aftersales 路由
+knowledge-agent/           # 仓库名沿用 V1
+├── aftersales_service/    # M0 产品运行时：会话、控制循环、审批决定、/api/aftersales 路由；M1 观察来源与 grounding gate
 ├── aftersales/            # V2 售后领域：只读业务工具、Stage 6 动作契约、Policy Guard、ActionGateway、审批
 ├── eval_v2/               # V2 评测：Stage 5 工具循环，Stage 6 动作循环、runner、scorer、oracle
 ├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
@@ -167,7 +168,7 @@ knowledge-agent/           # 仓库名沿用 V1，没有改名
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
 ├── api.py                 # FastAPI：/api/aftersales 路由 + V1 问答接口 / SSE
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── tests/                 # 2590 项后端离线自动化测试（含 27 项 M0 产品测试）
+├── tests/                 # 2685 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
 │
 │                          # —— V1 / 工程基础 ——
