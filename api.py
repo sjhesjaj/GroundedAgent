@@ -33,7 +33,7 @@ from wiki_maintenance import derive_document_id
 from aftersales_service.routes import router as aftersales_router
 
 
-app = FastAPI(title="Enterprise Knowledge Agent API", version="1.2.0")
+app = FastAPI(title="GroundedAgent After-Sales API", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

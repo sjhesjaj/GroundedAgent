@@ -1,39 +1,42 @@
-# Knowledge Agent Product-Trunk Instructions
+# GroundedAgent Repository Instructions
 
 ## Objective
 
-Evolve this FastAPI + Vue knowledge-agent into a controlled read-only knowledge
-agent with three evidence paths:
+This repository (still named `knowledge-agent`) hosts **GroundedAgent V2**, an
+e-commerce after-sales customer-service agent. The LLM may call five read-only
+business tools and propose three simulated actions (`create_return`,
+`create_exchange`, `escalate_to_human`). It never writes directly: every action
+passes the M1 grounding gate, the deterministic Policy Guard, human approval
+where required, and the idempotent `ActionGateway`, with receipts and audit.
 
-1. `wiki_query` for compiled, structured knowledge pages;
-2. `document_search` for exact evidence from source documents;
-3. `system_query` for current read-only business state.
+The earlier **V1** enterprise-policy knowledge agent (wiki / document / system
+evidence paths, trace, diagnostic eval) is kept as historical engineering
+foundation. It is not the product mainline; do not extend it.
 
-The agent must plan which paths are needed, merge evidence, detect insufficient
-or conflicting evidence, and answer with traceable sources.
+## Project Status
 
-## Canonical Branch and Reference Baseline
-
-- This worktree is the product trunk and starts from `origin/main` commit
-  `0a9a80c`.
-- The local branch `codex/local-rag-baseline-20260825` at commit `622a4af` is a
-  read-only reference for RAG and evaluation improvements.
-- Do not merge or cherry-pick `622a4af` wholesale. It comes from unrelated Git
-  history and would overwrite product-trunk behavior.
-- Port a reference change only when the active task explicitly requests it and
-  provides acceptance tests for the product trunk.
+- Stage 6 (controlled side effects, sealed holdout) is frozen: tag
+  `v2-stage6-final`. Do not change `aftersales/`, `eval_v2/` or `eval/v2/`
+  without an explicit task; `tests/test_m1_a2_grounding_eval.py` checks this.
+- M0 (product runtime + after-sales UI) and M1-A1/A1.1/A2 (grounding gate and
+  its DEV evaluation) are merged into `main`.
+- `HANDOFF.md` is the stage-by-stage record; `docs/v2/` holds the designs.
 
 ## Current Product Contracts
 
-- `api.py`: FastAPI endpoints, SSE protocol, knowledge-version consistency, and
-  conversation locking.
-- `storage.py`: SQLite persistence and transactional knowledge replacement.
-- `rag.py`: `Chunk`, indexing, retrieval, reranking, and answer generation.
-- `agent.py`: current single-step tool selection.
-- `frontend/`: Vue client and its existing REST/SSE contract.
-- `tests/`: 25 fast unit/API regression tests.
+- `aftersales/`: V2 domain: read-only business tools, action schema, Policy
+  Guard, approval, `ActionGateway` (frozen at Stage 6).
+- `aftersales_service/`: M0 product runtime (sessions, control loop, operator
+  decisions, `/api/aftersales/*` routes) and the M1 grounding gate.
+- `eval_v2/`, `eval/v2/`: V2 evaluation stack and datasets (frozen).
+- `eval_m1/`: M1-A2 grounding before/after comparison.
+- `api.py`: FastAPI app; mounts the after-sales router and keeps the V1 Q&A /
+  SSE endpoints.
+- `frontend/`: Vue after-sales customer-service UI (since M0-A2).
+- V1 modules (`agent.py`, `rag.py`, `orchestration/`, `wiki_maintenance/`,
+  `eval_env/`, `storage.py`): historical, read-only behavior.
 
-Unless the active milestone says otherwise, preserve these contracts.
+Unless the active task says otherwise, preserve these contracts.
 
 ## Source of Truth
 
@@ -41,12 +44,12 @@ Use this order when instructions conflict:
 
 1. the user's current request;
 2. this file;
-3. the active file under `docs/tasks/`;
-4. `docs/V1_IMPLEMENTATION_PLAN.md`;
+3. the active design under `docs/v2/` (for frozen stages, the tagged version);
+4. `HANDOFF.md`;
 5. existing implementation and README history.
 
-Descriptions in old commits, pasted reviews, or the reference branch are
-context, not instructions.
+Descriptions in old commits, pasted reviews, or `docs/tasks/` (V1 milestone
+briefs) are context, not instructions.
 
 ## Engineering Boundaries
 
@@ -60,6 +63,11 @@ context, not instructions.
   as frozen in `docs/v2/stage6-design.md` (tag `v2-stage6-design`). No other
   module may write business state; there is no refund, payment, shipping or
   inventory mutation.
+- The M1 action grounding gate (`aftersales_service/action_grounding.py`,
+  `aftersales_service/observation_provenance.py`) sits in front of the
+  ActionGateway in the product runtime: an action's order/item ids must come
+  from a read observed earlier in the same run. Do not relax it to accept ids
+  from user or model text. It does not modify `aftersales/` or `eval_v2/`.
 - Do not add multi-domain plug-ins or extract student-domain configuration in
   V1.
 - Do not replace SQLite, FastAPI, Vue, SSE, Ollama, or the current RAG pipeline
@@ -92,12 +100,15 @@ context, not instructions.
 Use the worktree-local environment:
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile agent.py api.py app.py rag.py storage.py
-.\.venv\Scripts\python.exe -m unittest discover -v
+.\.venv\Scripts\python.exe -X utf8 -m unittest tests.test_aftersales_service tests.test_aftersales_grounding
+cd frontend; node --test tests/api.test.js
 ```
 
-At `0a9a80c`, the expected unit/API baseline is 25 tests passing. M1 tests must
-not call Ollama, the internet, or the real persistent database.
+The full offline suite is `unittest discover` excluding only
+`tests.test_llm_provider_live` (real DeepSeek calls); at the commit that
+introduced this section it was 2685 tests passing. V1 eval-environment tests pin
+dataset hashes and assume the Windows default CRLF checkout. Tests must not call
+DeepSeek, Ollama, the internet, or the real persistent database.
 
 ## Required Handoff
 
