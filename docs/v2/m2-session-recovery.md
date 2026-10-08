@@ -91,6 +91,42 @@ per-turn trace and the in-flight submission. Each project type gets
 `encode`/`decode` to plain dicts; a decode that does not reproduce an equal
 object is an error. Unknown `schema` versions are refused, not migrated.
 
+### As implemented (phases 1-2)
+
+The existing product and grounding tests run unchanged, and three of their
+static checks fix where the node bodies live:
+
+- **`Conversation._drive` is the `decide` node**: one decision per call (the
+  step-limit check, then `visible_to` before `next_action`). The name is kept
+  because `GroundingBoundaryTests.test_the_visible_set_is_frozen_before_the_model_is_asked`
+  requires exactly one `visible_to` before exactly one `next_action` inside
+  `_drive`.
+- **`Conversation._act(state, stage, context)` hosts both `ground` and
+  `gateway`**, selected by `stage`; the graph still has two nodes with the
+  `interrupt_before=["gateway"]` stop between them. Two existing tests require
+  it: `GroundingBoundaryTests.test_grounding_runs_before_the_only_write_path`
+  (inside `_act`, `ground_action` before `start_action`, and `idempotency_key`
+  called at most once) and `ProductBoundaryTests.test_an_approval_is_built_in_exactly_one_place`
+  (`start_action` only in `_act`). The gateway stage re-derives and re-checks
+  the `ValidatedAction` from the checkpointed submission in a helper
+  (`_submitted_action`), so `_act` keeps its single `idempotency_key` call.
+- **The object's fields are the head's materialized view.** Phase 2 keeps one
+  in-memory checkpointer (strict serializer) per conversation. Every node
+  loads its input state into the `Conversation` fields and packs them back; a
+  turn that ends normally makes its last checkpoint the head and reloads from
+  it; a failed turn restores the pre-turn snapshot and leaves the head where
+  it was; an operator decision changes the fields and saves them onto the head
+  (`update_state(as_node="finish")`); a failure after `start_action` returned
+  saves the partial turn as the head (the M0 rule that a pending id is never
+  lost, until phase 3's marker recovery replaces it). `decide` reads the fields
+  directly - `GroundingScenarioTests.test_13b_a_decision_needs_the_pending_actions_binding`
+  alters `conversation._submissions` between requests and expects the decision
+  to be refused. **Phase 3 must guarantee that at the end of every request,
+  on every path (turn, failed turn, decision, recovery), `self == decode(head)`**:
+  `conversation._snapshot()` equals the snapshot decoded from the head
+  checkpoint (`CheckpointContentTests` asserts this after a conversation with
+  every kind of step).
+
 ### Persistence layout
 
 ```
