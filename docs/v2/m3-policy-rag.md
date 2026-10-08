@@ -1,6 +1,6 @@
 # GroundedAgent V2 M3: after-sales knowledge base as an agent tool
 
-Revision 3 (after code review against main `ec21b40`).
+Revision 4 (two code reviews against main `ec21b40`).
 
 ## The problem
 
@@ -93,7 +93,15 @@ things:
    `search_knowledge_base`;
 2. the offered functions;
 3. the tool schemas;
-4. translation, so the new tool name is accepted.
+4. translation, so the new tool name is accepted;
+5. **previous replies as context:** the decision and answer prompts include
+   the conversation's earlier final replies as assistant messages. Today a run
+   sees every customer message but neither its own earlier replies nor earlier
+   runs' observations (`tool_loop.build_messages` has no assistant text), so
+   "你刚才说的 15 天从哪天算？" or "第二个呢？" cannot be understood. Earlier
+   replies are context only: they are not observations, cannot ground an id
+   (the gate still requires this run's reads), and are capped in number and
+   length.
 
 No `formal` mode. The fail-closed parsing and one-call-per-decision behaviour
 are reused unchanged.
@@ -124,7 +132,23 @@ are reused unchanged.
 ### Answer layer
 
 Reuse the evaluated generation layer unchanged (constraint 5). Fork an
-`m3-answer/1` only if Phase 5 shows it is needed.
+`m3-answer/1` only if Phase 6 shows it is needed.
+
+### Customer-facing wording under `m3`
+
+The non-answer dispositions render frozen fixed texts ("根据现有证据无法可靠回答。",
+"该问题需要人工进一步处理。", "当前只读能力无法执行该操作。"). The last one is a
+Stage 5 leftover and is now false (the product does act); with more
+unanswerable KB questions these texts will appear more often, including after
+"谢谢". Under `m3` only, `conversation._finish` renders product wording instead
+(polite refusal with what the assistant *can* do, a hand-off offer, a
+greeting / thanks reply). The frozen texts stay for `stage6`, so its golden is
+unaffected.
+
+### Out of the product's scope (stated in the README)
+
+No refunds, payments or address changes; no pre-sales product questions
+(sizes, specs); one action per message ("退 A 换 B" takes two messages).
 
 ## Corpus
 
@@ -145,9 +169,9 @@ otherwise inflate BM25).
 
 | Set | Size | Content |
 |---|---|---|
-| KB-DEV | ~45 | Policy questions (single / multi-doc, superseded versions, promotion in force, category notes, unanswerable) **plus** action and mixed cases ("运费谁出？那帮我退了") |
+| KB-DEV | ~50 | Policy questions (single / multi-doc, superseded versions, promotion in force, category notes, unanswerable), action and mixed cases ("运费谁出？那帮我退了"), **follow-ups that refer to the previous reply**, and small talk / thanks / off-topic with a labelled expected disposition |
 | KB-HOLDOUT | ~25 | Same mix, sealed |
-| Stage 6 DEV subset | the cases without fault injection or operator scripts | Safety with the KB tool present |
+| Stage 6 DEV subset | 24 cases, frozen list: s6-dev-001, 004-017, 019-025, 039, 040 (018 has timeout injection; 002, 003, 026-038 have operator scripts) | Safety with the KB tool present; each case seeds the product database from its own `initial_state` (ORD-30xx), not the demo data |
 
 Runners:
 
@@ -159,8 +183,11 @@ Runners:
   Stage 6 DEV subset, scoring final database state and the 6 hard invariants
   with the KB tool available.
 - **Scripted equivalence:** the 45 golden scenarios run under `m3` must return
-  byte-identical HTTP payloads to the `stage6` fixture (model requests differ;
-  outcomes must not).
+  HTTP payloads identical to the `stage6` fixture **excluding
+  `trace.model_calls`** (which carries `offered_functions`, now including the
+  KB tool). Model requests differ by design; outcomes must not. Scenarios that
+  end in a non-answer disposition are compared after mapping the `m3` wording
+  back, or listed as expected differences.
 
 Metrics, defined mechanically:
 
@@ -178,6 +205,10 @@ Metrics, defined mechanically:
   returns for that category; one mismatch fails the case.
 - Reliability: pass^3 on KB-DEV and the Stage 6 DEV subset.
 - Step-limit rate (6 steps per run; a mixed case uses up to 5).
+- Latency: end-to-end per turn, p50 / p95 (2-4 decision calls, 1 generation
+  call, retrieval; no streaming). Measured in Phase 0 and in Phase 6.
+- Follow-up resolution: share of follow-up cases answered correctly.
+- Disposition accuracy on small talk / thanks / off-topic cases.
 - Safety: 6 hard invariants hold in every `eval_m3` run; any violation blocks
   the milestone.
 
@@ -185,15 +216,15 @@ Metrics, defined mechanically:
 
 | Phase | Deliverable and acceptance | CC time |
 |---|---|---:|
-| 0. Spike | `m3-decision/1` by composition with the 4 replacements; product read executor; 3 hand-written docs; real DeepSeek on ~5 policy and mixed questions: routing, citations, step use; `stage6` golden byte-identical; scripted equivalence under `m3`; Ollama + `bge-m3` latency on Windows. | 1-1.5 h |
+| 0. Spike | `m3-decision/1` by composition with the 5 replacements; product read executor; 3 hand-written docs; real DeepSeek on ~5 policy, mixed and follow-up questions: routing, citations, step use, **per-turn p50 / p95 latency**; `stage6` golden byte-identical; scripted equivalence under `m3` (excluding `trace.model_calls`); Ollama + `bge-m3` latency on Windows. | 1-1.5 h |
 | 1. Corpus | 40-60 docs; loader, heading-aware chunker, index with embedding cache (model + content hash; offline tests use the cache); eligibility lint; restated-number check; user review. | 1.5-2.5 h + review |
 | 2. Eval sets | KB-DEV and KB-HOLDOUT (isolated, sealed); overlap check. Before any tuning. | 1.5-2 h |
 | 3. Retrieval | Filters, fallback recording, ablation on KB-DEV, rerank decision. | 1.5-2 h |
-| 4. Runtime | Session policy binding and refusal; passage caps; KB-never-grounds test; frontend KB citations. | 1.5-2.5 h |
+| 4. Runtime | Session policy binding and refusal; passage caps; KB-never-grounds test; earlier replies as context (capped) with a test that they never ground an id; `m3` customer-facing wording; frontend KB citations. | 2-3 h |
 | 5. `eval_m3` runner | Conversation-driven runner, invariants, metrics above, environment preflight. | 2.5-3.5 h |
 | 6. Results | Drift check; KB-DEV and Stage 6 subset with pass^3; KB-HOLDOUT once; switch default to `m3`; results, README, resume line. | 2-3 h |
 
-Total about 14-20 h of CC time, about 4-5 calendar days including your corpus
+Total about 15-21 h of CC time, about 4-5 calendar days including your corpus
 review.
 
 ## Out of scope
@@ -209,5 +240,7 @@ database.
 - **Routing errors.** Two policy tools with overlapping topics; measured by
   routing accuracy and pass^3.
 - **Step budget.** Mixed questions can hit the 6-step limit; measured.
+- **Latency.** Several model calls per turn without streaming; if p95 is
+  poor, streaming the final answer is a follow-up, not part of M3.
 - **Ollama on the demo machine.** BM25 fallback in the product; evaluation runs
   refuse to start without `bge-m3`.
