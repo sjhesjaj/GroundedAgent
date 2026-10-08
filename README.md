@@ -79,8 +79,8 @@ flowchart TB
 | M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`） |
 | M0 前端构建 | 通过（`pnpm run build`） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
-| M2 重启恢复测试 | **59/59** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
-| 后端全量离线套件 | **2744/2744**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
+| M2 重启恢复测试 | **62/62** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
+| 后端全量离线套件 | **2747/2747**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
 | Stage 6 DEV（40 条） | E2E **37/40** |
 | Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
 
@@ -116,7 +116,7 @@ M2 把产品控制流换成 LangGraph `StateGraph`，状态存进 `SqliteSaver`�
 
 > M2 promises, for the tested single-process abnormal exits: a conversation can be recovered, and every business effect happens at most once and is recorded in the conversation by the next start-up of the service. An approval recorded but not executed at the crash needs the operator to repeat APPROVE. The audit trail may show a second Guard evaluation for a DENIED or FAILED action after recovery (the core keeps no replay record for those); the business effect is still at most one. That comes from **persisted submission + recovery marker + the core's stable idempotency key**, not from LangGraph alone. Not covered: power loss or OS crash (both SQLite databases use WAL with default `synchronous`), disk corruption, several processes or instances.
 
-**证据**：59 个新增离线测试，其中 9 个在每个提交点用 `os._exit` 杀掉真实子进程，再连续恢复两次，要求两次结果一致（`tests/test_aftersales_crash.py`）。Windows 手动重启演示见 [docs/v2/m2-restart-demo.md](docs/v2/m2-restart-demo.md)。
+**证据**：62 个新增离线测试，其中 9 个在每个提交点用 `os._exit` 杀掉真实子进程，再连续恢复两次，要求两次结果一致（`tests/test_aftersales_crash.py`）。Windows 手动重启演示见 [docs/v2/m2-restart-demo.md](docs/v2/m2-restart-demo.md)。
 
 ## GroundedAgent V2 Stage 6：受控副作用与 sealed holdout
 
@@ -197,7 +197,7 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
 ├── api.py                 # FastAPI：/api/aftersales 路由 + V1 问答接口 / SSE
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── tests/                 # 2744 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、59 项 M2 恢复测试）
+├── tests/                 # 2747 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
 │
 │                          # —— V1 / 工程基础 ——

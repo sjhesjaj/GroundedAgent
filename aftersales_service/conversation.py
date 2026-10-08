@@ -883,21 +883,23 @@ class Conversation:
             approver_ref=self._store.operator_ref,
             decided_at=self._store.clock.now().isoformat(),
         )
-        # T1, then (APPROVE, freshly recorded) T2: revalidate against current trusted state.
-        outcome = self._store.gateway.resume_action(approval)
-        self._track(pending_action_id, self._store.gateway.get_outcome(pending_action_id))
-        turn = _Turn(committed=True)
-        turn.action = self._action_view(outcome, proposal)
-        turn.reply(REPLY_OPERATOR_DECISION, self._renderer.render(outcome))
-        if not outcome.idempotent_replay and not outcome.decision_conflict:
-            # A first decision is news for the customer; a replay or conflict is not.
-            self._append_decision_event(pending_action_id, outcome, proposal)
         try:
+            # T1, then (APPROVE, freshly recorded) T2: revalidate against current trusted state.
+            outcome = self._store.gateway.resume_action(approval)
+            self._track(pending_action_id, self._store.gateway.get_outcome(pending_action_id))
+            turn = _Turn(committed=True)
+            turn.action = self._action_view(outcome, proposal)
+            turn.reply(REPLY_OPERATOR_DECISION, self._renderer.render(outcome))
+            if not outcome.idempotent_replay and not outcome.decision_conflict:
+                # A first decision is news for the customer; a replay or conflict is not.
+                self._append_decision_event(pending_action_id, outcome, proposal)
             # Not a graph node: written onto the head, leaving an open clarification open.
             self._save()
         except BaseException:
-            # The outcome is in the database, not in the head: the next request
-            # rebuilds this conversation and reconciles it.
+            # From resume_action on, the database may hold an outcome the head does
+            # not: whatever failed, the fields may differ from the head. The next
+            # request rebuilds this conversation from the head and reconciles it
+            # with the gateway (safe also when resume_action itself raised).
             self._discard()
             raise
         return {**self._response(turn, trace=False),

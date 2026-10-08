@@ -403,8 +403,8 @@ identical views, session files and business tables.
 | Scenario | State left by the kill | After recovery |
 |---|---|---|
 | a. after G, before the marker | the thread holds a checkpoint stopped before `gateway`; no marker | head unchanged, no messages, 0 pending actions, the seed's 2 cases; the next message runs normally from step 1 of a new run |
-| b. marker written, gateway not run | marker set, 0 pending actions | submitted during recovery: exactly 1 pending action; audit `guard.evaluated`, `action.pending_created` (no replay) |
-| c. right after `start_action` returned | 1 pending action committed | business tables identical to the state at the kill (exactly one business write), 0 receipts; the real outcome `WAITING_APPROVAL` is shown; audit contains `action.replay_hit` |
+| b. marker written, gateway not run | marker set, 0 pending actions | submitted during recovery: 1 pending action, no duplicate business write; audit `guard.evaluated`, `action.pending_created` (no replay) |
+| c. right after `start_action` returned | 1 pending action committed | business tables identical to the state at the kill (no duplicate business write), 0 receipts; the real outcome `WAITING_APPROVAL` is shown; audit contains `action.replay_hit` |
 | d. as c, recovered by the start-up scan alone | as c | the scan clears the marker without any request, business tables unchanged; the operator approves: `EXECUTED`, 1 receipt, 3 cases |
 | e1. before a clarification's head write | the clarification's checkpoints exist, head unchanged | `OPEN`, no messages; the next "我要退货" starts a new run (decision 1 of 6) |
 | e2. after a clarification's head write | head advanced | `NEEDS_CLARIFICATION`; the answer continues the run (decisions 2 and 3) and reaches `WAITING_APPROVAL` |
@@ -412,17 +412,21 @@ identical views, session files and business tables.
 | g. between T1 and T2 | 0 receipts | `WAITING_APPROVAL` with `approval_recorded = true`; one more APPROVE: `EXECUTED`, 1 receipt, one operator-decision entry |
 | h. before `os.replace` | a `.tmp` file left in `sessions/`; the session file byte-identical to the last commit | the last committed version (the clarification); the answer continues the run (decision 2) |
 
-Three consecutive runs of the crash module passed 9/9 each (19.9 s, 21.3 s,
-23.2 s). With marker recovery disabled in the parent, b, c and d fail.
+Scenarios a, e1 and e2 involve no business write by design (a is killed before
+the marker, so before any write path; e1 and e2 are clarification turns). In
+every other scenario recovery leaves no duplicate business write: the business
+tables compare by rows, audit rows are not counted. Three consecutive runs of
+the crash module passed 9/9 each (19.9 s, 21.3 s, 23.2 s). With marker
+recovery disabled in the parent, b, c and d fail.
 
 ### Tests
 
 - Full offline suite (`unittest discover`, excluding only
-  `tests.test_llm_provider_live`): **2744 passed**, 0 failed, 0 skipped
+  `tests.test_llm_provider_live`): **2747 passed**, 0 failed, 0 skipped
   (2685 at `42e96de`).
-- M2 adds **59**: `test_aftersales_graph` 6, `test_aftersales_state_codec` 17,
-  `test_aftersales_golden` 1, `test_aftersales_persistence` 26,
-  `test_aftersales_crash` 9.
+- M2 adds **62**: `test_aftersales_graph` 6, `test_aftersales_state_codec` 17,
+  `test_aftersales_golden` 1, `test_aftersales_persistence` 29 (3 of them for
+  the review fixes below), `test_aftersales_crash` 9.
 - The 80 product and grounding tests (`test_aftersales_service`,
   `test_aftersales_grounding`) keep their scenarios; they now run in a
   temporary data directory, and `test_13b` writes its tampered index through
@@ -430,9 +434,34 @@ Three consecutive runs of the crash module passed 9/9 each (19.9 s, 21.3 s,
   payload, recorded on `42e96de`) matches byte for byte.
 - `HeadInvariantTests` checks after each of the 193 requests of all product
   scenarios that the conversation equals a conversation rebuilt from its head.
-- Frontend: `node --test tests/api.test.js tests/sessionMemory.test.js` 27
-  passed (20 + 7 for remembering the session across page reloads); `vite build`
+- Frontend: `node --test tests/api.test.js tests/sessionMemory.test.js` 33
+  passed (20 + 13 for remembering and reconnecting the session); `vite build`
   passes.
+
+### Fixes after the PR #38 review
+
+Acceptance of PR #38 found two defects, both fixed on the same branch:
+
+- **"重新连接" created a new session.** When the page failed to load (backend
+  down, 409 `recovery_pending`, 5xx), the notice bar's only button called
+  `newSession()`, which created an empty session and overwrote the remembered
+  id, so the original session could no longer be reached from the page. Start-up
+  and "重新连接" now both run `connect()` (the demo, then the remembered
+  session, a new one only on 404); "新建会话" is offered only when the server
+  said the session is gone (404). `frontend/tests/sessionMemory.test.js` covers
+  reconnecting after a failed load (same session, same customer, same stored
+  id), a 404 on reconnect, a 409 on reconnect, and the button wiring.
+- **A decision that failed after `resume_action` was not rebuilt.** If
+  `get_outcome` or the reply rendering raised after the core had recorded the
+  decision, `decide()` left the in-memory conversation partly updated and not
+  discarded, so later requests could show a state that differed from both the
+  head and the database until a restart. Everything from `resume_action` to
+  the head write is now one `try`: any failure discards the conversation, and
+  the next request rebuilds it from the head and reconciles it with the
+  gateway. `OperatorFailureTests` injects each failure once and requires the
+  first read after the error, a retried decision (an idempotent replay) and a
+  read after a restart to agree: `EXECUTED`, 1 receipt, one operator-decision
+  entry.
 
 ### Real restart demo (Windows)
 
@@ -449,7 +478,7 @@ backend process (single uvicorn process, no `--reload`), real DeepSeek and
 | A approve -> EXECUTED | HTTP 200, `EXECUTED`, `idempotent_replay` false |
 | B answer continues run 1 at step 2 | the answer's trace is `(1, 2, tool_call), (1, 3, action_proposed)`; B reaches `WAITING_APPROVAL` |
 | repeated approve is an idempotent replay | `EXECUTED`, `idempotent_replay` true |
-| exactly one receipt | final counts: 2 pending actions (A executed, B waiting), 1 receipt, 3 cases |
+| one receipt (no duplicate business write) | final counts: 2 pending actions (A executed, B waiting), 1 receipt, 3 cases |
 
 The opening line of B was changed to "我想退货，帮我办一下": "我要退货" did not
 make the real model ask for the order three times in a row. The demo predates

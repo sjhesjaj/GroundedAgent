@@ -12,6 +12,7 @@ import io
 import json
 import os
 import shutil
+import sqlite3
 import threading
 import unittest
 from contextlib import contextmanager
@@ -482,6 +483,53 @@ class MarkerTests(PersistentTestCase):
 # --------------------------------------------------------------------------
 # Concurrency and decisions (acceptance 8)
 # --------------------------------------------------------------------------
+
+
+class OperatorFailureTests(PersistentTestCase):
+    """A decision that fails anywhere from resume_action to the head write (PR #38 review)."""
+
+    EXECUTED_ONCE = {"status": "OPEN", "pending_action_id": None, "action_status": "EXECUTED",
+                     "operator_messages": 1, "messages": 3, "receipts": 1}
+
+    def state(self, session_id: str) -> dict:
+        view = self.view(session_id)
+        return {"status": view["status"], "pending_action_id": view["pending_action_id"],
+                "action_status": view["pending_actions"][0]["status"],
+                "operator_messages": self.kinds(view).count(("assistant", "operator_decision")),
+                "messages": len(view["messages"]), "receipts": self.count("action_receipts")}
+
+    def fail_once_after_resume_action(self, owner, method, failure) -> None:
+        session_id, pending_id = self.waiting()
+        with mock.patch.object(owner, method, side_effect=failure):
+            with self.assertRaises(type(failure)):
+                self.service.decide(session_id, pending_id, "APPROVE")
+        # The outcome is in the database; the object was discarded and the next
+        # request rebuilt it from the head and reconciled it with the gateway.
+        after_error = self.state(session_id)
+        retried = self.service.decide(session_id, pending_id, "APPROVE")
+        self.assertTrue(retried["action"]["idempotent_replay"])
+        after_retry = self.state(session_id)
+        self.restart()
+        after_restart = self.state(session_id)
+        self.assertEqual((after_error, after_retry, after_restart), (self.EXECUTED_ONCE,) * 3)
+
+    def test_get_outcome_failing_after_resume_action_rebuilds_the_conversation(self):
+        self.fail_once_after_resume_action(ActionGateway, "get_outcome",
+                                           sqlite3.OperationalError("injected"))
+
+    def test_render_failing_after_resume_action_rebuilds_the_conversation(self):
+        self.fail_once_after_resume_action(ActionOutcomeRenderer, "render", RuntimeError("injected"))
+
+    def test_resume_action_itself_failing_leaves_the_decision_to_be_made(self):
+        session_id, pending_id = self.waiting()
+        with mock.patch.object(ActionGateway, "resume_action", side_effect=RuntimeError("injected")):
+            with self.assertRaises(RuntimeError):
+                self.service.decide(session_id, pending_id, "APPROVE")
+        self.assertEqual(self.pending(pending_id)["status"], "PENDING_APPROVAL")
+        self.assertEqual(self.view(session_id)["status"], "WAITING_APPROVAL")
+        self.assertEqual(self.service.decide(session_id, pending_id, "APPROVE")["action"]["status"],
+                         "EXECUTED")
+        self.assertEqual(self.state(session_id), self.EXECUTED_ONCE)
 
 
 class ConcurrencyTests(PersistentTestCase):

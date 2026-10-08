@@ -2665,8 +2665,9 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 
 ### C. 结果
 
-- 全量离线套件（只排除 live）2744/2744，其中 M2 新增 59 个（graph 6、codec 17、golden 1、persistence 26、crash 9）；80 个产品和 grounding 测试保持原有场景；golden 逐字节一致。
-- 9 个崩溃场景全部通过，每个场景连续恢复两次、结果一致；崩溃模块连续跑 3 次，均为 9/9。业务写入恰好一笔，只比较业务表，不比较 audit 行数。
+- 全量离线套件（只排除 live）2747/2747，其中 M2 新增 62 个（graph 6、codec 17、golden 1、persistence 29、crash 9）；80 个产品和 grounding 测试保持原有场景；golden 逐字节一致。
+- 9 个崩溃场景全部通过，每个场景连续恢复两次、结果一致；崩溃模块连续跑 3 次，均为 9/9。业务写入无重复（只比较业务表，不比较 audit 行数）；a、e1、e2 三个场景本来就没有业务写入。
+- PR #38 验收后修复两个缺陷：页面加载失败后「重新连接」会新建会话并覆盖记住的会话 ID（现在回到原会话，只有 404 才提供「新建会话」）；`decide()` 在 `resume_action` 之后出错时没有丢弃内存会话（现在从 `resume_action` 到写入 head 全部在同一个 try 里，出错即丢弃并在下次请求时重建、对账）。
 - 真实重启演示（2026-10-08 17:36，Windows，真实后端进程 + DeepSeek，`taskkill /F`）：7 项检查全部 PASS。强杀后重启，两个会话及业务表计数与杀进程前逐项相同，`inflight` 均为 False；批准 → `EXECUTED`，再次批准 → `idempotent_replay=True`，回执 1 张；追问的回答接着原来的 run 1，从第 2 步继续。报告在本机 `.aftersales-demo\restart-demo-20261008-173652\report.txt`（不入库）。
 - 实测：一个 40 条消息的会话写出 281 个 checkpoint，`checkpoints.db` 约 161 MB。
 
