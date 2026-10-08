@@ -324,7 +324,8 @@ instances.
   (write the head into a fresh thread with `update_state`, point the session
   file at it, `delete_thread` the old one - no SQL in the product), and stop
   storing the derived snapshot (re-derive and compare on decode).
-- **Phase 4 crash points** (where a subprocess worker calls `os._exit`):
+- **Phase 4 crash points** (where the subprocess worker of
+  `tests/test_aftersales_crash.py` calls `os._exit(17)`, by patching):
   in `Conversation.submit`, after the first `_invoke` returns G and before the
   marker write; after the marker write (`marked = True`) and before the
   gateway `_invoke`; in `Conversation._act` (gateway stage) right after
@@ -352,14 +353,23 @@ no further fault-injection campaigns in this milestone.
 ## Acceptance
 
 1. Paused on a clarification, the process restarts; the next message continues the same run with its step budget.
+   Covered by: `test_aftersales_persistence.RestartTests.test_a_clarification_survives_a_restart_with_its_step_budget`; `test_aftersales_crash.CommitPointCrashTests.test_e2_killed_after_the_clarifications_head_write_the_answer_continues_the_run`.
 2. Waiting for approval, the process restarts; the operator can still approve, with the original grounding binding.
+   Covered by: `test_aftersales_persistence.RestartTests.test_a_pending_approval_survives_a_restart_with_its_grounding_binding`; `test_aftersales_crash.CommitPointCrashTests.test_d_killed_after_start_action_the_start_up_scan_alone_recovers_it` (approval after the scan).
 3. Killed after `start_action` committed and before the conversation saved: after recovery exactly one business write (cases, pending actions, receipts - not audit rows), and the conversation shows the real outcome; the same holds when the customer never returns and only the start-up scan runs.
+   Covered by: `test_aftersales_crash.CommitPointCrashTests.test_c_killed_after_start_action_recovery_replays_one_business_write`; `test_aftersales_crash.CommitPointCrashTests.test_d_killed_after_start_action_the_start_up_scan_alone_recovers_it`; `test_aftersales_crash.CommitPointCrashTests.test_b_killed_after_the_marker_before_the_gateway_recovery_submits_it_once`; in process: `test_aftersales_graph.GatewayReturnedTests`, `test_aftersales_persistence.MarkerTests.test_a_failed_head_write_of_an_action_turn_is_recovered`.
 4. Killed after `resume_action`: after recovery the status is reconciled, a repeated decision is a replay, one receipt. Killed between T1 and T2: `approval_recorded` is shown, a repeated APPROVE executes once.
+   Covered by: `test_aftersales_crash.CommitPointCrashTests.test_f_killed_after_resume_action_the_outcome_is_reconciled_once`; `test_aftersales_crash.CommitPointCrashTests.test_g_killed_between_t1_and_t2_a_repeated_approve_executes_once`; in process: `test_aftersales_persistence.FailedTurnTests.test_an_operator_outcome_the_head_missed_is_reconciled_once`, `test_aftersales_persistence.FailedTurnTests.test_an_approval_recorded_but_not_executed_is_finished_by_a_repeated_approve`.
 5. A failed turn leaves no trace in the committed conversation, including a failed answer to a clarification: a retry with a different answer reaches `decide` with the new answer. Recovering twice appends no event id twice.
+   Covered by: `test_aftersales_graph.ClarificationRetryTests`, `test_aftersales_persistence.FailedTurnTests` (failed turn and failed clarification answer across a restart; an outcome reconciled once over two restarts); `test_aftersales_crash.CommitPointCrashTests.test_a_killed_after_g_before_the_marker_the_branch_is_discarded`, `test_e1_killed_before_the_clarifications_head_write_the_turn_never_happened`, `test_h_killed_before_os_replace_the_previous_session_file_stands`; every crash test recovers twice and requires identical results.
 6. After reset, no old session resumes against the new database.
+   Covered by: `test_aftersales_persistence.ResetTests.test_after_reset_no_old_session_resumes_against_the_new_database`; `test_aftersales_service.RuntimeLifecycleTests.test_reset_rebuilds_the_demo_database_deterministically`.
 7. A session with an unresolved marker accepts no new turn until recovery succeeds; a `start_action` exception after the marker write does not leave one.
+   Covered by: `test_aftersales_persistence.MarkerTests.test_an_unresolved_marker_refuses_every_request_until_recovery_succeeds`; `test_aftersales_persistence.MarkerTests.test_recovery_refuses_a_marker_that_does_not_bind_its_checkpoint`; `test_aftersales_persistence.MarkerTests.test_a_start_action_exception_after_the_marker_write_leaves_no_marker`.
 8. A concurrent customer turn and operator decision on one session serialize; no session-file update is lost. An operator decision on a session waiting on a clarification leaves that clarification answerable.
+   Covered by: `test_aftersales_persistence.ConcurrencyTests.test_a_concurrent_turn_and_decision_serialize_and_both_persist`; `test_aftersales_persistence.ConcurrencyTests.test_a_decision_during_a_clarification_leaves_it_answerable_after_a_restart`, `test_aftersales_graph.DecisionDuringClarificationTests`.
 9. All existing safety tests (guessed ids, wrong target, stale observations, cross-persona) and product boundary tests pass; the golden equivalence file matches; `git diff main -- aftersales eval_v2 eval` is empty.
+   Covered by: `test_aftersales_service`, `test_aftersales_grounding` (unchanged scenarios), `test_aftersales_golden` (byte for byte), `test_aftersales_persistence.HeadInvariantTests`; `test_m1_a2_grounding_eval.FrozenBoundaryTests.test_08_frozen_directories_are_unchanged_from_main`; `git diff 42e96de -- aftersales eval_v2 eval` is empty (the local `main` predates 42e96de).
 
 ## Dependencies
 
