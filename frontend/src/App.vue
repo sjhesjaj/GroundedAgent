@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { aftersalesApi } from './api'
+import { openSession, rememberSession } from './sessionMemory'
 import ActionCard from './components/ActionCard.vue'
 import AgentDetails from './components/AgentDetails.vue'
 import AuditTimeline from './components/AuditTimeline.vue'
@@ -77,6 +78,8 @@ function activate(data) {
   audit.value = []
   question.value = ''
   reconcile(data)
+  // Survives a page reload; the server keeps the session across restarts.
+  rememberSession(data.session_id)
 }
 
 function applyResponse(data, customerText) {
@@ -237,7 +240,8 @@ function composerKeydown(event) {
 onMounted(async () => {
   try {
     await loadDemo()
-    activate(await aftersalesApi.createSession(selectedPersonaId.value))
+    // The remembered session if the server still has it, else a new one.
+    activate((await openSession(aftersalesApi, selectedPersonaId.value)).data)
   } catch (error) {
     showError(error)
   } finally {
