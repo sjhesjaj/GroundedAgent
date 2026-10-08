@@ -20,6 +20,7 @@ from .conversation import (
     ConversationFull,
     PendingActionNotGrounded,
     PendingActionNotInConversation,
+    RecoveryPending,
     TurnFailed,
 )
 from .service import (
@@ -39,6 +40,7 @@ _STATUS_CODES = {
     ConversationFull: 409,
     DecisionRefused: 409,
     PendingActionNotGrounded: 409,
+    RecoveryPending: 409,
     TooManySessions: 429,
 }
 _TURN_STATUS_CODES = {"llm_unavailable": 503, "agent_internal_error": 500}
@@ -70,7 +72,9 @@ def _http_error(error: ConversationError) -> HTTPException:
 
 
 def create_router(service: AftersalesService) -> APIRouter:
-    router = APIRouter(prefix="/api/aftersales", tags=["aftersales"])
+    # At application start-up: open the data directory and recover every session
+    # with an in-flight marker (idempotent; without it, the first request does it).
+    router = APIRouter(prefix="/api/aftersales", tags=["aftersales"], on_startup=[service.start])
     session_path = Path(pattern=SESSION_ID_PATTERN)
 
     @router.get("/demo")

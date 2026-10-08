@@ -30,6 +30,7 @@ from tests.test_aftersales_grounding import OBSERVED_AT, outcome, validated
 from tests.test_aftersales_service import RETURN_ARGS, ProductTestCase, call, decision
 
 
+GENERATION = "0123456789abcdef0123456789abcdef"
 JSON_NATIVE = (dict, list, str, int, float, bool, type(None))
 
 
@@ -199,7 +200,7 @@ class ConversationStateCodecTests(unittest.TestCase):
         submission = {"action_name": "create_return", "arguments": RETURN_ARGS,
                       "args_sha256": self.action.args_sha256, "key": self.submission.key,
                       "binding": self.binding, "basis": "observed", "run_index": 1}
-        state = pack_state(snapshot, turn=turn, route="clarify",
+        state = pack_state(snapshot, generation=GENERATION, turn=turn, route="clarify",
                            decision=core.Clarify(slots=("order_id",)), visible=self.visible,
                            submission=submission, customer_text="我要退货")
         self.assertEqual(state["schema"], SCHEMA_VERSION)
@@ -215,17 +216,19 @@ class ConversationStateCodecTests(unittest.TestCase):
 
     def test_every_step_field_is_written_every_time(self):
         # No value of an earlier step can survive into a later one by accident.
-        state = pack_state(self.snapshot())
-        self.assertEqual(set(state), {"schema", "snapshot", "turn", "route", "decision",
-                                      "visible", "submission", "customer_text"})
+        state = pack_state(self.snapshot(), generation=GENERATION)
+        self.assertEqual(set(state), {"schema", "generation", "snapshot", "turn", "route",
+                                      "decision", "visible", "submission", "customer_text"})
         decoded = unpack_state(state)
-        self.assertEqual({key: value for key, value in decoded.items() if key != "snapshot"},
+        self.assertEqual({key: value for key, value in decoded.items()
+                          if key not in ("snapshot", "generation")},
                          dict.fromkeys(("turn", "route", "decision", "visible", "submission",
                                         "customer_text")))
+        self.assertEqual(decoded["generation"], GENERATION)
 
     def test_empty_state_round_trips(self):
         snapshot = ([], [], [], 0, 0, 0, None, {}, [], (), {})
-        self.assertEqual(unpack_state(pack_state(snapshot))["snapshot"], snapshot)
+        self.assertEqual(unpack_state(pack_state(snapshot, generation=GENERATION))["snapshot"], snapshot)
 
     def test_container_tags_cannot_collide_with_user_data(self):
         value = {"type": "_Turn", "fields": {"__class__": "os.system"},
@@ -238,7 +241,7 @@ class ConversationStateCodecTests(unittest.TestCase):
             restored["proxy"]["key"] = ()
 
     def test_unknown_versions_missing_fields_and_extra_fields_are_refused(self):
-        state = pack_state(self.snapshot())
+        state = pack_state(self.snapshot(), generation=GENERATION)
         for version in (0, 2, "1", True, None):
             with self.subTest(version=version), self.assertRaises(StateCodecError):
                 unpack_state({**state, "schema": version})
@@ -249,16 +252,21 @@ class ConversationStateCodecTests(unittest.TestCase):
         with self.assertRaises(StateCodecError):
             unpack_state({**state, "future": None})
         with self.assertRaises(TypeError):
-            pack_state(self.snapshot(), future=None)
+            pack_state(self.snapshot(), generation=GENERATION, future=None)
         with self.assertRaises(StateCodecError):
-            pack_state(())
+            pack_state((), generation=GENERATION)
         for field, value in (("route", 1), ("customer_text", ["x"])):
             with self.subTest(field=field), self.assertRaises(StateCodecError):
                 unpack_state({**state, field: value})
         with self.assertRaises(StateCodecError):
-            pack_state(self.snapshot(), route=1)
+            pack_state(self.snapshot(), generation=GENERATION, route=1)
         with self.assertRaises(StateCodecError):
             encode_text(None)
+        for generation in ("", None, 1):
+            with self.subTest(generation=generation), self.assertRaises(StateCodecError):
+                unpack_state({**state, "generation": generation})
+            with self.subTest(generation=generation), self.assertRaises(StateCodecError):
+                pack_state(self.snapshot(), generation=generation)
 
     def test_arbitrary_types_and_non_json_values_are_refused(self):
         @dataclasses.dataclass

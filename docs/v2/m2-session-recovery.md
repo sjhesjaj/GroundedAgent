@@ -111,7 +111,8 @@ static checks fix where the node bodies live:
   the `ValidatedAction` from the checkpointed submission in a helper
   (`_submitted_action`), so `_act` keeps its single `idempotency_key` call.
 - **The object's fields are the head's materialized view.** Phase 2 keeps one
-  in-memory checkpointer (strict serializer) per conversation. Every node
+  in-memory checkpointer (strict serializer) per conversation (phase 3
+  replaces it with the generation's shared `SqliteSaver`, below). Every node
   loads its input state into the `Conversation` fields and packs them back; a
   turn that ends normally makes its last checkpoint the head and reloads from
   it; a failed turn restores the pre-turn snapshot and leaves the head where
@@ -135,7 +136,7 @@ static checks fix where the node bodies live:
   gen-<uuid>/
     aftersales-demo.db      the business database (seeded once per generation)
     checkpoints.db          LangGraph SqliteSaver
-    sessions/<id>.json      {schema, persona_id, generation, head}  atomically replaced
+    sessions/<id>.json      {schema, persona_id, generation, head, inflight}  atomically replaced
 ```
 
 The head pointer lives in a JSON file because the product package may not
@@ -254,6 +255,85 @@ instances.
 | Ended on a clarification | The clarification (only after its head was written) | The next message is ordinary input; `begin_run` continues the open run. |
 | Process dies between T1 and T2 of an APPROVE | Connection error | `approval_recorded` shown; the operator repeats APPROVE. |
 | Process dies after `resume_action` | Connection error | Reconciliation; the decision event is appended once. |
+
+### As implemented (phase 3)
+
+- **`persistence.py`** holds the data directory: `DataDirectory` (generation
+  pointer, creating, activating and deleting generations), `SessionFiles`
+  (validated session files, written by `atomic_write_json`: temporary file,
+  then `os.replace`, retried on `PermissionError` 5 times with 0.02-0.32 s
+  exponential backoff, 0.3 s in all, then raised) and `Generation`: the
+  generation's `DemoStore`, **one** `SqliteSaver(conn,
+  serde=strict_serializer())` and **one** compiled graph shared by every
+  conversation of the generation (thread id = session id). A reset opens a new
+  `Generation`. A generation is seeded completely before `generation.json`
+  names it; opening a data directory deletes every unnamed `gen-*`. The demo
+  database is seeded only when its generation is created
+  (`seed_demo_database` refuses an existing file).
+- **`generation` is a state field again** (it was dropped in phase 2):
+  every load checks it, so recovery refuses a checkpoint of another
+  generation.
+- **Loading.** A session not in memory is created unloaded from its file;
+  `Conversation.ensure_loaded` (under its lock, before any work) rebuilds the
+  fields from the head, recovers a marker, reconciles, and on any failure
+  answers `recovery_pending` and stays unloaded, so the next request tries
+  again. Recovery failures are never resolved by clearing the marker; only the
+  in-turn `start_action` exception clears it.
+- **"Drop the in-memory conversation"** is implemented as *discard*: the
+  object stays in the session map but is marked unloaded, and the next request
+  rebuilds it from the session file under the conversation's own lock.
+  Removing it from the map would need the registry lock while holding the
+  conversation lock - the reverse of reset's lock order.
+- **Start-up scan.** `AftersalesService.start()` opens the data directory
+  and recovers every session whose file holds a marker. It runs from the
+  router's `on_startup` hook (FastAPI 0.142 calls it twice; `start` is
+  idempotent) and otherwise on first use. Constructing the service touches
+  no file, so importing `routes` or `api` in a test creates no data
+  directory.
+- **Reconciliation** never reorders the open pending list. Only operator
+  outcomes carry an event id; `decide`'s own entry carries it as well, and the
+  rule "an event id is never appended twice" applies to it too: two non-replay
+  outcomes with the same status (for example two T1 transaction failures) are
+  recorded once. Views strip the id. `approval_recorded` was already part of
+  every action view (`ActionOutcome.to_dict`).
+- **The phase-2 `_save()` on a failure after `start_action` returned is
+  gone**: the marker stays and the next request recovers the turn, which is
+  then recorded in full (reply included) with one business write.
+- **Head invariant.** `HeadInvariantTests` runs every scripted product
+  scenario and checks, after every request, that a new `Conversation` rebuilt
+  from the head equals the object field by field (`_snapshot()`), that the
+  session file names that head and that no marker is left. For it,
+  `test_13b_a_decision_needs_the_pending_actions_binding` now writes its
+  tampered submission index through the head (`_save()`); its "hash" case
+  forges a submission that is valid in itself but bound to other arguments,
+  because one whose binding contradicts its own digest cannot be written to a
+  head at all - the codec re-runs `GroundedSubmission`'s checks on decode.
+- **Tests** run in a temporary data directory each
+  (`ProductTestCase` passes `data_dir`); `AftersalesService(data_dir=...)`
+  overrides `AFTERSALES_DATA_DIR`.
+- **Measured size** (offline scripted conversation, Windows, `checkpoints.db`
+  after close): one 40-message conversation - one clarification, one return
+  parked for approval, 38 turns of "read the order, then refuse" - writes **281
+  checkpoints and a 161 MB `checkpoints.db`**; the head state alone is 876 KB of
+  JSON. Growth is quadratic: `SqliteSaver` stores the full channel values in
+  every checkpoint, and 94 % of the state is the observation list (39
+  observations of 21 KB each in the codec's tagged form, 2.4 times their plain
+  `to_dict`; `ToolObservation`'s derived result snapshot is stored as well).
+  At the 40-message cap and 64 sessions this bounds a generation at roughly
+  10 GB. Not addressed in M2; candidates: compact a thread after each commit
+  (write the head into a fresh thread with `update_state`, point the session
+  file at it, `delete_thread` the old one - no SQL in the product), and stop
+  storing the derived snapshot (re-derive and compare on decode).
+- **Phase 4 crash points** (where a subprocess worker calls `os._exit`):
+  in `Conversation.submit`, after the first `_invoke` returns G and before the
+  marker write; after the marker write (`marked = True`) and before the
+  gateway `_invoke`; in `Conversation._act` (gateway stage) right after
+  `start_action` returns; in `Conversation._commit` before and after
+  `_write_session` (also the clarification's head write); in
+  `Conversation.decide` after `resume_action` returns and before `_save`;
+  between T1 and T2 by patching `ActionGateway.execute_approved` (the core
+  calls it from `resume_action`); in `persistence.atomic_write_json` before
+  `os.replace`.
 
 ## Phases
 

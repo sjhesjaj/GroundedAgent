@@ -13,6 +13,8 @@ guarantee is this module's: `decode` validates every tag, field and the schema
 version, and raises StateCodecError on anything else.
 
 ConversationState (schema 1)
+    generation     the data-directory generation the conversation belongs to:
+                   recovery refuses a checkpoint of another generation
     snapshot       the eleven pieces Conversation._snapshot() captures
     turn           this request's trace and reply (_Turn); None on a state written
                    outside a turn (a new conversation, an operator decision)
@@ -53,6 +55,7 @@ class StateCodecError(ValueError):
 
 class ConversationState(TypedDict, total=False):
     schema: int
+    generation: str
     snapshot: object
     turn: object
     route: object
@@ -63,7 +66,7 @@ class ConversationState(TypedDict, total=False):
 
 
 _STEP_FIELDS = ("turn", "route", "decision", "visible", "submission", "customer_text")
-_FIELDS = frozenset(("schema", "snapshot") + _STEP_FIELDS)
+_FIELDS = frozenset(("schema", "generation", "snapshot") + _STEP_FIELDS)
 SNAPSHOT_COMPONENTS = 11
 
 
@@ -192,16 +195,24 @@ def encode_text(text: str) -> str:
     return encode(text)
 
 
-def pack_state(snapshot: tuple, *, turn=None, route: str | None = None, decision=None,
-               visible=None, submission=None, customer_text: str | None = None) -> ConversationState:
-    """Encode a complete state: the snapshot and every per-step field."""
+def _generation(value: object) -> str:
+    if type(value) is not str or not value:
+        raise StateCodecError("a conversation state names its generation")
+    return value
+
+
+def pack_state(snapshot: tuple, *, generation: str, turn=None, route: str | None = None,
+               decision=None, visible=None, submission=None,
+               customer_text: str | None = None) -> ConversationState:
+    """Encode a complete state: the generation, the snapshot and every per-step field."""
     if type(snapshot) is not tuple or len(snapshot) != SNAPSHOT_COMPONENTS:
         raise StateCodecError("a conversation snapshot has eleven components")
     if route is not None and type(route) is not str:
         raise StateCodecError("a route is a node name")
     fields = {"turn": turn, "route": route, "decision": decision, "visible": visible,
               "submission": submission, "customer_text": customer_text}
-    state = {"schema": SCHEMA_VERSION, "snapshot": encode(snapshot)}
+    state = {"schema": SCHEMA_VERSION, "generation": _generation(generation),
+             "snapshot": encode(snapshot)}
     state.update({key: encode(fields[key]) for key in _STEP_FIELDS})
     return state
 
@@ -213,6 +224,7 @@ def unpack_state(state: ConversationState) -> dict[str, object]:
     if type(state["schema"]) is not int or state["schema"] != SCHEMA_VERSION:
         raise StateCodecError("unsupported conversation state schema")
     decoded = {key: decode(state[key]) for key in ("snapshot",) + _STEP_FIELDS}
+    decoded["generation"] = _generation(state["generation"])
     snapshot = decoded["snapshot"]
     if type(snapshot) is not tuple or len(snapshot) != SNAPSHOT_COMPONENTS:
         raise StateCodecError("a conversation snapshot has eleven components")

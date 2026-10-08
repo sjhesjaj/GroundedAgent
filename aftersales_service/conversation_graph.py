@@ -28,7 +28,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -59,10 +58,6 @@ def strict_serializer() -> JsonPlusSerializer:
     decode is what refuses anything that is not its own JSON.
     """
     return JsonPlusSerializer(allowed_msgpack_modules=None)
-
-
-def memory_checkpointer() -> InMemorySaver:
-    return InMemorySaver(serde=strict_serializer())
 
 
 @dataclass

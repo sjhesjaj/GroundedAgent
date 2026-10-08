@@ -78,15 +78,30 @@ Control flow (M2, docs/v2/m2-session-recovery.md)
     stops on a checkpoint before `gateway` that already holds the submission;
     the gateway is then resumed with None. An operator decision is not a node:
     it is written onto the head as if `finish` had written it (END is its only
-    successor), so an open clarification stays open. Phase 2 keeps the
-    checkpoints in memory; this object's fields are the head's materialized
-    view, and the turns, decisions and replies are exactly those of M0/M1.
+    successor), so an open clarification stays open. This object's fields are
+    the head's materialized view: at the end of every request they equal the
+    state decoded from the head, or the object is discarded and rebuilt from
+    the head by the next request.
+
+Persistence (phase 3, persistence.py)
+    The checkpoints live in the generation's SqliteSaver; the head lives in
+    the session file, the commit point. One action turn: (1) the graph stops
+    before `gateway` on checkpoint G, which holds the submission; (2) the
+    session file gets the in-flight marker {G, key, action, args digest};
+    (3) the gateway runs from G; (4) one replace writes the new head and
+    clears the marker; (5) only then the reply. A clarification, like every
+    turn, is committed before it is sent. Loading a conversation reads its
+    session file, rebuilds it from the head, recovers a marked submission by
+    running ONLY the gateway from G (the core replays a committed write or
+    submits it now) and reconciles every pending action with the gateway;
+    until that succeeds every request is refused with recovery_pending.
 
 Atomic turns
     Until the ActionGateway returns, a turn has no side effect: on any failure
     the head does not move and the conversation is restored exactly (the
     message is not recorded; the registered observations and grounded
-    submissions included). Once the gateway returned, the turn is kept, so a
+    submissions included). Once the gateway returned, the marker stays: the
+    object is discarded and the next request recovers the turn from it, so a
     pending id is never lost.
 """
 
@@ -127,16 +142,20 @@ from .conversation_graph import (
     RECURSION_LIMIT,
     STEP_LIMIT,
     ConversationContext,
-    build_graph,
-    memory_checkpointer,
 )
 from .conversation_state import encode_text, pack_state, unpack_state
-from .demo_store import DemoStore, ReadSide
+from .demo_store import ReadSide
 from .observation_provenance import ObservationLedger
+from .persistence import Generation, PersistenceError
 
 MAX_CUSTOMER_MESSAGES = 40
 REQUEST_ID_PREFIX = "conv-"
 ANSWER_DISPOSITION = "answer"
+# Operator outcomes are the only transcript entries appended outside a committed
+# turn, so only they carry an event id ("decision:<pending id>:<status>"); one is
+# never appended twice. Views never show it.
+EVENT_ID = "event_id"
+DECISION_EVENT_PREFIX = "decision:"
 
 
 class ConversationStatus(str, Enum):
@@ -191,6 +210,12 @@ class ConversationError(Exception):
 
 class ConversationFull(ConversationError):
     code = "conversation_full"
+
+
+class RecoveryPending(ConversationError):
+    """The conversation cannot be rebuilt or recovered yet: it accepts nothing until it can."""
+
+    code = "recovery_pending"
 
 
 class PendingActionNotInConversation(ConversationError):
@@ -255,16 +280,28 @@ class _Turn:
 
 
 class Conversation:
-    """One customer conversation, bound for life to one server-side persona."""
+    """One customer conversation, bound for life to one server-side persona.
 
-    def __init__(self, *, session_id: str, persona: Persona, store: DemoStore) -> None:
+    A new object is empty and not loaded: `create` starts a new conversation,
+    `ensure_loaded` rebuilds an existing one from its session file.
+    """
+
+    def __init__(self, *, session_id: str, persona: Persona, runtime: Generation) -> None:
         if not isinstance(persona, Persona):
             raise ValueError("persona must be a server-side Persona")
         self.session_id = session_id
         self.persona = persona
         self.lock = threading.Lock()
         self.closed = False
+        store = runtime.store
         self._store = store
+        # M2: the generation's shared graph (its thread is this session id), the
+        # session file and the committed head.
+        self._graph = runtime.graph
+        self._files = runtime.sessions
+        self._generation = runtime.generation
+        self._head: str | None = None
+        self._loaded = False   # the fields are the head's materialized view
         # Server-built: one logical request per conversation (the idempotency scope).
         self._identity = RequestIdentity(persona_id=persona.persona_id,
                                          request_id=REQUEST_ID_PREFIX + session_id)
@@ -281,11 +318,14 @@ class Conversation:
         self._open_pending: list[str] = []
         self._provenance = ObservationLedger(session_id)   # every registered read (M1-A1)
         self._submissions = SubmissionIndex()              # idempotency key -> GroundedSubmission
-        # M2: the control flow graph and the committed head. Even an empty
-        # conversation has a head, so nothing but a head is ever read as it.
-        self._graph = build_graph(memory_checkpointer())
-        self._head: str | None = None
-        self._save()
+
+    @classmethod
+    def create(cls, *, session_id: str, persona: Persona, runtime: Generation) -> "Conversation":
+        """A new conversation. Even an empty one has a head and a session file."""
+        conversation = cls(session_id=session_id, persona=persona, runtime=runtime)
+        conversation._save()
+        conversation._loaded = True
+        return conversation
 
     # ------------------------------------------------------------------
     # Views
@@ -321,7 +361,9 @@ class Conversation:
         for pending_action_id, proposal in self._actions.items():
             outcome = self._store.gateway.get_outcome(pending_action_id)
             pending.append(self._action_view(outcome, proposal))
-        return {**self._common(), "messages": [dict(entry) for entry in self._transcript],
+        messages = [{key: value for key, value in entry.items() if key != EVENT_ID}
+                    for entry in self._transcript]
+        return {**self._common(), "messages": messages,
                 "pending_actions": pending, "audit": self._store.audit(self.request_id)}
 
     @staticmethod
@@ -368,27 +410,41 @@ class Conversation:
             raise ValueError("a customer message needs text")
         if len(self._messages) >= MAX_CUSTOMER_MESSAGES:
             raise ConversationFull("the conversation is full; reset the demo")
-        saved = self._snapshot()
+        head, saved = self._head, self._snapshot()
         guarded = _GuardedProvider(provider)
         gateway = ConversationContext(self)   # the gateway step needs no policy and no provider
+        marked = False
         try:
             with self._store.read_side(self.persona) as reader:
                 context = ConversationContext(self, core.new_control_policy(guarded), guarded, reader)
                 # Ordinary input from the head - also the answer to a clarification.
-                checkpoint = self._invoke({"customer_text": encode_text(text)}, self._head, context)
+                checkpoint = self._invoke({"customer_text": encode_text(text)}, head, context)
                 if checkpoint.next == (GATEWAY,):
-                    # The grounded submission is checkpointed; only the gateway runs from here.
-                    checkpoint = self._invoke(None, checkpoint.config["configurable"]["checkpoint_id"],
-                                              gateway)
+                    # (1) stopped before the gateway, the submission checkpointed in G.
+                    # (2) the in-flight marker - before it, no business write can exist.
+                    marker = self._marker(checkpoint)
+                    self._write_session(head=head, inflight=marker)
+                    marked = True
+                    # (3) only the gateway runs from here, resumed with None.
+                    checkpoint = self._invoke(None, marker["checkpoint_id"], gateway)
             if checkpoint.next:
                 raise RuntimeError("the control flow stopped before the turn ended")
+            # (4) the new head and the cleared marker, one replace; (5) only then the reply.
             turn = self._commit(checkpoint)
         except BaseException as error:
             if gateway.gateway_returned:
-                # The database may have changed: the turn is kept as far as it got, as the head.
-                self._save()
+                # A business write may exist that the head does not record. The marker
+                # stays; the next request rebuilds this conversation and recovers it.
+                self._discard()
                 raise
             self._restore(saved)
+            if marked:
+                # start_action raised (the core rolled back) or never ran: nothing to recover.
+                try:
+                    self._write_session(head=head, inflight=None)
+                except BaseException:
+                    self._discard()
+                    raise
             if isinstance(error, ProviderCallFailed):
                 raise TurnFailed("llm_unavailable") from error
             if isinstance(error, Exception):
@@ -428,11 +484,26 @@ class Conversation:
             raise RuntimeError("the graph wrote no checkpoint")
         return self._graph.get_state(self._config(last))
 
+    def _checkpoint(self, checkpoint_id: str):
+        """Exactly this checkpoint of the conversation's thread, never a newer one."""
+        checkpoint = self._graph.get_state(self._config(checkpoint_id))
+        if not checkpoint.values or checkpoint.config["configurable"]["checkpoint_id"] != checkpoint_id:
+            raise PersistenceError("the checkpoint is missing")
+        return checkpoint
+
+    def _write_session(self, *, head: str, inflight: dict | None) -> None:
+        """The commit point: head and in-flight marker, written together."""
+        self._files.write(self.session_id, persona_id=self.persona.persona_id, head=head,
+                          inflight=inflight)
+
     def _commit(self, checkpoint) -> _Turn:
-        """A turn that ended normally: its last checkpoint becomes the head."""
-        turn = self._load(checkpoint.values)["turn"]
-        self._head = checkpoint.config["configurable"]["checkpoint_id"]
-        return turn
+        """A turn that ended normally: its last checkpoint becomes the head, the marker cleared."""
+        decoded = self._unpacked(checkpoint.values)
+        checkpoint_id = checkpoint.config["configurable"]["checkpoint_id"]
+        self._write_session(head=checkpoint_id, inflight=None)
+        self._restore(decoded["snapshot"])
+        self._head = checkpoint_id
+        return decoded["turn"]
 
     def _save(self) -> None:
         """Write this conversation onto the head as if `finish` had written it, and move the head.
@@ -442,16 +513,109 @@ class Conversation:
         """
         config = self._graph.update_state(self._config(self._head), self._pack(None),
                                           as_node=FINISH)
-        self._head = config["configurable"]["checkpoint_id"]
+        checkpoint_id = config["configurable"]["checkpoint_id"]
+        self._write_session(head=checkpoint_id, inflight=None)
+        self._head = checkpoint_id
+
+    def _discard(self) -> None:
+        """The fields may no longer be the head's view: the next request rebuilds them."""
+        self._loaded = False
+
+    def _unpacked(self, state) -> dict[str, object]:
+        decoded = unpack_state(state)
+        if decoded["generation"] != self._generation:
+            raise PersistenceError("a checkpoint of another generation")
+        return decoded
 
     def _load(self, state) -> dict[str, object]:
         """Make this object the materialized view of `state`; its decoded fields."""
-        decoded = unpack_state(state)
+        decoded = self._unpacked(state)
         self._restore(decoded["snapshot"])
         return decoded
 
     def _pack(self, turn: _Turn | None, **fields) -> dict[str, object]:
-        return pack_state(self._snapshot(), turn=turn, **fields)
+        return pack_state(self._snapshot(), generation=self._generation, turn=turn, **fields)
+
+    def _marker(self, checkpoint) -> dict[str, str]:
+        """The in-flight marker of a checkpoint stopped before the gateway."""
+        submission = self._unpacked(checkpoint.values)["submission"]
+        action = self._submitted_action(submission)
+        return {"checkpoint_id": checkpoint.config["configurable"]["checkpoint_id"],
+                "idempotency_key": submission["key"], "action_name": action.action_name,
+                "args_sha256": action.args_sha256}
+
+    # ------------------------------------------------------------------
+    # Loading, recovery and reconciliation
+    # ------------------------------------------------------------------
+
+    def ensure_loaded(self) -> None:
+        """Rebuild this conversation from its session file before any work touches it.
+
+        The head becomes the fields; a marked submission is recovered by running
+        only the gateway; every tracked pending action is reconciled with the
+        gateway. Anything that fails leaves the object unloaded: every request
+        is refused with recovery_pending, and the next one tries again. Recovery
+        never calls the model and never forks a turn past an unresolved marker.
+        """
+        if self._loaded:
+            return
+        try:
+            manifest = self._files.read(self.session_id)
+            if manifest is None or manifest["persona_id"] != self.persona.persona_id:
+                raise PersistenceError("the session file is missing or names another persona")
+            head = self._checkpoint(manifest["head"])
+            if head.next:
+                raise PersistenceError("the head is not the end of a turn")
+            self._load(head.values)
+            self._head = manifest["head"]
+            if manifest["inflight"] is not None:
+                self._recover(manifest["inflight"])
+            if self._reconcile():
+                self._save()
+        except Exception as error:
+            raise RecoveryPending("the conversation must be recovered first") from error
+        self._loaded = True
+
+    def _recover(self, marker: dict) -> None:
+        """Run ONLY the gateway of the marked submission, then commit (step 4).
+
+        Committed before the crash: the core's idempotent replay. Not committed:
+        submitted now, the Guard re-reading trusted state.
+        """
+        checkpoint = self._checkpoint(marker["checkpoint_id"])
+        if checkpoint.next != (GATEWAY,):
+            raise PersistenceError("a marker names a checkpoint stopped before the gateway")
+        if self._marker(checkpoint) != marker:
+            raise PersistenceError("the marker does not bind the checkpointed submission")
+        checkpoint = self._invoke(None, marker["checkpoint_id"], ConversationContext(self))
+        if checkpoint.next:
+            raise PersistenceError("the gateway did not end the turn")
+        self._commit(checkpoint)
+
+    def _reconcile(self) -> bool:
+        """Refresh every tracked pending action from the gateway; record an operator outcome once."""
+        changed = False
+        for pending_action_id, proposal in self._actions.items():
+            outcome = self._store.gateway.get_outcome(pending_action_id)
+            waiting = outcome.status is ActionStatus.WAITING_APPROVAL
+            if waiting != (pending_action_id in self._open_pending):
+                self._track(pending_action_id, outcome)
+                changed = True
+            if not waiting:
+                changed = self._append_decision_event(pending_action_id, outcome, proposal) or changed
+        return changed
+
+    def _append_decision_event(self, pending_action_id: str, outcome: ActionOutcome,
+                               proposal: Mapping[str, object]) -> bool:
+        """The customer-facing entry of an operator outcome, once per event id."""
+        event_id = DECISION_EVENT_PREFIX + pending_action_id + ":" + outcome.status.value
+        if any(entry.get(EVENT_ID) == event_id for entry in self._transcript):
+            return False
+        turn = _Turn(committed=True)
+        turn.action = self._action_view(outcome, proposal)
+        turn.reply(REPLY_OPERATOR_DECISION, self._renderer.render(outcome))
+        self._transcript.append({**self._assistant_entry(turn), EVENT_ID: event_id})
+        return True
 
     def _end_turn(self, turn: _Turn, **fields) -> dict[str, object]:
         self._transcript.append(self._assistant_entry(turn))
@@ -727,9 +891,15 @@ class Conversation:
         turn.reply(REPLY_OPERATOR_DECISION, self._renderer.render(outcome))
         if not outcome.idempotent_replay and not outcome.decision_conflict:
             # A first decision is news for the customer; a replay or conflict is not.
-            self._transcript.append(self._assistant_entry(turn))
-        # Not a graph node: written onto the head, leaving an open clarification open.
-        self._save()
+            self._append_decision_event(pending_action_id, outcome, proposal)
+        try:
+            # Not a graph node: written onto the head, leaving an open clarification open.
+            self._save()
+        except BaseException:
+            # The outcome is in the database, not in the head: the next request
+            # rebuilds this conversation and reconciles it.
+            self._discard()
+            raise
         return {**self._response(turn, trace=False),
                 "operator_decision": {"pending_action_id": pending_action_id,
                                       "decision": decision,

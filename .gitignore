@@ -4,6 +4,7 @@ __pycache__/
 .streamlit/
 data/
 .cache/
+.aftersales-demo/
 frontend/node_modules/
 frontend/dist/
 .pnpm-store/

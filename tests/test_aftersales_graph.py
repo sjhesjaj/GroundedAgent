@@ -14,6 +14,7 @@ from unittest import mock
 
 import requests
 
+from aftersales.action_gateway import ActionGateway
 from aftersales.action_outcome import ActionOutcomeRenderer
 from aftersales_service.conversation import Conversation
 from aftersales_service.conversation_graph import DURABILITY
@@ -168,18 +169,36 @@ class CommitTests(ProductTestCase):
 
 
 class GatewayReturnedTests(ProductTestCase):
-    def test_a_failure_after_the_gateway_returned_keeps_the_turn(self):
-        # Unchanged from M0: once start_action returned, the turn is kept as far as it
-        # got (no reply), so its pending id is never lost; the error still surfaces.
+    def test_a_failure_after_the_gateway_returned_is_recovered_from_the_marker(self):
+        # Once start_action returned, the error surfaces, the in-flight marker stays and
+        # the object is discarded; the next request rebuilds the conversation and runs
+        # ONLY the gateway again: the core's idempotent replay. The turn is recorded in
+        # full, the business write happened once, the pending id is never lost.
         session_id = self.session()
-        with mock.patch.object(ActionOutcomeRenderer, "render", side_effect=RuntimeError("render")):
+        started = mock.patch.object(ActionGateway, "start_action", autospec=True,
+                                    side_effect=ActionGateway.start_action)
+        with started as spy, mock.patch.object(ActionOutcomeRenderer, "render",
+                                                side_effect=RuntimeError("render")):
             with self.assertRaises(RuntimeError):
                 self.request_return(session_id)
-        view = self.view(session_id)
+            self.assertEqual(spy.call_count, 1)
+            marker = self.session_file(session_id)["inflight"]
+            self.assertEqual(marker["action_name"], "create_return")
+        requests_before = len(self.provider.requests)
+        with mock.patch.object(ActionGateway, "start_action", autospec=True,
+                               side_effect=ActionGateway.start_action) as spy:
+            view = self.view(session_id)
+            self.assertEqual(spy.call_count, 1)
+            self.assertTrue(spy.call_args.args[0] is self.service.store.gateway)
+        self.assertEqual(len(self.provider.requests), requests_before)   # no model call
+        self.assertIsNone(self.session_file(session_id)["inflight"])
         self.assertEqual(view["status"], "WAITING_APPROVAL")
         self.assertEqual(self.count("pending_actions"), 1)
-        self.assertEqual([(entry["role"], entry["text"]) for entry in view["messages"]],
-                         [("customer", "ORD-1001 里那件内衣我不想要了，帮我退货")])
+        self.assertEqual([(entry["role"], entry.get("kind"), entry.get("action_status"))
+                          for entry in view["messages"]],
+                         [("customer", None, None), ("assistant", "action", "WAITING_APPROVAL")])
+        self.assertEqual([event["event_name"] for event in view["audit"]],
+                         ["guard.evaluated", "action.pending_created", "action.replay_hit"])
         # The next turn starts from that conversation, in a new run.
         start = len(self.provider.requests)
         self.say(session_id, "好的", decision(call("finish", {"disposition": "refuse"})))
@@ -188,6 +207,12 @@ class GatewayReturnedTests(ProductTestCase):
         self.assertEqual(self.decisions(start), [(1, 6)])
         approved = self.decide(session_id, view["pending_action_id"], "APPROVE")
         self.assertEqual(approved["action"]["status"], "EXECUTED")
+        self.assertEqual(self.count("action_receipts"), 1)
+
+    def session_file(self, session_id: str) -> dict:
+        generation = json.loads((self.data_dir / "generation.json").read_text(encoding="utf-8"))
+        path = self.data_dir / ("gen-" + generation["generation"]) / "sessions" / (session_id + ".json")
+        return json.loads(path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

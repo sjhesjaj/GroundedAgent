@@ -3,10 +3,13 @@
 Composition-root code. Nothing here comes from an evaluation case, label,
 oracle or dataset:
 
-    database     a fresh FILE-BACKED Stage 6 database in its own temporary
-                 directory, built by the domain's create_stage6_database:
-                 aftersales/schema.sql -> demo seed -> action schema -> Stage 6 seed.
-                 Mutable, because Stage 6 actions execute against it.
+    database     a FILE-BACKED Stage 6 database built by the domain's
+                 create_stage6_database: aftersales/schema.sql -> demo seed ->
+                 action schema -> Stage 6 seed. Mutable, because Stage 6
+                 actions execute against it. The service keeps it in the
+                 current generation of its data directory (persistence.py),
+                 seeded once when that generation is created; without a path
+                 the store builds a fresh one in its own temporary directory.
     time         FixedClock(DEMO_VIRTUAL_NOW): the demo business clock. Fixed so
                  that "delivered N days ago" does not drift with the real date.
     identity     server-side DEMO_PERSONAS only (aftersales.demo). A persona is a
@@ -18,8 +21,8 @@ oracle or dataset:
                  Stage 6 trusted operator registry. A demo boundary, not
                  authentication.
 
-Reset is deterministic: a new store is built from the same seed files; the old
-directory is deleted.
+Reset is deterministic: a new generation is seeded from the same seed files;
+the old one is deleted.
 """
 
 from __future__ import annotations
@@ -77,18 +80,32 @@ class ReadSide:
                             observation_id=observation_id)
 
 
+def seed_demo_database(db_path: Path) -> None:
+    """Build a new demo database from the seed files. Refuses an existing file."""
+    if Path(db_path).exists():
+        raise FileExistsError("a demo database is seeded exactly once")
+    create_stage6_database(db_path)
+
+
 class DemoStore:
     """One mutable demo database plus the server-side configuration around it."""
 
-    def __init__(self) -> None:
-        self._directory = tempfile.TemporaryDirectory(prefix="aftersales-demo-",
-                                                      ignore_cleanup_errors=True)
-        try:
-            self.db_path = Path(self._directory.name) / DEMO_DATABASE_NAME
-            create_stage6_database(self.db_path)
-        except BaseException:
-            self._directory.cleanup()
-            raise
+    def __init__(self, db_path: Path | None = None) -> None:
+        self._directory = None
+        if db_path is None:
+            self._directory = tempfile.TemporaryDirectory(prefix="aftersales-demo-",
+                                                          ignore_cleanup_errors=True)
+            try:
+                self.db_path = Path(self._directory.name) / DEMO_DATABASE_NAME
+                seed_demo_database(self.db_path)
+            except BaseException:
+                self._directory.cleanup()
+                raise
+        else:
+            # An existing, already seeded database: opening never seeds again.
+            self.db_path = Path(db_path)
+            if not self.db_path.is_file():
+                raise FileNotFoundError("the demo database of this generation is missing")
         self.business_time = DEMO_VIRTUAL_NOW
         self.clock = FixedClock(DEMO_VIRTUAL_NOW)
         self.capabilities: EffectiveCapabilities = CapabilityGate().narrow()
@@ -150,4 +167,5 @@ class DemoStore:
         if self._closed:
             return
         self._closed = True
-        self._directory.cleanup()
+        if self._directory is not None:
+            self._directory.cleanup()
