@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { aftersalesApi } from './api'
-import { openSession, rememberSession } from './sessionMemory'
+import { choosePersona, connectPage, recoveryAction, rememberSession } from './sessionMemory'
 import ActionCard from './components/ActionCard.vue'
 import AgentDetails from './components/AgentDetails.vue'
 import AuditTimeline from './components/AuditTimeline.vue'
@@ -35,6 +35,9 @@ const canSend = computed(() => canInteract.value && question.value.trim().length
 const sessionStatus = computed(() => invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : statusLabels[session.value?.status] || '尚未连接'))
 const businessTime = computed(() => (session.value?.business_time || demo.value?.business_time || '').replace('T', ' '))
 const unplacedActions = computed(() => Object.entries(actions.value).filter(([key]) => !messages.value.some((message) => message.actionKey === key)))
+const recovery = computed(() => recoveryAction({
+  hasSession: Boolean(session.value), invalidSession: invalidSession.value, syncRequired: syncRequired.value,
+}))
 
 async function scrollToEnd() {
   await nextTick()
@@ -106,10 +109,24 @@ function showError(error) {
 
 async function loadDemo() {
   demo.value = await aftersalesApi.demo()
-  if (!demo.value.personas.some((persona) => persona.persona_id === selectedPersonaId.value)) {
-    selectedPersonaId.value = demo.value.personas[0]?.persona_id || ''
-  }
+  selectedPersonaId.value = choosePersona(demo.value, selectedPersonaId.value)
   if (!selectedPersonaId.value) throw new Error('Demo 暂无可用客户，请检查后端服务。')
+}
+
+// Page start-up and "重新连接": back to the remembered session while the
+// server has it; a new session only when it is gone (404).
+async function connect() {
+  busy.value = 'startup'
+  notice.value = ''
+  try {
+    const { demo: loaded, data } = await connectPage(aftersalesApi, selectedPersonaId.value)
+    demo.value = loaded
+    activate(data)
+  } catch (error) {
+    showError(error)
+  } finally {
+    busy.value = ''
+  }
 }
 
 async function newSession(personaId = selectedPersonaId.value) {
@@ -237,17 +254,7 @@ function composerKeydown(event) {
   }
 }
 
-onMounted(async () => {
-  try {
-    await loadDemo()
-    // The remembered session if the server still has it, else a new one.
-    activate((await openSession(aftersalesApi, selectedPersonaId.value)).data)
-  } catch (error) {
-    showError(error)
-  } finally {
-    busy.value = ''
-  }
-})
+onMounted(connect)
 </script>
 
 <template>
@@ -291,8 +298,9 @@ onMounted(async () => {
       </header>
       <div v-if="notice" class="notice" role="alert">
         <span>{{ notice }}</span>
-        <button v-if="syncRequired && !invalidSession" :disabled="locked" @click="refreshSession">刷新状态</button>
-        <button v-else-if="invalidSession || !session" :disabled="locked" @click="newSession()">{{ invalidSession ? '新建会话' : '重新连接' }}</button>
+        <button v-if="recovery === 'refresh'" :disabled="locked" @click="refreshSession">刷新状态</button>
+        <button v-else-if="recovery === 'new_session'" :disabled="locked" @click="newSession()">新建会话</button>
+        <button v-else-if="recovery === 'reconnect'" :disabled="locked" @click="connect">重新连接</button>
         <button v-else class="dismiss" aria-label="关闭提示" @click="notice = ''">×</button>
       </div>
       <div ref="messageList" class="messages" :aria-busy="locked">

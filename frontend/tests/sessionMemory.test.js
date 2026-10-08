@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { AftersalesApiError } from '../src/api.js'
 import {
   SESSION_STORAGE_KEY,
+  choosePersona,
+  connectPage,
   forgetSession,
   openSession,
+  recoveryAction,
   rememberSession,
   rememberedSessions,
 } from '../src/sessionMemory.js'
@@ -131,4 +135,107 @@ test('a malformed remembered value is ignored', async () => {
     assert.equal(opened.restored, false)
     assert.deepEqual(api.calls.session, [])
   }
+})
+
+// -- connecting the page: start-up and "重新连接" ------------------------------
+
+const DEMO = { personas: [{ persona_id: 'demo-a' }, { persona_id: 'demo-b' }] }
+
+// A backend that can be down, then up again.
+function flakyBackend(views) {
+  const state = { up: false, calls: { demo: 0, session: [], createSession: [] } }
+  const api = {
+    demo: async () => {
+      state.calls.demo += 1
+      if (!state.up) throw new AftersalesApiError('连接中断，暂时无法确认请求结果。')
+      return DEMO
+    },
+    session: async (id) => {
+      state.calls.session.push(id)
+      if (!state.up) throw new AftersalesApiError('连接中断，暂时无法确认请求结果。')
+      if (views[id] instanceof Error) throw views[id]
+      if (!(id in views)) throw new AftersalesApiError('gone', 404, 'session_not_found')
+      return views[id]
+    },
+    createSession: async (personaId) => {
+      state.calls.createSession.push(personaId)
+      return { session_id: newId, persona: { persona_id: personaId }, status: 'OPEN' }
+    },
+  }
+  return { api, state }
+}
+
+test('reconnecting after a failed load returns to the remembered session, identity and storage unchanged', async () => {
+  const sessionB = { session_id: idB, persona: { persona_id: 'demo-b' }, status: 'WAITING_APPROVAL', messages: [{}, {}, {}, {}] }
+  const { api, state } = flakyBackend({ [idB]: sessionB })
+  const target = tab(idB, memoryStorage(idB))
+
+  // The page loads while the backend is down: an error, no session, nothing forgotten.
+  await assert.rejects(connectPage(api, 'demo-a', target), (error) => error.code === 'network_error')
+  assert.equal(recoveryAction({ hasSession: false, invalidSession: false, syncRequired: false }), 'reconnect')
+  assert.deepEqual(rememberedSessions(target), [idB])
+
+  // The backend is back; "重新连接" connects the page again.
+  state.up = true
+  const connected = await connectPage(api, 'demo-a', target)
+  assert.equal(connected.restored, true)
+  assert.equal(connected.data, sessionB)
+  assert.equal(connected.data.persona.persona_id, 'demo-b')   // not the page's default customer
+  assert.deepEqual(state.calls.createSession, [])
+  rememberSession(connected.data.session_id, target)          // activate()
+  assert.deepEqual(rememberedSessions(target), [idB])
+})
+
+test('reconnecting when the server no longer has the session (404) starts a new one', async () => {
+  const { api, state } = flakyBackend({})
+  state.up = true
+  const target = tab(idB, memoryStorage(idB))
+
+  const connected = await connectPage(api, 'demo-b', target)
+
+  assert.equal(connected.restored, false)
+  assert.deepEqual(state.calls.createSession, ['demo-b'])
+  assert.deepEqual(rememberedSessions(target), [])
+  rememberSession(connected.data.session_id, target)
+  assert.deepEqual(rememberedSessions(target), [newId])
+})
+
+test('a session still recovering (409) is not replaced on reconnect', async () => {
+  const { api, state } = flakyBackend({ [idB]: new AftersalesApiError('recovering', 409, 'recovery_pending') })
+  state.up = true
+  const target = tab(idB, memoryStorage(idB))
+  await assert.rejects(connectPage(api, 'demo-a', target), (error) => error.code === 'recovery_pending')
+  assert.deepEqual(state.calls.createSession, [])
+  assert.deepEqual(rememberedSessions(target), [idB])
+})
+
+test('the demo customer falls back to the first one the demo offers', () => {
+  assert.equal(choosePersona(DEMO, 'demo-b'), 'demo-b')
+  assert.equal(choosePersona(DEMO, 'demo-x'), 'demo-a')
+  assert.equal(choosePersona({ personas: [] }, 'demo-a'), '')
+  assert.equal(choosePersona(null, 'demo-a'), '')
+})
+
+test('"新建会话" is offered only for a session the server no longer has', () => {
+  const cases = [
+    [{ hasSession: false, invalidSession: false, syncRequired: false }, 'reconnect'],   // failed load, 409, 5xx
+    [{ hasSession: true, invalidSession: true, syncRequired: false }, 'new_session'],   // 404
+    [{ hasSession: true, invalidSession: true, syncRequired: true }, 'new_session'],
+    [{ hasSession: true, invalidSession: false, syncRequired: true }, 'refresh'],
+    [{ hasSession: true, invalidSession: false, syncRequired: false }, null],
+  ]
+  for (const [state, expected] of cases) assert.equal(recoveryAction(state), expected, JSON.stringify(state))
+})
+
+test('App.vue wires start-up and "重新连接" to connect, never to newSession', () => {
+  const source = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+  assert.match(source, /onMounted\(connect\)/)
+  const buttons = [...source.matchAll(/<button\b[^>]*>[^<]*<\/button>/g)].map((match) => match[0])
+  const reconnect = buttons.filter((button) => button.includes('重新连接'))
+  assert.equal(reconnect.length, 1)
+  assert.match(reconnect[0], /recovery === 'reconnect'/)
+  assert.match(reconnect[0], /@click="connect"/)
+  const recoveryNew = buttons.filter((button) => button.includes("recovery === 'new_session'"))
+  assert.equal(recoveryNew.length, 1)
+  assert.match(recoveryNew[0], /@click="newSession\(\)"/)
 })

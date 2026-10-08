@@ -53,6 +53,34 @@ export function forgetSession(sessionId, target = globalThis) {
   }
 }
 
+// The demo customer to use: the preferred one if the demo still offers it,
+// else the first. The empty string when there is none.
+export function choosePersona(demo, preferredPersonaId) {
+  const personas = Array.isArray(demo?.personas) ? demo.personas : []
+  if (personas.some((persona) => persona.persona_id === preferredPersonaId)) return preferredPersonaId
+  return personas[0]?.persona_id || ''
+}
+
+// Page start-up and "重新连接": the demo, then the remembered session (or a
+// new one for the chosen customer). A failure leaves every remembered id as it
+// was, so the next attempt goes back to the same session.
+export async function connectPage(api, preferredPersonaId, target = globalThis) {
+  const demo = await api.demo()
+  const personaId = choosePersona(demo, preferredPersonaId)
+  if (!personaId) throw new Error('Demo 暂无可用客户，请检查后端服务。')
+  return { demo, ...(await openSession(api, personaId, target)) }
+}
+
+// The recovery the notice bar offers. "新建会话" only when the server said the
+// session is gone (404); a failed page load, 409 recovery_pending or a 5xx
+// offer "重新连接", which returns to the remembered session.
+export function recoveryAction({ hasSession, invalidSession, syncRequired }) {
+  if (invalidSession) return 'new_session'
+  if (syncRequired) return 'refresh'
+  if (!hasSession) return 'reconnect'
+  return null
+}
+
 // The session to show on page load: a remembered one while the server still
 // has it, otherwise a new one. Only "no such session" (404) falls through; any
 // other failure (network, 409 recovery_pending, 5xx) is the caller's to show,
