@@ -700,9 +700,10 @@ class PreflightTests(unittest.TestCase):
 
 
 class FrozenBoundaryTests(unittest.TestCase):
-    """08: zero diff under the frozen directories; the product is M1-A1.1's; architecture unchanged."""
+    """08: zero diff under the frozen directories; the product M1-A2 measured is M1-A1.1's; architecture unchanged."""
 
     ARCHITECTURE_TEST = "test_only_agent_core_imports_eval_v2_and_only_the_reused_modules"
+    M1_A2_MERGE = "1585c43aadb834fdc938b65504ca02c9aed76331"   # PR #34, the code M1-A2 ran on
 
     def git(self, *args):
         return subprocess.run(["git", "-C", str(ROOT), *args], check=True, stdout=subprocess.PIPE,
@@ -714,9 +715,11 @@ class FrozenBoundaryTests(unittest.TestCase):
         self.assertEqual(self.git("ls-files", "--others", "--exclude-standard", "--", *paths), "")
 
     def test_08_the_product_is_exactly_m1_a1_1(self):
-        # M1-A2 changes no product file; the only product change is M1-A1.1 (its own PR).
-        self.assertEqual(self.git("diff", "--name-only", run_m1_a2.M1_A1_1_COMMIT, "--", "aftersales_service/"), "")
-        self.assertEqual(self.git("ls-files", "--others", "--exclude-standard", "--", "aftersales_service/"), "")
+        # The M1-A2 range changed no product code: M1-A2 measured exactly M1-A1.1's product.
+        # Later milestones (M2) do change aftersales_service/; M1-A2 cannot be rerun on that
+        # code, which eval_m1/run_m1_a2.py's preflight enforces (no product diff since M1-A1.1).
+        self.assertEqual(self.git("diff", "--name-only", run_m1_a2.M1_A1_1_COMMIT, self.M1_A2_MERGE,
+                                  "--", "aftersales_service/"), "")
 
     def function_source(self, source: str, name: str) -> str:
         for node in ast.walk(ast.parse(source)):
