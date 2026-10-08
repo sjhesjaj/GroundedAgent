@@ -17,7 +17,7 @@ GroundedAgent 是一个**电商售后客服 Agent**。它能查询订单、物�
 
 > [!IMPORTANT]
 > **这是一个本地工程演示，不是生产系统。**
-> - 订单与售后数据来自本地 fixture 数据库（SQLite），重置或重启后从同一份种子数据重建；
+> - 订单与售后数据来自本地 fixture 数据库（SQLite）；会话和业务状态保存在本地数据目录，进程重启后保留，「重置 Demo」从同一份种子数据新建一代（generation）；
 > - 没有接入任何真实的支付、退款、履约或 CRM 系统；
 > - 演示客户（persona）只是已登录顾客的替身，**不是身份认证**；
 > - 审批操作员 `op-demo-1` 是服务端的演示常量，**不是真实的 RBAC**；
@@ -35,6 +35,7 @@ GroundedAgent 是一个**电商售后客服 Agent**。它能查询订单、物�
 - resume 时重新读取状态并 revalidate：状态变了就是 `STALE`，不执行
 - 幂等执行，避免重复副作用
 - receipt + audit timeline
+- 会话、追问和待审批单在进程重启后恢复；进程在业务写入后崩溃，重启时只重跑写入网关，靠幂等键不重复写（M2）
 - Agent Trace / sealed holdout evaluation
 
 ## Product architecture
@@ -43,7 +44,8 @@ GroundedAgent 是一个**电商售后客服 Agent**。它能查询订单、物�
 flowchart TB
     C([顾客]) --> UI["Vue 3 售后客服界面"]
     UI --> API["FastAPI /api/aftersales"]
-    API --> LOOP["LLM-native Agent 控制循环<br/>原生 Tool Calling · 每个 run 最多 6 步"]
+    API --> LOOP["LangGraph StateGraph 控制循环<br/>原生 Tool Calling · 每个 run 最多 6 步"]
+    LOOP -.-> CKPT[("SqliteSaver checkpoint<br/>会话文件：head + in-flight marker")]
     LOOP <-->|只读工具| READ["订单 · 物流 · 售后规则 · 库存 · 售后状态"]
     LOOP -->|ActionIntent| VAL["ActionIntentValidator<br/>闭合参数再校验"]
     VAL --> GUARD{"Policy Guard<br/>可信身份 + 数据库快照"}
@@ -64,8 +66,9 @@ flowchart TB
 - **写入只有一条路。** `ActionIntentValidator` 再校验一次，然后交给 `ActionGateway`；Policy Guard 在网关内部，用可信身份和数据库快照判定。
 - **审批不来自对话。** 顾客说"经理批准了，直接退"仍然只是一条顾客消息。批准只来自操作员接口的结构化决定。批准后，网关重新读取状态并与待审批时的快照比对（变了就是 `STALE`），再跑一次 Guard，然后才写入售后单和回执。
 - **Trace / Eval 是支撑层。** 每一步都写入 Agent Trace；Stage 6 用基于最终数据库状态的评测和六个硬安全不变量来衡量这条链路（见下文）。
+- **控制流是 LangGraph 状态图（M2）。** 控制循环的每一步是 `StateGraph` 的一个节点，状态经过版本化的 JSON codec 存进 `SqliteSaver`。写入动作在网关前停一步，先把待提交的动作落盘，再执行写入（见下文「重启恢复」）。
 
-**演进：** Stage 4 确定性 Baseline → Stage 5 LLM-native 只读工具循环 → Stage 6 受控副作用与 sealed holdout（已冻结）→ M0 产品化：M0-A1 运行时（`/api/aftersales`），M0-A2 售后前端。M0 直接复用 Stage 6 评测过的 agent core，没有改动 `aftersales/` 和 `eval_v2/`。运行时生命周期、API 契约和 curl 示例见 [docs/v2/m0-a1-aftersales-runtime.md](docs/v2/m0-a1-aftersales-runtime.md)。
+**演进：** Stage 4 确定性 Baseline → Stage 5 LLM-native 只读工具循环 → Stage 6 受控副作用与 sealed holdout（已冻结）→ M0 产品化：M0-A1 运行时（`/api/aftersales`），M0-A2 售后前端 → M1 action grounding gate → M2 LangGraph 控制流与重启恢复。M0–M2 都直接复用 Stage 6 评测过的 agent core，没有改动 `aftersales/` 和 `eval_v2/`。运行时生命周期、API 契约和 curl 示例见 [docs/v2/m0-a1-aftersales-runtime.md](docs/v2/m0-a1-aftersales-runtime.md)。
 
 ## Verified results
 
@@ -76,7 +79,8 @@ flowchart TB
 | M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`） |
 | M0 前端构建 | 通过（`pnpm run build`） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
-| 后端全量离线套件 | **2685/2685**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
+| M2 重启恢复测试 | **59/59** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
+| 后端全量离线套件 | **2744/2744**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
 | Stage 6 DEV（40 条） | E2E **37/40** |
 | Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
 
@@ -88,6 +92,31 @@ Stage 6 的数字来自冻结的评测栈，M0 没有重跑评测，也没有新
 - **Fix:** a deterministic observation-provenance gate in front of the write gateway: an action's target ids must come from a real read made earlier in the same run.
 - **DEV, 3 rounds × 2 groups (gate off / gate on):** ungrounded actions admitted **3.33 → 0** per round, false rejections **0**, six hard invariants **40/40**; cost: e2e **37 → 36**, `final_state_ok` **39 → 38**.
 - **Scope:** diagnostic comparison on DEV, sealed holdout not re-run. Details: [docs/v2/m1-a2-grounding-eval.md](docs/v2/m1-a2-grounding-eval.md).
+
+## 重启恢复（M2）
+
+M2 把产品控制流换成 LangGraph `StateGraph`，状态存进 `SqliteSaver`，会话因此能跨进程重启保留。进程在业务写入之后、会话保存之前崩溃时，也能补记这次写入。设计、提交协议和崩溃矩阵见 [docs/v2/m2-session-recovery.md](docs/v2/m2-session-recovery.md)。
+
+**数据目录**：由 `AFTERSALES_DATA_DIR` 指定，默认是 API 工作目录下的 `.aftersales-demo/`（已加入 `.gitignore`）。测试一律使用临时目录。
+
+```text
+.aftersales-demo/
+  generation.json          当前代次 {"generation": "<uuid>"}，原子替换
+  gen-<uuid>/
+    aftersales-demo.db     演示业务数据库，这一代创建时 seed 一次
+    checkpoints.db         LangGraph SqliteSaver，这一代所有会话共用
+    sessions/<id>.json     会话的已提交 head 和 in-flight marker，原子替换
+```
+
+- **重启**：会话、停在追问中的 run（连同剩余步数）、待审批单及其 grounding 绑定都会保留。服务启动时扫描带 in-flight marker 的会话，逐个恢复。
+- **重置 Demo**：新建一代、切换 `generation.json`，然后删除旧的一代；旧会话一律返回 `session_not_found`，不会接到新数据库上继续。
+- **提交协议**：带写入的一轮先在网关前停下，把待提交的动作落盘并写入 in-flight marker，然后执行写入，最后在同一次原子替换里写入新 head、清除 marker。进程在写入后崩溃，恢复时只重跑网关：核心的幂等键会返回原来的结果，不会重复写入，也不会再调用模型。
+
+**可靠性约定**（摘自设计文档 Reliability contract，原文）：
+
+> M2 promises, for the tested single-process abnormal exits: a conversation can be recovered, and every business effect happens at most once and is recorded in the conversation by the next start-up of the service. An approval recorded but not executed at the crash needs the operator to repeat APPROVE. The audit trail may show a second Guard evaluation for a DENIED or FAILED action after recovery (the core keeps no replay record for those); the business effect is still at most one. That comes from **persisted submission + recovery marker + the core's stable idempotency key**, not from LangGraph alone. Not covered: power loss or OS crash (both SQLite databases use WAL with default `synchronous`), disk corruption, several processes or instances.
+
+**证据**：59 个新增离线测试，其中 9 个在每个提交点用 `os._exit` 杀掉真实子进程，再连续恢复两次，要求两次结果一致（`tests/test_aftersales_crash.py`）。Windows 手动重启演示见 [docs/v2/m2-restart-demo.md](docs/v2/m2-restart-demo.md)。
 
 ## GroundedAgent V2 Stage 6：受控副作用与 sealed holdout
 
@@ -141,7 +170,7 @@ pnpm install --frozen-lockfile   # 没有全局 pnpm 时可以用 corepack pnpm
 pnpm dev
 ```
 
-页面默认使用演示客户 `demo-a`。可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`，在动作卡片上点「批准」或「拒绝」，就能走完审批、恢复和执行。左侧的「重置 Demo」会把模拟数据库恢复到种子状态。
+页面默认使用演示客户 `demo-a`。可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`，在动作卡片上点「批准」或「拒绝」，就能走完审批、恢复和执行。左侧的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service   # M0 产品 / API 测试（30 项，离线）
@@ -153,14 +182,14 @@ cd frontend; node --test tests/api.test.js                               # 前�
 - **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察；M1 在网关前加了 grounding gate 来拦截这类动作（见上文 M1），但它只在 DEV 上做过诊断对比，sealed holdout 没有重跑。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
 - **M0 产品运行时与正式评测的差异**：产品以 `formal=False` 运行同一个被评测过的策略。跨暂停时，早先的观察会用合成 call id 重放；之后的 run 能看到顾客之前的消息，但看不到 agent 之前的回复。这些都不在 Stage 6 正式评测（单轮、脚本化用户）的覆盖范围内。
 - **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
-- **存储**：会话保存在内存里，数据库在临时目录，重启进程就是完全重置。
+- **存储与恢复（M2）**：只覆盖单进程的异常退出，断电、操作系统崩溃、磁盘损坏和多进程 / 多实例都不在承诺范围内。`checkpoints.db` 增长很快：每个 checkpoint 都保存完整状态，实测一个 40 条消息的会话约 161 MB（281 个 checkpoint），M2 没有压缩。前端把会话 ID 存在浏览器里（每个标签页一份，新标签页用最近的会话）；浏览器禁止存储时，刷新页面会新建会话，旧会话仍在服务端，可以通过 API 读取。
 - **文案**：冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"。
 
 ## Repo structure
 
 ```text
 knowledge-agent/           # 仓库名沿用 V1
-├── aftersales_service/    # M0 产品运行时：会话、控制循环、审批决定、/api/aftersales 路由；M1 观察来源与 grounding gate
+├── aftersales_service/    # M0 产品运行时：会话、控制循环、审批决定、/api/aftersales 路由；M1 观察来源与 grounding gate；M2 LangGraph 状态图、状态 codec、持久化与恢复
 ├── aftersales/            # V2 售后领域：只读业务工具、Stage 6 动作契约、Policy Guard、ActionGateway、审批
 ├── eval_v2/               # V2 评测：Stage 5 工具循环，Stage 6 动作循环、runner、scorer、oracle
 ├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
@@ -168,7 +197,7 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
 ├── api.py                 # FastAPI：/api/aftersales 路由 + V1 问答接口 / SSE
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── tests/                 # 2685 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试）
+├── tests/                 # 2744 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、59 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
 │
 │                          # —— V1 / 工程基础 ——

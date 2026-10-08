@@ -383,3 +383,110 @@ mode does **not** raise: a blocked project object comes back as a plain
 itself: `decode` validates its input's type and `schema` and raises on
 anything else, and a test asserts that every value in a stored checkpoint is a
 JSON-native type.
+
+## Results
+
+Branch `m2-langgraph-session-recovery`: phases 1-2 `5162588`, phase 3
+`c026b24`, phase 4 `ceadfd6`, on top of main `42e96de`. `aftersales/`,
+`eval_v2/` and `eval/` are unchanged (`git diff 42e96de -- aftersales eval_v2 eval`
+is empty).
+
+### Crash scenarios (phase 4)
+
+`tests/test_aftersales_crash.py`: a child process is killed with
+`os._exit(17)` at one injection point (patched in the child; the product has
+no test switch). The parent checks exit code 17, that both SQLite databases
+(WAL included) pass `PRAGMA quick_check` and that the session files parse,
+then restarts twice on the same data directory; both recoveries must give
+identical views, session files and business tables.
+
+| Scenario | State left by the kill | After recovery |
+|---|---|---|
+| a. after G, before the marker | the thread holds a checkpoint stopped before `gateway`; no marker | head unchanged, no messages, 0 pending actions, the seed's 2 cases; the next message runs normally from step 1 of a new run |
+| b. marker written, gateway not run | marker set, 0 pending actions | submitted during recovery: exactly 1 pending action; audit `guard.evaluated`, `action.pending_created` (no replay) |
+| c. right after `start_action` returned | 1 pending action committed | business tables identical to the state at the kill (exactly one business write), 0 receipts; the real outcome `WAITING_APPROVAL` is shown; audit contains `action.replay_hit` |
+| d. as c, recovered by the start-up scan alone | as c | the scan clears the marker without any request, business tables unchanged; the operator approves: `EXECUTED`, 1 receipt, 3 cases |
+| e1. before a clarification's head write | the clarification's checkpoints exist, head unchanged | `OPEN`, no messages; the next "我要退货" starts a new run (decision 1 of 6) |
+| e2. after a clarification's head write | head advanced | `NEEDS_CLARIFICATION`; the answer continues the run (decisions 2 and 3) and reaches `WAITING_APPROVAL` |
+| f. after `resume_action`, before the head write | 1 receipt | `OPEN`, pending action `EXECUTED`, one operator-decision entry; a repeated APPROVE is an idempotent replay; still 1 receipt |
+| g. between T1 and T2 | 0 receipts | `WAITING_APPROVAL` with `approval_recorded = true`; one more APPROVE: `EXECUTED`, 1 receipt, one operator-decision entry |
+| h. before `os.replace` | a `.tmp` file left in `sessions/`; the session file byte-identical to the last commit | the last committed version (the clarification); the answer continues the run (decision 2) |
+
+Three consecutive runs of the crash module passed 9/9 each (19.9 s, 21.3 s,
+23.2 s). With marker recovery disabled in the parent, b, c and d fail.
+
+### Tests
+
+- Full offline suite (`unittest discover`, excluding only
+  `tests.test_llm_provider_live`): **2744 passed**, 0 failed, 0 skipped
+  (2685 at `42e96de`).
+- M2 adds **59**: `test_aftersales_graph` 6, `test_aftersales_state_codec` 17,
+  `test_aftersales_golden` 1, `test_aftersales_persistence` 26,
+  `test_aftersales_crash` 9.
+- The 80 product and grounding tests (`test_aftersales_service`,
+  `test_aftersales_grounding`) keep their scenarios; they now run in a
+  temporary data directory, and `test_13b` writes its tampered index through
+  the head. The golden file (45 scenarios, every model request and HTTP
+  payload, recorded on `42e96de`) matches byte for byte.
+- `HeadInvariantTests` checks after each of the 193 requests of all product
+  scenarios that the conversation equals a conversation rebuilt from its head.
+- Frontend: `node --test tests/api.test.js tests/sessionMemory.test.js` 27
+  passed (20 + 7 for remembering the session across page reloads); `vite build`
+  passes.
+
+### Real restart demo (Windows)
+
+2026-10-08 17:36, the walkthrough of `docs/v2/m2-restart-demo.md` with a real
+backend process (single uvicorn process, no `--reload`), real DeepSeek and
+`taskkill /F`; report `.aftersales-demo\restart-demo-20261008-173652\report.txt`
+(local, git-ignored). All 7 checks passed:
+
+| Check | Observed |
+|---|---|
+| killed without graceful shutdown | `taskkill /F` exit 0; the backend log ends without `Shutting down` / `shutdown complete` |
+| state identical after restart | both sessions (A `WAITING_APPROVAL` with `PA-0F04C3B138DEB173`, B `NEEDS_CLARIFICATION`), their message counts, pending actions and the business table counts (1 pending action, 0 receipts, 2 cases) equal to before the kill |
+| no in-flight markers after restart | `inflight` false for both |
+| A approve -> EXECUTED | HTTP 200, `EXECUTED`, `idempotent_replay` false |
+| B answer continues run 1 at step 2 | the answer's trace is `(1, 2, tool_call), (1, 3, action_proposed)`; B reaches `WAITING_APPROVAL` |
+| repeated approve is an idempotent replay | `EXECUTED`, `idempotent_replay` true |
+| exactly one receipt | final counts: 2 pending actions (A executed, B waiting), 1 receipt, 3 cases |
+
+The opening line of B was changed to "我想退货，帮我办一下": "我要退货" did not
+make the real model ask for the order three times in a row. The demo predates
+the frontend's session memory; with it, the walkthrough reloads both tabs
+after the restart (the API path the demo exercised is unchanged).
+
+### checkpoints.db
+
+One 40-message conversation (one clarification, one return parked for
+approval, 38 turns of "read the order, then refuse") writes 281 checkpoints
+and a **161 MB** `checkpoints.db`; the head state alone is 876 KB of JSON.
+`SqliteSaver` stores the full channel values in every checkpoint, so the file
+grows quadratically with the conversation; 94 % of the state is the
+observation list. At the 40-message cap and 64 sessions a generation is
+bounded at roughly 10 GB.
+
+M2 does not address it:
+
+- **Compacting the thread** (write the head into a fresh thread, point the
+  session file at it, delete the old thread) changes the commit protocol: the
+  head would move between threads, which opens a new crash window between
+  writing the new thread, switching the session file and deleting the old one
+  - a window that would need its own marker, recovery rule and crash tests.
+- **Not storing `ToolObservation`'s derived result snapshot** (re-derive and
+  compare on decode) removes duplicated data without touching the protocol.
+  It is a constant-factor gain, not a fix for the quadratic growth, and is
+  left as an optional later optimization.
+
+### Out of scope
+
+- Power loss or an OS crash: both SQLite databases use WAL with the default
+  `synchronous`, and session files are replaced without `fsync`. M2 covers
+  the tested single-process abnormal exits only.
+- Several processes or instances on one data directory: the locks are
+  in-process.
+- External APIs that are not idempotent: recovery re-runs the gateway and
+  relies on the core's stable idempotency key; an external write without such
+  a key could be repeated.
+
+The Windows restart walkthrough is `docs/v2/m2-restart-demo.md`.
