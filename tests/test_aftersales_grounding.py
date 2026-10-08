@@ -994,13 +994,20 @@ class GroundingScenarioTests(ProductTestCase):
             with self.subTest(tamper=tamper):
                 self.post("/api/aftersales/demo/reset")
                 session_id, pending_id = self.waiting()
-                index = self.conversation(session_id)._submissions
+                conversation = self.conversation(session_id)
+                index = conversation._submissions
                 submission = index.for_pending(pending_id)
                 if tamper == "hash":
+                    # A submission valid in itself, bound to other arguments. (One whose
+                    # binding contradicts its own digest cannot reach a head at all: the
+                    # state codec re-runs GroundedSubmission's checks on every decode.)
                     forged = dataclasses.replace(submission.binding, args_sha256="0" * 64)
-                    object.__setattr__(submission, "binding", forged)
+                    index.restore({submission.key: dataclasses.replace(
+                        submission, args_sha256="0" * 64, binding=forged)})
                 else:
                     index.restore({})
+                # Written through the head (M2): the conversation is its head's view.
+                conversation._save()
                 refused = self.decide(session_id, pending_id, "APPROVE", expected=409)
                 self.assertEqual(refused["detail"], {"code": "pending_action_not_grounded"})
                 self.assertEqual(self.pending(pending_id)["status"], "PENDING_APPROVAL")

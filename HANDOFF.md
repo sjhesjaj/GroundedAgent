@@ -2642,3 +2642,38 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 - 目标绑定没有解决：gate 只检查编号是否来自本轮的真实读取，不检查读的是不是顾客说的那个订单（015）。
 - 拒绝不进入数据库审计：gate 在网关之前拒绝，所以没有待审批记录、回执或核心审计事件。产品里的拒绝只留在 trace 的 `grounding_rejected` 步骤；评测里的拒绝只留在 wrapper 的 `GroundingDecisionRecord`。
 - 运行之后没有改代码，也没有重跑。
+
+## 33. GroundedAgent V2 M2：LangGraph 控制流与崩溃安全的会话恢复
+
+> **产品运行时的可靠性改造，不是新的评测结果。** `aftersales/`、`eval_v2/`、`eval/` 零 diff（相对 `42e96de`），没有重跑任何评测。设计、提交协议、崩溃矩阵和结果见 `docs/v2/m2-session-recovery.md`。
+
+### A. 提交（分支 `m2-langgraph-session-recovery`，基于 main `42e96de`）
+
+- `4177233`、`8033c8f`、`619e293`：设计文档及两轮 review 修订。clarification 不再用 `interrupt()`；新增 in-flight marker；明确了操作员决定、失败规则以及 T1/T2 之间崩溃的处理。
+- `4f10f0d`：`test_08_the_product_is_exactly_m1_a1_1` 改为检查提交区间 `b74ab2b..1585c43`。M1-A2 不能在后续代码上重跑，由 `eval_m1/run_m1_a2.py` 的 preflight 保证。
+- `5162588` 阶段 1–2：控制流改为 LangGraph `StateGraph`（先用内存 checkpointer），加入版本化 JSON codec；golden 在干净的 `42e96de` 上录制（45 个场景），逐字节一致。
+- `c026b24` 阶段 3：数据目录与 generation、会话文件（head + in-flight marker，原子替换）、每代共享一个 `SqliteSaver` 和一张编译好的图、加载时恢复与对账、启动扫描、`recovery_pending`（409）。
+- `ceadfd6` 阶段 4：9 个真实子进程崩溃测试（`os._exit(17)`）。
+- 阶段 5：前端记住当前会话（`frontend/src/sessionMemory.js`：sessionStorage + localStorage，所有读写都包在 try/catch 里，404 时新建会话；后端和 API 不变）；本节、README「重启恢复」、设计文档 Results、`docs/v2/m2-restart-demo.md`。
+
+### B. 设计要点
+
+- 已提交的版本是会话文件里的 head（checkpoint id），从不按"线程里最新的 checkpoint"读取；失败的一轮留下的分支永远不会被读到。
+- 带写入的一轮按以下顺序执行：停在 gateway 前（G）→ 写 marker → 运行 gateway → 在同一次原子替换中写入新 head 并清除 marker → 回复。恢复时只重跑 gateway，不调用模型，由核心的幂等键得到回放结果或首次写入。
+- 每次调用都使用 `durability="sync"`；checkpointer 使用 `JsonPlusSerializer(allowed_msgpack_modules=None)`，但在 1.2.14 中被拦下的对象不会报错，所以由 codec 的 decode 负责拒绝。
+- 现有 AST 边界测试决定了代码位置：`_drive` 承担 decide 节点，`_act` 同时承载 ground 和 gateway。
+
+### C. 结果
+
+- 全量离线套件（只排除 live）2747/2747，其中 M2 新增 62 个（graph 6、codec 17、golden 1、persistence 29、crash 9）；80 个产品和 grounding 测试保持原有场景；golden 逐字节一致。
+- 9 个崩溃场景全部通过，每个场景连续恢复两次、结果一致；崩溃模块连续跑 3 次，均为 9/9。业务写入无重复（只比较业务表，不比较 audit 行数）；a、e1、e2 三个场景本来就没有业务写入。
+- PR #38 验收后修复两个缺陷：页面加载失败后「重新连接」会新建会话并覆盖记住的会话 ID（现在回到原会话，只有 404 才提供「新建会话」）；`decide()` 在 `resume_action` 之后出错时没有丢弃内存会话（现在从 `resume_action` 到写入 head 全部在同一个 try 里，出错即丢弃并在下次请求时重建、对账）。
+- 真实重启演示（2026-10-08 17:36，Windows，真实后端进程 + DeepSeek，`taskkill /F`）：7 项检查全部 PASS。强杀后重启，两个会话及业务表计数与杀进程前逐项相同，`inflight` 均为 False；批准 → `EXECUTED`，再次批准 → `idempotent_replay=True`，回执 1 张；追问的回答接着原来的 run 1，从第 2 步继续。报告在本机 `.aftersales-demo\restart-demo-20261008-173652\report.txt`（不入库）。
+- 实测：一个 40 条消息的会话写出 281 个 checkpoint，`checkpoints.db` 约 161 MB。
+
+### D. 已知限制
+
+- `checkpoints.db` 按会话长度近似平方增长，M2 没有处理：换 thread 压缩会改动提交协议并带来新的崩溃窗口；不再存储推导出的观察快照作为后续可选优化。
+- 只覆盖单进程的异常退出；断电、操作系统崩溃、磁盘损坏、多进程或多实例、外部不可幂等的 API 都不在范围内。
+- T1（决定已记录）和 T2（执行）之间崩溃的待审批单，需要操作员再点一次批准。
+- 前端把会话 ID 存在 sessionStorage（每个标签页一份）和 localStorage（新标签页用最近的会话），刷新页面后恢复；服务端已没有这个会话（404）时清掉记录并新建；浏览器禁止存储时退回到每次新建会话。

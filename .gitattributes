@@ -4,3 +4,4 @@
 /eval/v2/validation-author-receipt.json -text
 /eval/v2/stage6-dev.json -text
 /eval/v2/stage6-dev.receipt.json -text
+/tests/fixtures/m2/aftersales-main-golden.json -text

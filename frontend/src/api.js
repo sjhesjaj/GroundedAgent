@@ -10,6 +10,7 @@ const ERROR_MESSAGES = {
   conversation_full: '当前会话已达到消息上限，请新建会话。',
   too_many_sessions: '演示会话已达到上限，请重置 Demo。',
   decision_refused: '本次审批未被接受，请刷新会话后查看动作状态。',
+  recovery_pending: '会话正在恢复，请稍后点「重新连接」。',
 }
 
 export class AftersalesApiError extends Error {

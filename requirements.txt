@@ -5,3 +5,5 @@ jieba==0.42.1
 fastapi>=0.115,<1
 uvicorn[standard]>=0.34,<1
 python-multipart>=0.0.20,<1
+langgraph==1.2.14
+langgraph-checkpoint-sqlite==3.1.1

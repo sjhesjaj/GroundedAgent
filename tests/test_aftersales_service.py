@@ -11,7 +11,9 @@ from __future__ import annotations
 import ast
 import json
 import re
+import shutil
 import sqlite3
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -99,10 +101,18 @@ def runtime_context(request: dict) -> dict:
 # --------------------------------------------------------------------------
 
 
+def temporary_data_dir(test: unittest.TestCase) -> Path:
+    """A fresh data directory for one test: tests never touch the persistent demo data."""
+    directory = Path(tempfile.mkdtemp(prefix="aftersales-test-"))
+    test.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+    return directory
+
+
 class ProductTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.provider = ScriptedProvider()
-        self.service = AftersalesService(lambda: self.provider)
+        self.data_dir = temporary_data_dir(self)
+        self.service = AftersalesService(lambda: self.provider, data_dir=self.data_dir)
         self.addCleanup(self.service.close)
         app = FastAPI()
         app.include_router(create_router(self.service))
@@ -663,7 +673,8 @@ class RuntimeLifecycleTests(ProductTestCase):
         self.assertEqual(runtime_context(self.provider.requests[-2])["step_number"], 1)
 
     def test_an_unavailable_provider_records_nothing(self):
-        service = AftersalesService(lambda: (_ for _ in ()).throw(RuntimeError("no key")))
+        service = AftersalesService(lambda: (_ for _ in ()).throw(RuntimeError("no key")),
+                                    data_dir=temporary_data_dir(self))
         self.addCleanup(service.close)
         app = FastAPI()
         app.include_router(create_router(service))
