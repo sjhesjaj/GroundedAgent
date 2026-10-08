@@ -44,7 +44,7 @@ simulated with `os._exit` (no checkpoint write, no `finally`).
 |---|---|
 | Crash right after `start_action` returned, default `durability="async"` | **Lost.** The checkpoint holding the validated action had not reached disk when the gateway node ran; recovery saw no submission while `pending_actions` had 1 row. |
 | Same crash, `durability="sync"` | Recovered. Re-running the gateway node returned the core's idempotent replay (`replay: true`), 1 pending row, step count and the clarification answer intact. |
-| Clarification paused (`interrupt`), process exits, new process sends `Command(resume=...)` | The run continued with its step budget. |
+| Clarification paused (`interrupt`), process exits, new process sends `Command(resume=...)` | The run continued with its step budget. (Superseded: review later showed a failed resume leaves its answer on the head; clarifications no longer use `interrupt`.) |
 | Operator APPROVE, crash right after `resume_action` | `get_outcome` reported `EXECUTED`; a repeated APPROVE was an idempotent replay; exactly 1 receipt and 1 new case. The conversation's stored status was stale until reconciled from the gateway. |
 | Model failure after a read, mid-turn | The dirty checkpoint kept the failed turn's message; the next turn forked from the committed head and did not see it. |
 | Project dataclasses through LangGraph's default serializer | Round-trip equal, but LangGraph warns that deserializing unregistered types "will be blocked in a future version". |
@@ -63,18 +63,20 @@ Decisions taken from the spike:
 
 ```
 START -> begin_run ----------------------------------------> decide
-         (a new independent run: step 1, own observations)
+         (a new independent run: step 1, own observations;
+          or, if a run is open on a clarification, continue it)
 
 decide --ToolCall-----> read --------------------------------> decide
-       --Clarify------> clarify  [interrupt]  -- resume ----> decide
+       --Clarify------> clarify (store awaiting slots) -------> END
        --ActionIntent-> ground --rejected---------------------> END (fixed reply)
-                              --grounded: submission saved--> gateway -> END
+                              --grounded: submission saved--> [stop] gateway -> END
        --Finish-------> finish (answer layer / fixed text) ---> END
        --step limit---> step_limit ---------------------------> END
 ```
 
 - `decide` builds `ActionControlState` exactly as `_drive` does today and calls the evaluated policy once.
-- `clarify` contains nothing before `interrupt()`; on resume it only appends the customer message (LangGraph re-runs an interrupted node from its first line).
+- **Every customer message enters as ordinary input from the head**, including the answer to a clarification. `clarify` ends the graph and keeps the open run with its `awaiting_slots` in state, as `_ControlRun` does today; `begin_run` continues that run (same step budget) instead of starting a new one.
+- **No `interrupt()` / `Command(resume=...)` for clarifications.** Review reproduced that resuming an interrupt does not fork a new checkpoint: the answer is stored on the head itself, so after a failed attempt (answer "ORD-1001", model outage) a retry from the same head with "ORD-3015" reaches `decide` with **ORD-1001** - a wrong-order action and a failed turn that left a trace. Ordinary input from the head forks cleanly. The only static stop in the graph is `interrupt_before=["gateway"]`, used by the commit protocol, and it is resumed with `None`, never with customer data.
 - `ground` = today's contract check + grounding gate + replay-anchor lookup. It writes the **submission** (action name, canonical args, idempotency key, binding, basis) into state. With `durability="sync"` this is on disk before `gateway` starts.
 - `gateway` is `Conversation._act` reduced to: rebuild the `ValidatedAction` from the persisted submission, `start_action` once, record the outcome. It stays a function named `_act` in `conversation.py` (boundary test `test_an_approval_is_built_in_exactly_one_place`).
 - Runtime objects (policy, guarded provider, read side, store) reach nodes through LangGraph's runtime context, never through state.
@@ -138,10 +140,24 @@ that checkpoint's id. One action turn, in order:
 4. Write the session file with `head = <final checkpoint>` and `inflight = null`, in the same replace.
 5. Only then answer HTTP.
 
-A clarification follows the same rule: the paused checkpoint becomes the head
-(step 4) **before** the question is sent, so a customer who has seen the
-question can always answer it. A failed turn writes nothing; its branch is
-never read.
+A clarification follows the same rule: the checkpoint that ends on
+`clarify` becomes the head (step 4) **before** the question is sent, so a
+customer who has seen the question can always answer it. A failed turn writes
+nothing; its branch is never read.
+
+**Failures after the marker write** must not lock a session for good:
+
+- `start_action` raised: the core rolled back, nothing was committed. Clear the marker (head unchanged) and answer `TurnFailed`, as today.
+- Anything fails after `start_action` returned (including the final session-file write): drop the in-memory conversation; the next request reloads it and runs recovery.
+- `os.replace` on Windows may raise `PermissionError` while another process holds the file: retry briefly (a few attempts, short backoff) before giving up.
+
+**Operator decisions** are not graph nodes. `decide` runs `resume_action`,
+then writes the result with `update_state(head, …, as_node="finish")` (a node
+whose only successor is END, so the stored run state - including an open
+clarification - is untouched) and moves the head in one session-file write.
+Review showed that `as_node="decide"` would end an open run; a test covers a
+session that has a pending action from run 1 while run 2 waits on a
+clarification.
 
 **Recovery** runs when a session is loaded, under the session lock, before any
 customer message or operator decision touches it:
@@ -152,12 +168,23 @@ customer message or operator decision touches it:
 | `inflight` set | Load checkpoint `inflight.checkpoint_id`; refuse unless its generation matches, its `next` is exactly `("gateway",)` and its submission has the marker's key, action and args digest. Resume it (the only node that can run is `gateway`): committed before → the core's idempotent replay; not committed → submitted now, the Guard re-reading trusted state. Then step 4. |
 | Recovery itself fails | The session answers `recovery_pending` (409) and accepts nothing else; it never forks a new turn past an unresolved marker. |
 
+**Startup scan.** Recovery also runs once at start-up for every session file
+of the current generation whose `inflight` is set, so a crashed action is
+recorded (and becomes approvable) even if that customer never comes back.
+
 **Reconciliation** of operator decisions: every tracked pending id is
-refreshed from `ActionGateway.get_outcome`. Each transcript event carries an
-event id - `turn:<run>:<step>` for turns, `decision:<pending id>:<status>` for
-operator outcomes - and an event id already in the transcript is never
-appended again, so recovering twice, or crashing between an append and the
-head write, cannot duplicate an entry.
+refreshed from `ActionGateway.get_outcome`. Operator outcomes are the only
+transcript entries that can be appended outside a committed turn, so only they
+carry an event id, `decision:<pending id>:<status>`; an event id already in the
+transcript is never appended again.
+
+**Approval recorded, not executed.** `resume_action` is two transactions:
+T1 records the decision, T2 (APPROVE only) revalidates and executes. A crash
+between them leaves the pending action `WAITING_APPROVAL` with
+`approval_recorded = true`. Recovery cannot finish it: `execute_approved` may
+only be reached through `decide` (`test_an_approval_is_built_in_exactly_one_place`).
+The view shows `approval_recorded`, and the operator repeats APPROVE: T1
+replays, and `resume_action` continues into T2.
 
 **Concurrency.** Single process. The existing per-conversation lock
 serializes turns, decisions and recovery of one session and now also covers
@@ -169,8 +196,12 @@ one session concurrently.
 ### Reliability contract
 
 M2 promises, for the tested single-process abnormal exits: a conversation can
-be recovered, and every business effect happens at most once and is
-eventually recorded in the conversation. That comes from **persisted
+be recovered, and every business effect happens at most once and is recorded
+in the conversation by the next start-up of the service. An approval recorded
+but not executed at the crash needs the operator to repeat APPROVE. The audit
+trail may show a second Guard evaluation for a DENIED or FAILED action after
+recovery (the core keeps no replay record for those); the business effect is
+still at most one. That comes from **persisted
 submission + recovery marker + the core's stable idempotency key**, not from
 LangGraph alone. Not covered: power loss or OS crash (both SQLite databases
 use WAL with default `synchronous`), disk corruption, several processes or
@@ -182,8 +213,10 @@ instances.
 |---|---|---|
 | Model / tool failure, anywhere before step 2 | `TurnFailed`, as today | Head unchanged; the orphan branch is never read. |
 | Process dies before step 2 | Connection error | Same as above. |
-| Process dies between step 2 and step 4 | Connection error | Marker recovery (above). |
-| Paused on a clarification | The clarification (only after its head was written) | Resume with the next message (`Command(resume=...)`). |
+| `start_action` raises after step 2 | `TurnFailed` | Marker cleared; head unchanged. |
+| Process dies between step 2 and step 4 | Connection error | Marker recovery, at start-up or on load. |
+| Ended on a clarification | The clarification (only after its head was written) | The next message is ordinary input; `begin_run` continues the open run. |
+| Process dies between T1 and T2 of an APPROVE | Connection error | `approval_recorded` shown; the operator repeats APPROVE. |
 | Process dies after `resume_action` | Connection error | Reconciliation; the decision event is appended once. |
 
 ## Phases
@@ -191,30 +224,36 @@ instances.
 | Phase | Deliverable and acceptance | Estimate |
 |---|---|---:|
 | 0. Spike | This document's findings. | done |
-| 1. Golden + codec | Before any product change, record a golden file on `main`: for every scripted scenario in `tests/test_aftersales_service.py` and `tests/test_aftersales_grounding.py`, the provider requests (`ScriptedProvider.requests`) and the HTTP payloads. Session ids are pinned for the recording (they enter `request_id`, hence the idempotency key and every pending/receipt id); business time is already the `FixedClock`. Codec with round-trip tests for every state type. | 1 day |
+| 1. Golden + codec | Before any product change, record a golden file on `main`: for every scripted scenario in `tests/test_aftersales_service.py` and `tests/test_aftersales_grounding.py`, the provider requests (`ScriptedProvider.requests`) and the HTTP payloads. Session ids are pinned for the recording by patching `aftersales_service.service.uuid` in the recorder (not `uuid.uuid4` globally); they enter `request_id`, hence the idempotency key and every pending/receipt id, so M2 keeps session-id creation in the same place. Business time is already the `FixedClock`. Codec with round-trip tests for every state type. | 1 day |
 | 2. Graph | `_drive` replaced by the graph with an in-memory checkpointer. All existing product and grounding tests pass unchanged; the golden file matches byte for byte (same model calls, tool order, step budget). | 1–1.5 days |
-| 3. Persistence | Fixed data directory, `SqliteSaver` with `durability="sync"`, session files with head and in-flight marker, the commit protocol, load/recover, reconciliation with event ids, reset generations, the concurrency test. | 1.5 days |
-| 4. Crash tests | Subprocess tests ending in `os._exit`: before and after the marker write, inside `gateway` after `start_action`, before and after the head write, between a clarification checkpoint and its head write, after `resume_action`; each followed by two recoveries. | 0.5–1 day |
+| 3. Persistence | Fixed data directory, `SqliteSaver` with `durability="sync"`, session files with head and in-flight marker, the commit protocol and its failure rules, load/recover and the start-up scan, operator decisions via `update_state(as_node="finish")`, decision event ids, reset generations, the concurrency test. | 1.5–2 days |
+| 4. Crash tests | Subprocess tests ending in `os._exit`: before and after the marker write, inside `gateway` after `start_action`, before and after the head write, between a clarification checkpoint and its head write, between T1 and T2 of an APPROVE, after `resume_action`; each followed by two recoveries. Plus the in-process retry test: clarification answered, model fails, retry with a different answer must reach `decide` with the new answer. | 1 day |
 | 5. Wrap-up | Full offline suite, Windows demo restart walkthrough, README, this document's results section. | 0.5 day |
 
-Remaining after phase 0: **4.5–5.5 days.** Stop at the acceptance list below;
+Remaining after phase 0: **5–6 days.** Stop at the acceptance list below;
 no further fault-injection campaigns in this milestone.
 
 ## Acceptance
 
 1. Paused on a clarification, the process restarts; the next message continues the same run with its step budget.
 2. Waiting for approval, the process restarts; the operator can still approve, with the original grounding binding.
-3. Killed after `start_action` committed and before the conversation saved: after recovery exactly one business write, and the conversation shows the real outcome.
-4. Killed after `resume_action`: after recovery the status is reconciled, a repeated decision is a replay, one receipt.
-5. A failed turn leaves no trace in the committed conversation; recovering twice appends no event id twice.
-6. After reset, no old session or old interrupt resumes against the new database.
-7. A session with an unresolved marker accepts no new turn until recovery succeeds.
-8. A concurrent customer turn and operator decision on one session serialize; no session-file update is lost.
+3. Killed after `start_action` committed and before the conversation saved: after recovery exactly one business write (cases, pending actions, receipts - not audit rows), and the conversation shows the real outcome; the same holds when the customer never returns and only the start-up scan runs.
+4. Killed after `resume_action`: after recovery the status is reconciled, a repeated decision is a replay, one receipt. Killed between T1 and T2: `approval_recorded` is shown, a repeated APPROVE executes once.
+5. A failed turn leaves no trace in the committed conversation, including a failed answer to a clarification: a retry with a different answer reaches `decide` with the new answer. Recovering twice appends no event id twice.
+6. After reset, no old session resumes against the new database.
+7. A session with an unresolved marker accepts no new turn until recovery succeeds; a `start_action` exception after the marker write does not leave one.
+8. A concurrent customer turn and operator decision on one session serialize; no session-file update is lost. An operator decision on a session waiting on a clarification leaves that clarification answerable.
 9. All existing safety tests (guessed ids, wrong target, stale observations, cross-persona) and product boundary tests pass; the golden equivalence file matches; `git diff main -- aftersales eval_v2 eval` is empty.
 
 ## Dependencies
 
 `langgraph==1.2.14`, `langgraph-checkpoint-sqlite==3.1.1` (pinned in
-`requirements.txt`). The service sets `LANGGRAPH_STRICT_MSGPACK=true` on
-start-up so that any project object reaching the checkpointer without the
-codec fails loudly instead of being deserialized.
+`requirements.txt`). The checkpointer is built as
+`SqliteSaver(conn, serde=JsonPlusSerializer(allowed_msgpack_modules=None))`
+(the `LANGGRAPH_STRICT_MSGPACK` environment variable is read once at import
+time, so setting it at start-up is unreliable). Note that in 1.2.14 strict
+mode does **not** raise: a blocked project object comes back as a plain
+`dict` with only a log line (checked). So the guarantee comes from the codec
+itself: `decode` validates its input's type and `schema` and raises on
+anything else, and a test asserts that every value in a stored checkpoint is a
+JSON-native type.
