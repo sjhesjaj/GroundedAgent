@@ -397,7 +397,7 @@ class EmbeddingCacheTests(unittest.TestCase):
                     "version": "1", "restates": None}
             path.write_text("---\n" + json.dumps(meta) + "\n---\n## 记录\n支付记录请保存。", encoding="utf-8")
             base = kb.KnowledgeBase(kb.load_corpus(path.parent), embedder=self.cached(offline=True))
-            result = base.search("支付记录", as_of=DEMO_VIRTUAL_NOW)
+            result = base.search("支付记录请保存", as_of=DEMO_VIRTUAL_NOW)
         self.assertEqual((result.mode, result.fallback), (kb.MODE_BM25, kb.FALLBACK_EMBEDDING_UNAVAILABLE))
         self.assertTrue(result.passages)
         self.provider.embed.assert_not_called()

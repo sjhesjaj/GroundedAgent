@@ -43,11 +43,12 @@ Control runs
     per-run retry cap stays per run. The Guard re-reads trusted state for
     every action anyway.
 
-    The decision policy is chosen per request (M3, decision_policy.py):
+    The decision policy is bound when the session is created (M3):
     AFTERSALES_DECISION_POLICY=stage6 (default) is the evaluated policy over
-    the five read tools; m3 is m3-decision/1 with search_knowledge_base added
+    the five read tools; m3 is m3-decision/1 with knowledge and current pending-request reads added
     to the read side and the last earlier replies shown to the decision and
-    m3-answer/1 as labelled history. Earlier replies are never observations,
+    m3-answer/1 as labelled history. A different configured policy refuses to
+    load the session. Earlier replies are never observations,
     so they can neither ground an action nor become answer evidence.
 
 Action grounding (M1-A1, docs/v2/m1-a1-action-grounding.md)
@@ -132,6 +133,7 @@ from orchestration.contracts import ToolResult
 from . import agent_core as core
 from . import answer_policy
 from . import decision_policy
+from . import customer_wording
 from .action_grounding import (
     GROUNDING_VERSION,
     GroundedSubmission,
@@ -154,9 +156,9 @@ from .conversation_graph import (
 )
 from .conversation_state import encode_text, pack_state, unpack_state
 from .demo_store import KnowledgeReadSide, ReadSide
-from .knowledge_base import shared_knowledge_base
+from .knowledge_base import KNOWLEDGE_TOOL_NAME, shared_knowledge_base
 from .observation_provenance import ObservationLedger
-from .persistence import Generation, PersistenceError
+from .persistence import Generation, PersistenceError, SessionPolicyUnknown
 
 MAX_CUSTOMER_MESSAGES = 40
 REQUEST_ID_PREFIX = "conv-"
@@ -222,6 +224,10 @@ class ConversationFull(ConversationError):
     code = "conversation_full"
 
 
+class PolicyVersionMismatch(ConversationError):
+    code = "policy_version_mismatch"
+
+
 class RecoveryPending(ConversationError):
     """The conversation cannot be rebuilt or recovered yet: it accepts nothing until it can."""
 
@@ -241,9 +247,10 @@ class PendingActionNotGrounded(ConversationError):
 class TurnFailed(ConversationError):
     """Nothing was recorded: the conversation is exactly as before the request."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, trace: dict | None = None) -> None:
         super().__init__(code)
         self.code = code
+        self.trace = trace
 
 
 class ProviderCallFailed(RuntimeError):
@@ -254,16 +261,38 @@ class _GuardedProvider:
     """Marks every provider failure as ProviderCallFailed, so a turn can tell an
     outage (retryable) from an integration bug. Forwards calls unchanged."""
 
-    def __init__(self, inner: object) -> None:
+    def __init__(self, inner: object, *, monitor: bool = False) -> None:
         self._inner = inner
         self.name = getattr(inner, "name", None)
         self.model = getattr(inner, "model", None)
+        self._monitor = monitor
+        self.calls: list[dict] = []
 
     def chat(self, messages, **kwargs):
+        record = None
+        if self._monitor:
+            record = {"kind": "decision" if kwargs.get("tools") is not None else "generation",
+                      "provider": self.name, "model_requested": self.model,
+                      "model_reported": None, "prompt_tokens": None, "completion_tokens": None,
+                      "total_tokens": None, "latency_seconds": None,
+                      "max_tokens": kwargs.get("max_tokens"),
+                      "timeout_seconds": core.model_timeout_seconds(self),
+                      "status": "provider_error", "diagnostic": None}
         try:
-            return self._inner.chat(messages, **kwargs)
+            response = self._inner.chat(messages, **kwargs)
         except Exception as error:
+            if record is not None:
+                record["diagnostic"] = type(error).__name__
+                self.calls.append(record)
             raise ProviderCallFailed(type(error).__name__) from error
+        if record is not None:
+            for key in ("model", "prompt_tokens", "completion_tokens", "latency_seconds"):
+                record["model_reported" if key == "model" else key] = getattr(response, key, None)
+            prompt, completion = record["prompt_tokens"], record["completion_tokens"]
+            record["total_tokens"] = (prompt + completion if type(prompt) is int and type(completion) is int else None)
+            record["status"] = "success"
+            self.calls.append(record)
+        return response
 
 
 @dataclass(frozen=True)
@@ -296,11 +325,15 @@ class Conversation:
     `ensure_loaded` rebuilds an existing one from its session file.
     """
 
-    def __init__(self, *, session_id: str, persona: Persona, runtime: Generation) -> None:
+    def __init__(self, *, session_id: str, persona: Persona, runtime: Generation,
+                 policy: str | None = None) -> None:
         if not isinstance(persona, Persona):
             raise ValueError("persona must be a server-side Persona")
         self.session_id = session_id
         self.persona = persona
+        self.policy = decision_policy.configured_policy() if policy is None else policy
+        if self.policy not in decision_policy.DECISION_POLICIES:
+            raise PolicyVersionMismatch("unsupported session policy")
         self.lock = threading.Lock()
         self.closed = False
         store = runtime.store
@@ -332,9 +365,10 @@ class Conversation:
         self._submissions = SubmissionIndex()              # idempotency key -> GroundedSubmission
 
     @classmethod
-    def create(cls, *, session_id: str, persona: Persona, runtime: Generation) -> "Conversation":
+    def create(cls, *, session_id: str, persona: Persona, runtime: Generation,
+               policy: str | None = None) -> "Conversation":
         """A new conversation. Even an empty one has a head and a session file."""
-        conversation = cls(session_id=session_id, persona=persona, runtime=runtime)
+        conversation = cls(session_id=session_id, persona=persona, runtime=runtime, policy=policy)
         conversation._save()
         conversation._loaded = True
         return conversation
@@ -416,22 +450,70 @@ class Conversation:
         self._provenance.restore(provenance)
         self._submissions.restore(submissions)
 
+    def require_configured_policy(self) -> None:
+        if self.policy != decision_policy.configured_policy():
+            raise PolicyVersionMismatch("the session was created under another decision policy")
+
+    def submit_smalltalk(self, text: str) -> dict[str, object] | None:
+        """Persist a pure greeting before provider creation, without starting a run."""
+        self.require_configured_policy()
+        if self.policy != decision_policy.POLICY_M3 or self._run is not None:
+            return None
+        kind = customer_wording.smalltalk_kind(text)
+        if kind is None:
+            return None
+        if len(self._messages) >= MAX_CUSTOMER_MESSAGES:
+            raise ConversationFull("the conversation is full; reset the demo")
+        saved = self._snapshot()
+        turn = _Turn()
+        try:
+            self._messages.append(core.UserMessage(turn_index=len(self._messages) + 1, text=text))
+            self._transcript.append({"role": "customer", "text": text})
+            turn.reply(kind, customer_wording.FIXED_RESPONSES[kind])
+            self._transcript.append(self._assistant_entry(turn))
+            self._save()
+        except Exception as error:
+            self._restore(saved)
+            raise TurnFailed("agent_internal_error") from error
+        return self._response(turn, trace=True)
+
+    def _pending_requests(self) -> list[dict]:
+        """Only this session's tracked requests, freshly read from its gateway."""
+        pending = []
+        for pending_id, proposal in self._actions.items():
+            outcome = self._store.gateway.get_outcome(pending_id)
+            if outcome.request_id != self.request_id:
+                raise RuntimeError("a pending outcome belongs to another session")
+            if outcome.status is ActionStatus.WAITING_APPROVAL:
+                arguments = proposal["arguments"]
+                pending.append({"pending_action_id": pending_id,
+                                "action_type": proposal["action_name"],
+                                "order_id": arguments["order_id"],
+                                "order_item_id": arguments["order_item_id"],
+                                "status": outcome.status.value})
+        return pending
+
     def submit(self, text: str, provider: object) -> dict[str, object]:
         """Deliver one customer message and run the control loop until it pauses or ends."""
         if not isinstance(text, str) or not text.strip():
             raise ValueError("a customer message needs text")
         if len(self._messages) >= MAX_CUSTOMER_MESSAGES:
             raise ConversationFull("the conversation is full; reset the demo")
-        chosen = decision_policy.configured_policy()
+        self.require_configured_policy()
+        filtered = self.submit_smalltalk(text)
+        if filtered is not None:
+            return filtered
+        chosen = self.policy
         head, saved = self._head, self._snapshot()
-        guarded = _GuardedProvider(provider)
+        guarded = _GuardedProvider(provider, monitor=chosen == decision_policy.POLICY_M3)
         gateway = ConversationContext(self)   # the gateway step needs no policy and no provider
         marked = False
         try:
             with self._store.read_side(self.persona) as reader:
                 if chosen == decision_policy.POLICY_M3:
                     # M3: the knowledge tool joins the read side; the product decision policy.
-                    reader = KnowledgeReadSide(reader, shared_knowledge_base(), self._store.business_time)
+                    reader = KnowledgeReadSide(reader, shared_knowledge_base(), self._store.business_time,
+                                               self._pending_requests)
                     policy = decision_policy.M3DecisionPolicy(
                         guarded, earlier=decision_policy.earlier_replies(self._transcript))
                 else:
@@ -467,11 +549,16 @@ class Conversation:
                     self._discard()
                     raise
             if isinstance(error, ProviderCallFailed):
-                raise TurnFailed("llm_unavailable") from error
+                raise TurnFailed("llm_unavailable", trace=self._failure_trace(guarded)) from error
             if isinstance(error, Exception):
-                raise TurnFailed("agent_internal_error") from error
+                raise TurnFailed("agent_internal_error", trace=self._failure_trace(guarded)) from error
             raise
         return self._response(turn, trace=True)
+
+    def _failure_trace(self, provider: _GuardedProvider) -> dict | None:
+        if self.policy != decision_policy.POLICY_M3:
+            return None
+        return {"steps": [], "model_calls": [dict(call) for call in provider.calls]}
 
     def _assistant_entry(self, turn: _Turn) -> dict[str, object]:
         entry: dict[str, object] = {"role": "assistant", "kind": turn.reply_kind,
@@ -515,6 +602,7 @@ class Conversation:
     def _write_session(self, *, head: str, inflight: dict | None) -> None:
         """The commit point: head and in-flight marker, written together."""
         self._files.write(self.session_id, persona_id=self.persona.persona_id, head=head,
+                          decision_policy=self.policy,
                           inflight=inflight)
 
     def _commit(self, checkpoint) -> _Turn:
@@ -578,10 +666,13 @@ class Conversation:
         is refused with recovery_pending, and the next one tries again. Recovery
         never calls the model and never forks a turn past an unresolved marker.
         """
+        self.require_configured_policy()
         if self._loaded:
             return
         try:
             manifest = self._files.read(self.session_id)
+            if manifest is not None and manifest["decision_policy"] != self.policy:
+                raise PolicyVersionMismatch("the stored decision policy does not match")
             if manifest is None or manifest["persona_id"] != self.persona.persona_id:
                 raise PersistenceError("the session file is missing or names another persona")
             head = self._checkpoint(manifest["head"])
@@ -593,6 +684,10 @@ class Conversation:
                 self._recover(manifest["inflight"])
             if self._reconcile():
                 self._save()
+        except SessionPolicyUnknown as error:
+            raise PolicyVersionMismatch("the stored decision policy is unknown") from error
+        except PolicyVersionMismatch:
+            raise
         except Exception as error:
             raise RecoveryPending("the conversation must be recovered first") from error
         self._loaded = True
@@ -696,7 +791,15 @@ class Conversation:
         seen = len(policy.decision_records)
         action = core.require_stage6_action(policy.next_action(state))
         records = policy.decision_records[seen:]
-        turn.model_calls.extend({"run": run.run_index, **record.to_dict()} for record in records)
+        for record in records:
+            data = {"run": run.run_index, **record.to_dict()}
+            if self.policy == decision_policy.POLICY_M3:
+                prompt, completion = data.get("prompt_tokens"), data.get("completion_tokens")
+                data.update({"kind": "decision", "max_tokens": core.TOOL_LOOP_MAX_TOKENS,
+                             "timeout_seconds": core.model_timeout_seconds(getattr(policy, "_provider", None)),
+                             "total_tokens": (prompt + completion if type(prompt) is int and type(completion) is int else None),
+                             "status": "protocol_error" if record.diagnostic else "success"})
+            turn.model_calls.append(data)
         kind = type(action)
         if kind is core.ToolCall:
             return self._pack(turn, route=READ, decision=action)
@@ -764,15 +867,25 @@ class Conversation:
                            "tool_name": action.tool_name,
                            "arguments": dict(action.arguments), "result_status": result.status.value,
                            "observation_id": call_id})
+        if self.policy == decision_policy.POLICY_M3 and action.tool_name == KNOWLEDGE_TOOL_NAME:
+            for key in ("retrieval_mode", "fallback", "relevance_signal", "relevance_scope",
+                        "relevance_floor", "relevance_top_score", "eligible_passages",
+                        "relevance_filtered_passages"):
+                if key in trace:
+                    turn.steps[-1][key] = trace[key]
 
     def _finish(self, disposition: str, provider, state, turn: _Turn) -> None:
         if disposition != ANSWER_DISPOSITION:
-            turn.reply(disposition, core.FIXED_RESPONSES[disposition])
+            wording = (customer_wording.FIXED_RESPONSES if self.policy == decision_policy.POLICY_M3
+                       else core.FIXED_RESPONSES)
+            turn.reply(disposition, wording[disposition])
             return
         try:
-            if decision_policy.configured_policy() == decision_policy.POLICY_M3:
+            if self.policy == decision_policy.POLICY_M3:
                 answer = answer_policy.generate_answer(
-                    provider, state, decision_policy.earlier_replies(self._transcript))
+                    provider, state, decision_policy.earlier_replies(self._transcript),
+                    on_model_call=lambda record: turn.model_calls.append({"run": self._runs,
+                                                                           **record}))
             else:
                 answer = core.generate_answer(provider, state)
         except core.AnswerUnavailable as error:
@@ -893,6 +1006,7 @@ class Conversation:
         approver is the server-side demo operator, the decision time is the
         business clock; neither comes from the request.
         """
+        self.require_configured_policy()
         proposal = self._actions.get(pending_action_id)
         if proposal is None:
             raise PendingActionNotInConversation("this conversation has no such pending action")

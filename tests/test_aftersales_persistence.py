@@ -116,7 +116,8 @@ class SessionFileTests(unittest.TestCase):
         self.files = SessionFiles(self.directory, "a" * 32)
 
     def write(self, **fields) -> None:
-        values = {"persona_id": "demo-a", "head": "head-1", "inflight": None, **fields}
+        values = {"persona_id": "demo-a", "head": "head-1", "inflight": None,
+                  "decision_policy": "stage6", **fields}
         self.files.write("b" * 32, **values)
 
     def test_a_session_file_holds_head_and_marker_together(self):
@@ -124,7 +125,8 @@ class SessionFileTests(unittest.TestCase):
                   "args_sha256": "d"}
         self.write(inflight=marker)
         self.assertEqual(self.files.read("b" * 32),
-                         {"schema": 1, "persona_id": "demo-a", "generation": "a" * 32,
+                         {"schema": 2, "persona_id": "demo-a", "generation": "a" * 32,
+                          "decision_policy": "stage6",
                           "head": "head-1", "inflight": marker})
         self.assertEqual(self.files.with_inflight(), ["b" * 32])
         self.write(head="head-2")
@@ -135,9 +137,11 @@ class SessionFileTests(unittest.TestCase):
     def test_invalid_session_files_are_refused(self):
         path = self.directory / ("b" * 32 + ".json")
         for content in ("not json", "[]", json.dumps({"schema": 2}),
-                        json.dumps({"schema": 1, "persona_id": "demo-a", "generation": "a" * 32,
+                        json.dumps({"schema": 2, "persona_id": "demo-a", "generation": "a" * 32,
+                                    "decision_policy": "stage6",
                                     "head": "", "inflight": None}),
-                        json.dumps({"schema": 1, "persona_id": "demo-a", "generation": "a" * 32,
+                        json.dumps({"schema": 2, "persona_id": "demo-a", "generation": "a" * 32,
+                                    "decision_policy": "stage6",
                                     "head": "h", "inflight": {"checkpoint_id": "g"}})):
             with self.subTest(content=content):
                 path.write_text(content, encoding="utf-8")
@@ -150,10 +154,11 @@ class SessionFileTests(unittest.TestCase):
 
     def test_a_session_file_of_another_generation_is_not_a_session(self):
         SessionFiles(self.directory, "c" * 32).write("b" * 32, persona_id="demo-a", head="h",
-                                                     inflight=None)
+                                                     inflight=None, decision_policy="stage6")
         self.assertIsNone(self.files.read("b" * 32))
         with self.assertRaises(PersistenceError):
-            self.files._validated({"schema": 1, "persona_id": "demo-a", "generation": "c" * 32,
+            self.files._validated({"schema": 2, "persona_id": "demo-a", "generation": "c" * 32,
+                                   "decision_policy": "stage6",
                                    "head": "h", "inflight": None})
 
     def test_a_replace_blocked_by_another_process_is_retried_briefly(self):

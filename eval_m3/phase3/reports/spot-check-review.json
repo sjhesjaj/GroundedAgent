@@ -1,0 +1,39 @@
+{
+  "level": "Manual product smoke observations; no DEV/HOLDOUT scoring or safety benchmark",
+  "summary": {
+    "dialogues": 4,
+    "turns": 10,
+    "errored_turns": 0,
+    "chat_calls": 19,
+    "prompt_tokens": 75729,
+    "completion_tokens": 1309,
+    "progress_turns": 2,
+    "progress_used_pending_tool": 2
+  },
+  "trace_calls_match_actual_each_turn": true,
+  "trace_usage_matches_actual_each_call": true,
+  "actual_max_tokens_by_kind": {
+    "decision": [
+      512
+    ],
+    "generation": [
+      1024
+    ]
+  },
+  "actual_timeout_seconds": [
+    180.0
+  ],
+  "output_tokens_within_each_call_limit": true,
+  "pending_progress_current_read_and_citation": true,
+  "pending_progress_manual_semantic_review": "Both replies correctly say WAITING_APPROVAL; neither substitutes historical completed AS-1001 or claims refund/execution",
+  "restart_recovery_model_calls": 0,
+  "smalltalk_factory_calls": 0,
+  "smalltalk_model_calls": 0,
+  "business_turns": 7,
+  "business_turn_latency_seconds": {
+    "min": 2.489,
+    "median": 3.732,
+    "max": 7.962
+  },
+  "historical_reuse_manual_note": "mixed_then_progress turn 3 repeats correct historical product name, size and quantity; current pending tool supports ids/status but has no product-label fields. Flag for Rev9 turn-based history metric in Phase4/5; no runtime tuning or failed-case claim here."
+}

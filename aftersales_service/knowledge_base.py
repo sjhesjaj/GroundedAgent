@@ -1,6 +1,6 @@
 """The after-sales knowledge base behind the m3 read tool search_knowledge_base.
 
-M3 Phase 1 (docs/v2/m3-policy-rag.md, "Tool search_knowledge_base" and
+M3 Phases 1 and 3 (docs/v2/m3-policy-rag.md, "Tool search_knowledge_base" and
 "Corpus"). Product-owned and read-only; it is not
 a CapabilityGate tool and not in the frozen registry.
 
@@ -20,7 +20,9 @@ Retrieval
     force at the business time take part. At most MAX_PASSAGES passages are
     returned. If Ollama or bge-m3 is not available the search falls back to
     BM25 alone and the result says so: the retrieval mode is recorded in every
-    result's trace.
+    result's trace. Hybrid retrieval keeps only passages with cosine >= 0.45;
+    BM25 fallback requires a query maximum >= 2, then keeps positive lexical
+    scores. These DEV-calibrated matching floors are not confidence scores.
 
 Evidence
     One plain document Evidence per passage, its content wrapped in fixed
@@ -45,6 +47,7 @@ from pathlib import Path
 from typing import Mapping, Protocol, Sequence
 
 from aftersales.arguments import validate_arguments
+from aftersales.clock import require_aware
 from aftersales.executor import TRACE_OBSERVATION_ID
 from aftersales.policy_catalog import PublishedPolicyCatalog
 from orchestration.contracts import Evidence, SourceType, ToolResult, ToolStatus
@@ -60,6 +63,10 @@ RRF_K = 60
 BM25_K1 = 1.5
 BM25_B = 0.75
 KNOWLEDGE_AUTHORITY = 60
+# Frozen-corpus / KB-DEV calibration, user-confirmed in M3 Phase 3.
+# Different matching signals and scopes; neither number is confidence.
+COSINE_RELEVANCE_FLOOR = 0.45
+BM25_QUERY_RELEVANCE_FLOOR = 2.0
 
 EMBEDDING_MODEL = "bge-m3"
 EMBEDDING_CACHE_DIRECTORY = CORPUS_DIRECTORY.parent / ".cache" / "m3-embeddings"
@@ -611,6 +618,12 @@ class KnowledgeSearch:
     passages: tuple[Passage, ...]
     mode: str
     fallback: str | None
+    relevance_signal: str
+    relevance_scope: str
+    relevance_floor: float
+    relevance_top_score: float | None
+    eligible_passages: int
+    relevance_filtered_passages: int
 
 
 class KnowledgeBase:
@@ -631,13 +644,22 @@ class KnowledgeBase:
             return self._vectors
 
     def search(self, query: str, *, as_of: datetime) -> KnowledgeSearch:
+        require_aware("as_of", as_of)
         candidates = [index for index, passage in enumerate(self.passages)
                       if passage.document.in_force(as_of)]
         terms = tokens(query)
         scored = [(self._bm25.score(terms, index), index) for index in candidates]
         lexical = [index for score, index in sorted(scored, key=lambda item: (-item[0], item[1]))
                    if score > 0]
-        mode, fallback, ranked = MODE_BM25, FALLBACK_NO_EMBEDDER, lexical
+        top_score = max((score for score, _ in scored), default=None)
+        passes_lexical_floor = top_score is not None and top_score >= BM25_QUERY_RELEVANCE_FLOOR
+        ranked = lexical if passes_lexical_floor else []
+        filtered = 0 if passes_lexical_floor else len(candidates)
+        mode, fallback = MODE_BM25, FALLBACK_NO_EMBEDDER
+        signal, scope, floor = "bm25", "query", BM25_QUERY_RELEVANCE_FLOOR
+        if self._embedder is not None and not candidates:
+            # No documents are eligible; no provider call or actual fallback.
+            mode, fallback, signal, scope, floor = MODE_HYBRID, None, "cosine", "passage", COSINE_RELEVANCE_FLOOR
         if self._embedder is not None and candidates:
             try:
                 vectors = self._passage_vectors()
@@ -647,10 +669,19 @@ class KnowledgeBase:
             except EmbeddingUnavailable:
                 fallback = FALLBACK_EMBEDDING_UNAVAILABLE
             else:
-                dense = sorted(candidates, key=lambda index: (-_cosine(question, vectors[index]), index))
+                similarities = {index: _cosine(question, vectors[index]) for index in candidates}
+                eligible = {index for index, score in similarities.items() if score >= COSINE_RELEVANCE_FLOOR}
+                lexical = [index for index in lexical if index in eligible]
+                dense = sorted(eligible, key=lambda index: (-similarities[index], index))
+                top_score = max(similarities.values())
+                signal, scope, floor = "cosine", "passage", COSINE_RELEVANCE_FLOOR
+                filtered = len(candidates) - len(eligible)
                 mode, fallback, ranked = MODE_HYBRID, None, reciprocal_rank_fusion([lexical, dense])
         return KnowledgeSearch(passages=tuple(self.passages[index] for index in ranked[:MAX_PASSAGES]),
-                               mode=mode, fallback=fallback)
+                               mode=mode, fallback=fallback,
+                               relevance_signal=signal, relevance_scope=scope,
+                               relevance_floor=floor, relevance_top_score=top_score,
+                               eligible_passages=len(candidates), relevance_filtered_passages=filtered)
 
 
 _shared: KnowledgeBase | None = None
@@ -706,7 +737,13 @@ def knowledge_tool_result(knowledge: KnowledgeBase, arguments: Mapping[str, str]
                           trace=trace)
     search = knowledge.search(query, as_of=as_of)
     trace.update({"retrieval_mode": search.mode, "fallback": search.fallback,
-                  "passages": len(search.passages)})
+                  "passages": len(search.passages),
+                  "relevance_signal": search.relevance_signal,
+                  "relevance_scope": search.relevance_scope,
+                  "relevance_floor": search.relevance_floor,
+                  "relevance_top_score": search.relevance_top_score,
+                  "eligible_passages": search.eligible_passages,
+                  "relevance_filtered_passages": search.relevance_filtered_passages})
     if not search.passages:
         return ToolResult(tool_name=KNOWLEDGE_TOOL_NAME, status=ToolStatus.EMPTY, trace=trace)
     evidence = tuple(passage_evidence(passage, rank, observation_id=observation_id, as_of=as_of)

@@ -26,6 +26,7 @@ from aftersales.action_gateway import ActionGateway
 from aftersales.action_outcome import COMPLETION_CLAIM_MARKERS
 from aftersales_service.routes import create_router
 from aftersales_service.service import AftersalesService
+from aftersales_service import decision_policy
 from llm_provider import LLMResponse
 from llm_provider import ToolCall as NativeCall
 
@@ -349,7 +350,8 @@ class ReturnRequestTests(ProductTestCase):
         traced_ids = [step["observation_id"] for step in steps if step["kind"] == "tool_call"]
         self.assertEqual(traced_ids, [item.observation_id for item in observations])
         calls = [(call["run"], call["control_step"])
-                 for payload in payloads for call in payload["trace"]["model_calls"]]
+                 for payload in payloads for call in payload["trace"]["model_calls"]
+                 if call.get("kind", "decision") == "decision"]
         self.assertEqual(len(set(calls)), len(calls))
         self.assertTrue(all(1 <= step <= 6 for _, step in calls))
 
@@ -664,7 +666,13 @@ class RuntimeLifecycleTests(ProductTestCase):
             failed = self.say(session_id, "ORD-1001 里那件内衣我不想要了",
                               decision(call("get_order", {"order_id": "ORD-1001"})),
                               requests.ConnectionError("down"), expected=503)
-        self.assertEqual(failed["detail"], {"code": "llm_unavailable"})
+        if decision_policy.configured_policy() == decision_policy.POLICY_M3:
+            self.assertEqual(set(failed["detail"]), {"code", "trace"})
+            self.assertEqual(failed["detail"]["code"], "llm_unavailable")
+            self.assertEqual(failed["detail"]["trace"]["steps"], [])
+            self.assertTrue(failed["detail"]["trace"]["model_calls"])
+        else:
+            self.assertEqual(failed["detail"], {"code": "llm_unavailable"})
         view = self.view(session_id)
         self.assertEqual((view["status"], view["messages"], view["audit"]), ("OPEN", [], []))
         self.assertEqual(self.count("pending_actions"), 0)
@@ -680,9 +688,13 @@ class RuntimeLifecycleTests(ProductTestCase):
         app.include_router(create_router(service))
         client = TestClient(app)
         session_id = client.post("/api/aftersales/sessions", json={"persona_id": "demo-a"}).json()["session_id"]
+        # M3 pure greetings are intentionally handled before provider creation.
+        # Keep this outage scenario about a message that requires the provider.
+        text = ("帮我查询订单" if decision_policy.configured_policy() == decision_policy.POLICY_M3
+                else "你好")
         with self.assertLogs("aftersales_service.service", level="ERROR"):
             response = client.post("/api/aftersales/sessions/" + session_id + "/messages",
-                                   json={"text": "你好"})
+                                   json={"text": text})
         self.assertEqual((response.status_code, response.json()["detail"]), (503, {"code": "llm_unavailable"}))
         self.assertEqual(client.get("/api/aftersales/sessions/" + session_id).json()["messages"], [])
 

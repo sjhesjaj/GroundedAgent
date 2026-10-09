@@ -20,6 +20,7 @@ from .conversation import (
     ConversationFull,
     PendingActionNotGrounded,
     PendingActionNotInConversation,
+    PolicyVersionMismatch,
     RecoveryPending,
     TurnFailed,
 )
@@ -40,6 +41,7 @@ _STATUS_CODES = {
     ConversationFull: 409,
     DecisionRefused: 409,
     PendingActionNotGrounded: 409,
+    PolicyVersionMismatch: 409,
     RecoveryPending: 409,
     TooManySessions: 429,
 }
@@ -68,7 +70,10 @@ def _http_error(error: ConversationError) -> HTTPException:
         status = _TURN_STATUS_CODES.get(error.code, 500)
     else:
         status = next((code for kind, code in _STATUS_CODES.items() if isinstance(error, kind)), 400)
-    return HTTPException(status_code=status, detail={"code": error.code})
+    detail = {"code": error.code}
+    if isinstance(error, TurnFailed) and error.trace is not None:
+        detail["trace"] = error.trace
+    return HTTPException(status_code=status, detail=detail)
 
 
 def create_router(service: AftersalesService) -> APIRouter:

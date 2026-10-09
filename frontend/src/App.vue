@@ -17,6 +17,7 @@ const busy = ref('startup')
 const decidingId = ref('')
 const notice = ref('')
 const invalidSession = ref(false)
+const policyVersionMismatch = ref(false)
 const syncRequired = ref(false)
 const messageList = ref(null)
 const composer = ref(null)
@@ -30,12 +31,12 @@ const suggestions = [
 ]
 const statusLabels = { OPEN: '会话进行中', NEEDS_CLARIFICATION: '等待补充信息', WAITING_APPROVAL: '等待人工审批' }
 const locked = computed(() => Boolean(busy.value))
-const canInteract = computed(() => Boolean(session.value) && !invalidSession.value && !syncRequired.value && !locked.value)
+const canInteract = computed(() => Boolean(session.value) && !invalidSession.value && !policyVersionMismatch.value && !syncRequired.value && !locked.value)
 const canSend = computed(() => canInteract.value && question.value.trim().length > 0 && question.value.trim().length <= 2000)
-const sessionStatus = computed(() => invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : statusLabels[session.value?.status] || '尚未连接'))
+const sessionStatus = computed(() => policyVersionMismatch.value ? '请新建会话' : (invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : statusLabels[session.value?.status] || '尚未连接')))
 const businessTime = computed(() => (session.value?.business_time || demo.value?.business_time || '').replace('T', ' '))
 const unplacedActions = computed(() => Object.entries(actions.value).filter(([key]) => !messages.value.some((message) => message.actionKey === key)))
-const recovery = computed(() => recoveryAction({
+const recovery = computed(() => policyVersionMismatch.value ? 'new_session' : recoveryAction({
   hasSession: Boolean(session.value), invalidSession: invalidSession.value, syncRequired: syncRequired.value,
 }))
 
@@ -72,6 +73,7 @@ function reconcile(data) {
   })
   audit.value = data.audit || []
   invalidSession.value = false
+  policyVersionMismatch.value = false
   syncRequired.value = false
 }
 
@@ -105,6 +107,10 @@ function applyResponse(data, customerText) {
 function showError(error) {
   notice.value = error.message
   if (error.code === 'session_not_found') invalidSession.value = true
+  if (error.code === 'policy_version_mismatch') {
+    policyVersionMismatch.value = true
+    syncRequired.value = false
+  }
 }
 
 async function loadDemo() {
@@ -167,6 +173,7 @@ async function resetDemo() {
     question.value = ''
     syncRequired.value = false
     invalidSession.value = false
+    policyVersionMismatch.value = false
     await loadDemo()
     activate(await aftersalesApi.createSession(selectedPersonaId.value))
   } catch (error) {
@@ -182,7 +189,7 @@ async function recoverSession() {
   try {
     reconcile(await aftersalesApi.session(session.value.session_id))
   } catch (error) {
-    if (error.code === 'session_not_found') showError(error)
+    if (error.code === 'session_not_found' || error.code === 'policy_version_mismatch') showError(error)
     else notice.value += ' 无法同步会话，请先刷新状态再继续。'
   }
 }
@@ -232,7 +239,7 @@ async function decide(action, decision) {
     if (result.action?.status === 'FAILED' || result.action?.decision_conflict) await recoverSession()
   } catch (error) {
     showError(error)
-    if (error.code !== 'session_not_found') await recoverSession()
+    if (error.code !== 'session_not_found' && error.code !== 'policy_version_mismatch') await recoverSession()
   } finally {
     busy.value = ''
     decidingId.value = ''
@@ -280,7 +287,7 @@ onMounted(connect)
         <dl>
           <div><dt>业务时间</dt><dd class="business-time">{{ businessTime || '—' }}</dd></div>
           <div><dt>当前会话</dt><dd class="mono" :title="session?.session_id">{{ session ? `${session.session_id.slice(0, 8)}…${session.session_id.slice(-4)}` : '—' }}</dd></div>
-          <div><dt>会话状态</dt><dd class="session-state" :class="{ waiting: session?.status === 'WAITING_APPROVAL', invalid: invalidSession || syncRequired }"><i></i>{{ sessionStatus }}</dd></div>
+          <div><dt>会话状态</dt><dd class="session-state" :class="{ waiting: session?.status === 'WAITING_APPROVAL', invalid: invalidSession || policyVersionMismatch || syncRequired }"><i></i>{{ sessionStatus }}</dd></div>
         </dl>
       </section>
       <div class="sidebar-actions">

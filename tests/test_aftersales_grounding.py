@@ -39,6 +39,7 @@ from aftersales.capabilities import CapabilityGate
 from aftersales.demo import DEMO_PERSONAS
 from aftersales.ids import RequestIdentity, idempotency_key
 from aftersales_service import action_grounding as grounding
+from aftersales_service import decision_policy
 from aftersales_service.action_grounding import (
     GROUNDING_REJECTION_CODES,
     GROUNDING_VERSION,
@@ -1061,7 +1062,16 @@ class GroundingScenarioTests(ProductTestCase):
             failed = self.say(session_id, "不想要了",
                               decision(call("get_order", {"order_id": "ORD-1004"})),
                               requests.ConnectionError("down"), expected=503)
-        self.assertEqual(failed["detail"], {"code": "llm_unavailable"})
+        if decision_policy.configured_policy() == decision_policy.POLICY_M3:
+            self.assertEqual(set(failed["detail"]), {"code", "trace"})
+            self.assertEqual(failed["detail"]["code"], "llm_unavailable")
+            self.assertEqual(failed["detail"]["trace"]["steps"], [])
+            calls = failed["detail"]["trace"]["model_calls"]
+            self.assertEqual([item["kind"] for item in calls], ["decision", "decision"])
+            self.assertEqual([item["status"] for item in calls], ["success", "provider_error"])
+            self.assertEqual([item["total_tokens"] for item in calls], [110, None])
+        else:
+            self.assertEqual(failed["detail"], {"code": "llm_unavailable"})
         self.assertEqual([entry.observation_id for entry in conversation._provenance.entries],
                          ["turn:1:tool:1"])
         self.assertEqual(len(conversation._submissions), 0)

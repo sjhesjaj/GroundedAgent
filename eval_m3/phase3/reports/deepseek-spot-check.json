@@ -1,0 +1,1418 @@
+{
+  "started_at": "2026-10-09T18:21:14+08:00",
+  "finished_at": "2026-10-09T18:21:44+08:00",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "policy": "m3",
+  "level": "Handwritten product spot checks; not DEV/HOLDOUT evaluation or milestone scoring",
+  "fixture_isolation": "Fresh temporary seeded database per dialogue; no fabricated operator approval",
+  "summary": {
+    "dialogues": 4,
+    "turns": 10,
+    "errored_turns": 0,
+    "chat_calls": 19,
+    "prompt_tokens": 75729,
+    "completion_tokens": 1309,
+    "progress_turns": 2,
+    "progress_used_pending_tool": 2
+  },
+  "runs": [
+    {
+      "dialogue": "shipping_followup",
+      "turns": [
+        {
+          "turn": 1,
+          "question": "商家把商品型号发错了，我寄回去的运费能报销多少，需不需要留下凭证？",
+          "status": "OPEN",
+          "reply": {
+            "kind": "answer",
+            "text": "因商家发错货而退货，寄回运费由商家承担。请您先行垫付运费，并在售后申请中上传运费凭证；审核通过后，运费会随退款一并返还，单笔最高补贴 20 元。所以凭证需要保留并上传，订单号纸条和运费凭证用途不同，不能互相替代。"
+          },
+          "citations": [
+            {
+              "ref": "ev-document-5ea722a60e9543c63a1167a8",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-shipping-return-parcel#商家承担运费时的凭证",
+              "version": "1",
+              "doc_id": "kb-shipping-return-parcel",
+              "title": "退货包裹寄回与运费凭证说明",
+              "section": "商家承担运费时的凭证"
+            },
+            {
+              "ref": "ev-document-6b4ff8b6dabf1569c0dd99db",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-evidence-shipping#运费凭证在哪里使用",
+              "version": "1",
+              "doc_id": "kb-evidence-shipping",
+              "title": "运费凭证与包裹订单号纸条",
+              "section": "运费凭证在哪里使用"
+            },
+            {
+              "ref": "ev-document-e63cdd79be0d99ccf37b1001",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-shipping-quality-cost#商家承担的寄回运费",
+              "version": "1",
+              "doc_id": "kb-shipping-quality-cost",
+              "title": "质量问题与错发商品寄回运费",
+              "section": "商家承担的寄回运费"
+            },
+            {
+              "ref": "ev-document-d71520186ad0680504dc16e5",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#退货寄回的运费由谁承担",
+              "version": "1",
+              "doc_id": "kb-return-shipping",
+              "title": "退货运费说明",
+              "section": "退货寄回的运费由谁承担"
+            }
+          ],
+          "action": null,
+          "trace": {
+            "steps": [
+              {
+                "run": 1,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "search_knowledge_base",
+                "arguments": {
+                  "query": "商家发错货 退货运费谁承担 报销标准 需要保留凭证"
+                },
+                "result_status": "ok",
+                "observation_id": "turn:1:tool:1",
+                "retrieval_mode": "hybrid",
+                "fallback": null,
+                "relevance_signal": "cosine",
+                "relevance_scope": "passage",
+                "relevance_floor": 0.45,
+                "relevance_top_score": 0.7767238182018048,
+                "eligible_passages": 91,
+                "relevance_filtered_passages": 0
+              },
+              {
+                "run": 1,
+                "step": 2,
+                "kind": "tool_call",
+                "tool_name": "search_after_sales_policy",
+                "arguments": {
+                  "query": "商家发错货 退换货运费承担 凭证要求"
+                },
+                "result_status": "ok",
+                "observation_id": "turn:1:tool:2"
+              },
+              {
+                "run": 1,
+                "step": 3,
+                "kind": "finish",
+                "disposition": "answer",
+                "diagnostic": null
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 1,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3233,
+                "completion_tokens": 110,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 2,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "search_knowledge_base",
+                  "search_after_sales_policy"
+                ],
+                "selected_function": null,
+                "batch_functions": [
+                  "search_knowledge_base",
+                  "search_after_sales_policy"
+                ],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.754777699999977,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3343,
+                "status": "success"
+              },
+              {
+                "run": 1,
+                "control_step": 3,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 14570,
+                "completion_tokens": 38,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "finish"
+                ],
+                "selected_function": "finish",
+                "batch_functions": [],
+                "action_kind": "finish",
+                "diagnostic": null,
+                "latency_seconds": 1.5747959000000264,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 14608,
+                "status": "success"
+              },
+              {
+                "run": 1,
+                "kind": "generation",
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 4930,
+                "completion_tokens": 156,
+                "total_tokens": 5086,
+                "latency_seconds": 1.664208400001371,
+                "max_tokens": 1024,
+                "timeout_seconds": 180.0,
+                "status": "success",
+                "diagnostic": null
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.756,
+              "prompt_tokens": 3233,
+              "completion_tokens": 110,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.575,
+              "prompt_tokens": 14570,
+              "completion_tokens": 38,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "generation",
+              "max_tokens": 1024,
+              "timeout_seconds": 180.0,
+              "seconds": 1.664,
+              "prompt_tokens": 4930,
+              "completion_tokens": 156,
+              "finish_reason": "stop"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 7.962
+        },
+        {
+          "turn": 2,
+          "question": "那刚才说的凭证具体是什么？",
+          "status": "OPEN",
+          "reply": {
+            "kind": "answer",
+            "text": "因发错货退货，寄回运费由商家承担，您需先行垫付，并在售后申请中上传运费凭证；审核通过后运费随退款一并返还，单笔最高补贴 20 元。这里说的凭证就是运费凭证，用于说明寄回运费；它和随包裹附上的订单号纸条用途不同，订单号纸条是供仓库核对订单的，两者不能互相替代。"
+          },
+          "citations": [
+            {
+              "ref": "ev-document-69ee711cf612c247055e205c",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-evidence-shipping#运费凭证在哪里使用",
+              "version": "1",
+              "doc_id": "kb-evidence-shipping",
+              "title": "运费凭证与包裹订单号纸条",
+              "section": "运费凭证在哪里使用"
+            },
+            {
+              "ref": "ev-document-8df7c7ec20ff224fcfd42a42",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-shipping-return-parcel#商家承担运费时的凭证",
+              "version": "1",
+              "doc_id": "kb-shipping-return-parcel",
+              "title": "退货包裹寄回与运费凭证说明",
+              "section": "商家承担运费时的凭证"
+            },
+            {
+              "ref": "ev-document-dee2c69f90bb43f7c1a3cfe0",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-evidence-shipping#包裹内放什么",
+              "version": "1",
+              "doc_id": "kb-evidence-shipping",
+              "title": "运费凭证与包裹订单号纸条",
+              "section": "包裹内放什么"
+            },
+            {
+              "ref": "ev-document-664165e2279e965f3479a4e2",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-evidence-purpose#运费相关材料",
+              "version": "1",
+              "doc_id": "kb-evidence-purpose",
+              "title": "售后材料分别说明什么",
+              "section": "运费相关材料"
+            }
+          ],
+          "action": null,
+          "trace": {
+            "steps": [
+              {
+                "run": 2,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "search_knowledge_base",
+                "arguments": {
+                  "query": "退货运费报销需要准备什么凭证 运费凭证"
+                },
+                "result_status": "ok",
+                "observation_id": "turn:2:tool:3",
+                "retrieval_mode": "hybrid",
+                "fallback": null,
+                "relevance_signal": "cosine",
+                "relevance_scope": "passage",
+                "relevance_floor": 0.45,
+                "relevance_top_score": 0.8277493842560426,
+                "eligible_passages": 91,
+                "relevance_filtered_passages": 0
+              },
+              {
+                "run": 2,
+                "step": 2,
+                "kind": "finish",
+                "disposition": "answer",
+                "diagnostic": null
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 2,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3329,
+                "completion_tokens": 50,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "search_knowledge_base"
+                ],
+                "selected_function": "search_knowledge_base",
+                "batch_functions": [],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.0118407000009029,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3379,
+                "status": "success"
+              },
+              {
+                "run": 2,
+                "control_step": 2,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 4444,
+                "completion_tokens": 38,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "finish"
+                ],
+                "selected_function": "finish",
+                "batch_functions": [],
+                "action_kind": "finish",
+                "diagnostic": null,
+                "latency_seconds": 0.9941600999991351,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 4482,
+                "status": "success"
+              },
+              {
+                "run": 2,
+                "kind": "generation",
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 1663,
+                "completion_tokens": 172,
+                "total_tokens": 1835,
+                "latency_seconds": 1.7262507999985246,
+                "max_tokens": 1024,
+                "timeout_seconds": 180.0,
+                "status": "success",
+                "diagnostic": null
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.012,
+              "prompt_tokens": 3329,
+              "completion_tokens": 50,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 0.994,
+              "prompt_tokens": 4444,
+              "completion_tokens": 38,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "generation",
+              "max_tokens": 1024,
+              "timeout_seconds": 180.0,
+              "seconds": 1.726,
+              "prompt_tokens": 1663,
+              "completion_tokens": 172,
+              "finish_reason": "stop"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 4.014
+        }
+      ],
+      "recovery_model_calls": null
+    },
+    {
+      "dialogue": "pending_progress_after_restart",
+      "turns": [
+        {
+          "turn": 1,
+          "question": "请把ORD-1001的棉质内衣L码申请退货，尺码不合适，商品保持完好。",
+          "status": "WAITING_APPROVAL",
+          "reply": {
+            "kind": "action",
+            "text": "该退货申请需要人工审批，目前正在等待审批；审批通过前不会执行。"
+          },
+          "citations": [],
+          "action": {
+            "action_name": "create_return",
+            "status": "WAITING_APPROVAL",
+            "arguments": {
+              "order_id": "ORD-1001",
+              "order_item_id": "OI-1001-2",
+              "reason_code": "size_or_spec_mismatch"
+            },
+            "code": null
+          },
+          "trace": {
+            "steps": [
+              {
+                "run": 1,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "get_order",
+                "arguments": {
+                  "order_id": "ORD-1001"
+                },
+                "result_status": "ok",
+                "observation_id": "turn:1:tool:1"
+              },
+              {
+                "run": 1,
+                "step": 2,
+                "kind": "action_proposed",
+                "action_name": "create_return",
+                "args_sha256": "77a33428be3c4d41aa1726f11aefe7a4f72a16f95678cb9a4d612fd690e11d58",
+                "grounding": {
+                  "basis": "observed",
+                  "version": "m1-grounding/2",
+                  "action_name": "create_return",
+                  "args_sha256": "77a33428be3c4d41aa1726f11aefe7a4f72a16f95678cb9a4d612fd690e11d58",
+                  "run_index": 1,
+                  "supports": [
+                    {
+                      "argument": "order_id",
+                      "observation_id": "turn:1:tool:1",
+                      "tool_name": "get_order",
+                      "entity": "order",
+                      "record_id": "ORD-1001",
+                      "state_version": 4
+                    },
+                    {
+                      "argument": "order_item_id",
+                      "observation_id": "turn:1:tool:1",
+                      "tool_name": "get_order",
+                      "entity": "order_item",
+                      "record_id": "OI-1001-2",
+                      "state_version": 1
+                    }
+                  ],
+                  "contract_only": [
+                    "reason_code"
+                  ]
+                }
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 1,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3235,
+                "completion_tokens": 56,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "get_order"
+                ],
+                "selected_function": "get_order",
+                "batch_functions": [],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.2006485999991128,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3291,
+                "status": "success"
+              },
+              {
+                "run": 1,
+                "control_step": 2,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 5865,
+                "completion_tokens": 87,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "create_return"
+                ],
+                "selected_function": "create_return",
+                "batch_functions": [],
+                "action_kind": "action_intent",
+                "diagnostic": null,
+                "latency_seconds": 1.1610423999991326,
+                "action_functions": [
+                  "create_return"
+                ],
+                "action_call_id": "call_00_JeO3E4plowjN92Y1FyEK7379",
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 5952,
+                "status": "success"
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.201,
+              "prompt_tokens": 3235,
+              "completion_tokens": 56,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.161,
+              "prompt_tokens": 5865,
+              "completion_tokens": 87,
+              "finish_reason": "tool_calls"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 2.489
+        },
+        {
+          "turn": 2,
+          "question": "进度怎么样？",
+          "status": "WAITING_APPROVAL",
+          "reply": {
+            "kind": "answer",
+            "text": "您针对订单 ORD-1001 中该商品提交的退货申请目前处于等待审批状态，需要人工审批，审批通过前不会执行。"
+          },
+          "citations": [
+            {
+              "ref": "ev-business-0a8cba4efe9806b8988a5ce1",
+              "producer": "get_my_pending_requests",
+              "source_type": "business",
+              "locator": "current_session:pending_requests"
+            }
+          ],
+          "action": null,
+          "trace": {
+            "steps": [
+              {
+                "run": 2,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "get_my_pending_requests",
+                "arguments": {},
+                "result_status": "ok",
+                "observation_id": "turn:2:tool:2"
+              },
+              {
+                "run": 2,
+                "step": 2,
+                "kind": "finish",
+                "disposition": "answer",
+                "diagnostic": null
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 2,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3276,
+                "completion_tokens": 26,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "get_my_pending_requests"
+                ],
+                "selected_function": "get_my_pending_requests",
+                "batch_functions": [],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.1119679000003089,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3302,
+                "status": "success"
+              },
+              {
+                "run": 2,
+                "control_step": 2,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3550,
+                "completion_tokens": 38,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "finish"
+                ],
+                "selected_function": "finish",
+                "batch_functions": [],
+                "action_kind": "finish",
+                "diagnostic": null,
+                "latency_seconds": 1.0860018999992462,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3588,
+                "status": "success"
+              },
+              {
+                "run": 2,
+                "kind": "generation",
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 1043,
+                "completion_tokens": 62,
+                "total_tokens": 1105,
+                "latency_seconds": 1.3307978000011644,
+                "max_tokens": 1024,
+                "timeout_seconds": 180.0,
+                "status": "success",
+                "diagnostic": null
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.112,
+              "prompt_tokens": 3276,
+              "completion_tokens": 26,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.086,
+              "prompt_tokens": 3550,
+              "completion_tokens": 38,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "generation",
+              "max_tokens": 1024,
+              "timeout_seconds": 180.0,
+              "seconds": 1.331,
+              "prompt_tokens": 1043,
+              "completion_tokens": 62,
+              "finish_reason": "stop"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 3.645
+        }
+      ],
+      "recovery_model_calls": 0
+    },
+    {
+      "dialogue": "mixed_then_progress",
+      "turns": [
+        {
+          "turn": 1,
+          "question": "自己不想要商品了，退货的寄回运费由谁承担？",
+          "status": "OPEN",
+          "reply": {
+            "kind": "answer",
+            "text": "因不喜欢、不想要等非质量原因退货，寄回运费需要由您自行承担。如果您下单时购买了运费险，非质量原因退货的寄回运费可由保险公司按保单理赔，该理赔与商城退款分开到账。"
+          },
+          "citations": [
+            {
+              "ref": "ev-document-305f18b0313887fc473f2804",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-shipping-nonquality-cost#非质量原因的运费由谁承担",
+              "version": "1",
+              "doc_id": "kb-shipping-nonquality-cost",
+              "title": "不喜欢或尺码不合适的寄回运费",
+              "section": "非质量原因的运费由谁承担"
+            },
+            {
+              "ref": "ev-document-935962080b03748f535c8a66",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#退货寄回的运费由谁承担",
+              "version": "1",
+              "doc_id": "kb-return-shipping",
+              "title": "退货运费说明",
+              "section": "退货寄回的运费由谁承担"
+            },
+            {
+              "ref": "ev-document-60f4dd389866ed4214d72a52",
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-shipping-return-parcel#非质量原因的运费",
+              "version": "1",
+              "doc_id": "kb-shipping-return-parcel",
+              "title": "退货包裹寄回与运费凭证说明",
+              "section": "非质量原因的运费"
+            }
+          ],
+          "action": null,
+          "trace": {
+            "steps": [
+              {
+                "run": 1,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "search_knowledge_base",
+                "arguments": {
+                  "query": "无理由退货 寄回运费由谁承担"
+                },
+                "result_status": "ok",
+                "observation_id": "turn:1:tool:1",
+                "retrieval_mode": "hybrid",
+                "fallback": null,
+                "relevance_signal": "cosine",
+                "relevance_scope": "passage",
+                "relevance_floor": 0.45,
+                "relevance_top_score": 0.7653117175801385,
+                "eligible_passages": 91,
+                "relevance_filtered_passages": 1
+              },
+              {
+                "run": 1,
+                "step": 2,
+                "kind": "finish",
+                "disposition": "answer",
+                "diagnostic": null
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 1,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3226,
+                "completion_tokens": 60,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "search_knowledge_base"
+                ],
+                "selected_function": "search_knowledge_base",
+                "batch_functions": [],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.4198786999986623,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3286,
+                "status": "success"
+              },
+              {
+                "run": 1,
+                "control_step": 2,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 4379,
+                "completion_tokens": 38,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "finish"
+                ],
+                "selected_function": "finish",
+                "batch_functions": [],
+                "action_kind": "finish",
+                "diagnostic": null,
+                "latency_seconds": 1.3267187000019476,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 4417,
+                "status": "success"
+              },
+              {
+                "run": 1,
+                "kind": "generation",
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 1556,
+                "completion_tokens": 112,
+                "total_tokens": 1668,
+                "latency_seconds": 1.3824132999980066,
+                "max_tokens": 1024,
+                "timeout_seconds": 180.0,
+                "status": "success",
+                "diagnostic": null
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.42,
+              "prompt_tokens": 3226,
+              "completion_tokens": 60,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.327,
+              "prompt_tokens": 4379,
+              "completion_tokens": 38,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "generation",
+              "max_tokens": 1024,
+              "timeout_seconds": 180.0,
+              "seconds": 1.383,
+              "prompt_tokens": 1556,
+              "completion_tokens": 112,
+              "finish_reason": "stop"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 4.555
+        },
+        {
+          "turn": 2,
+          "question": "明白了。请把ORD-1001的纯棉T恤M码两件申请退货，不想要了，商品完好。",
+          "status": "WAITING_APPROVAL",
+          "reply": {
+            "kind": "action",
+            "text": "该退货申请需要人工审批，目前正在等待审批；审批通过前不会执行。"
+          },
+          "citations": [],
+          "action": {
+            "action_name": "create_return",
+            "status": "WAITING_APPROVAL",
+            "arguments": {
+              "order_id": "ORD-1001",
+              "order_item_id": "OI-1001-1",
+              "reason_code": "no_longer_wanted"
+            },
+            "code": null
+          },
+          "trace": {
+            "steps": [
+              {
+                "run": 2,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "get_order",
+                "arguments": {
+                  "order_id": "ORD-1001"
+                },
+                "result_status": "ok",
+                "observation_id": "turn:2:tool:2"
+              },
+              {
+                "run": 2,
+                "step": 2,
+                "kind": "action_proposed",
+                "action_name": "create_return",
+                "args_sha256": "ce5721a82c8433a767de624bc34e9bbec28647cb8bd12b3d0130975071102464",
+                "grounding": {
+                  "basis": "observed",
+                  "version": "m1-grounding/2",
+                  "action_name": "create_return",
+                  "args_sha256": "ce5721a82c8433a767de624bc34e9bbec28647cb8bd12b3d0130975071102464",
+                  "run_index": 2,
+                  "supports": [
+                    {
+                      "argument": "order_id",
+                      "observation_id": "turn:2:tool:2",
+                      "tool_name": "get_order",
+                      "entity": "order",
+                      "record_id": "ORD-1001",
+                      "state_version": 4
+                    },
+                    {
+                      "argument": "order_item_id",
+                      "observation_id": "turn:2:tool:2",
+                      "tool_name": "get_order",
+                      "entity": "order_item",
+                      "record_id": "OI-1001-1",
+                      "state_version": 1
+                    }
+                  ],
+                  "contract_only": [
+                    "reason_code"
+                  ]
+                }
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 2,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3323,
+                "completion_tokens": 56,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "get_order"
+                ],
+                "selected_function": "get_order",
+                "batch_functions": [],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.7140636000003724,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3379,
+                "status": "success"
+              },
+              {
+                "run": 2,
+                "control_step": 2,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 5953,
+                "completion_tokens": 85,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "create_return"
+                ],
+                "selected_function": "create_return",
+                "batch_functions": [],
+                "action_kind": "action_intent",
+                "diagnostic": null,
+                "latency_seconds": 1.098017100001016,
+                "action_functions": [
+                  "create_return"
+                ],
+                "action_call_id": "call_00_acAo2dJd6QofeYrCj9qr1287",
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 6038,
+                "status": "success"
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.714,
+              "prompt_tokens": 3323,
+              "completion_tokens": 56,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.099,
+              "prompt_tokens": 5953,
+              "completion_tokens": 85,
+              "finish_reason": "tool_calls"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 2.991
+        },
+        {
+          "turn": 3,
+          "question": "现在进度怎么样？",
+          "status": "WAITING_APPROVAL",
+          "reply": {
+            "kind": "answer",
+            "text": "您针对 ORD-1001 中纯棉T恤M码两件提交的退货申请目前正在等待人工审批，审批通过前不会执行。"
+          },
+          "citations": [
+            {
+              "ref": "ev-business-1f0289bcc480f364f28d9375",
+              "producer": "get_my_pending_requests",
+              "source_type": "business",
+              "locator": "current_session:pending_requests"
+            }
+          ],
+          "action": null,
+          "trace": {
+            "steps": [
+              {
+                "run": 3,
+                "step": 1,
+                "kind": "tool_call",
+                "tool_name": "get_my_pending_requests",
+                "arguments": {},
+                "result_status": "ok",
+                "observation_id": "turn:3:tool:3"
+              },
+              {
+                "run": 3,
+                "step": 2,
+                "kind": "finish",
+                "disposition": "answer",
+                "diagnostic": null
+              }
+            ],
+            "model_calls": [
+              {
+                "run": 3,
+                "control_step": 1,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3365,
+                "completion_tokens": 26,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "get_my_pending_requests"
+                ],
+                "selected_function": "get_my_pending_requests",
+                "batch_functions": [],
+                "action_kind": "tool_call",
+                "diagnostic": null,
+                "latency_seconds": 1.0967942000024777,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3391,
+                "status": "success"
+              },
+              {
+                "run": 3,
+                "control_step": 2,
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 3639,
+                "completion_tokens": 38,
+                "finish_reason": "tool_calls",
+                "native_tool_calls": 1,
+                "offered_functions": [
+                  "search_after_sales_policy",
+                  "get_order",
+                  "get_logistics",
+                  "get_inventory",
+                  "get_after_sales_case",
+                  "search_knowledge_base",
+                  "get_my_pending_requests",
+                  "create_return",
+                  "create_exchange",
+                  "escalate_to_human",
+                  "ask_user",
+                  "finish"
+                ],
+                "returned_functions": [
+                  "finish"
+                ],
+                "selected_function": "finish",
+                "batch_functions": [],
+                "action_kind": "finish",
+                "diagnostic": null,
+                "latency_seconds": 1.310266699998465,
+                "action_functions": [],
+                "action_call_id": null,
+                "kind": "decision",
+                "max_tokens": 512,
+                "timeout_seconds": 180.0,
+                "total_tokens": 3677,
+                "status": "success"
+              },
+              {
+                "run": 3,
+                "kind": "generation",
+                "provider": "deepseek",
+                "model_requested": "deepseek-flash",
+                "model_reported": "deepseek-flash",
+                "prompt_tokens": 1150,
+                "completion_tokens": 61,
+                "total_tokens": 1211,
+                "latency_seconds": 1.2086994999990566,
+                "max_tokens": 1024,
+                "timeout_seconds": 180.0,
+                "status": "success",
+                "diagnostic": null
+              }
+            ]
+          },
+          "calls": [
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.097,
+              "prompt_tokens": 3365,
+              "completion_tokens": 26,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "decision",
+              "max_tokens": 512,
+              "timeout_seconds": 180.0,
+              "seconds": 1.31,
+              "prompt_tokens": 3639,
+              "completion_tokens": 38,
+              "finish_reason": "tool_calls"
+            },
+            {
+              "kind": "generation",
+              "max_tokens": 1024,
+              "timeout_seconds": 180.0,
+              "seconds": 1.209,
+              "prompt_tokens": 1150,
+              "completion_tokens": 61,
+              "finish_reason": "stop"
+            }
+          ],
+          "provider_factory_calls": 1,
+          "seconds": 3.732
+        }
+      ],
+      "recovery_model_calls": null
+    },
+    {
+      "dialogue": "smalltalk",
+      "turns": [
+        {
+          "turn": 1,
+          "question": "你好",
+          "status": "OPEN",
+          "reply": {
+            "kind": "greeting",
+            "text": "您好，我是售后助手，可以帮您查询订单、物流，办理退换货，或解答售后政策。"
+          },
+          "citations": [],
+          "action": null,
+          "trace": {
+            "steps": [],
+            "model_calls": []
+          },
+          "calls": [],
+          "provider_factory_calls": 0,
+          "seconds": 0.02
+        },
+        {
+          "turn": 2,
+          "question": "谢谢",
+          "status": "OPEN",
+          "reply": {
+            "kind": "thanks",
+            "text": "不客气，还有其他问题随时找我。"
+          },
+          "citations": [],
+          "action": null,
+          "trace": {
+            "steps": [],
+            "model_calls": []
+          },
+          "calls": [],
+          "provider_factory_calls": 0,
+          "seconds": 0.022
+        },
+        {
+          "turn": 3,
+          "question": "再见",
+          "status": "OPEN",
+          "reply": {
+            "kind": "goodbye",
+            "text": "不客气，还有其他问题随时找我。"
+          },
+          "citations": [],
+          "action": null,
+          "trace": {
+            "steps": [],
+            "model_calls": []
+          },
+          "calls": [],
+          "provider_factory_calls": 0,
+          "seconds": 0.023
+        }
+      ],
+      "recovery_model_calls": null
+    }
+  ]
+}

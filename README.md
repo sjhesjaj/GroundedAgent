@@ -93,6 +93,26 @@ Stage 6 的数字来自冻结的评测栈，M0 没有重跑评测，也没有新
 - **DEV, 3 rounds × 2 groups (gate off / gate on):** ungrounded actions admitted **3.33 → 0** per round, false rejections **0**, six hard invariants **40/40**; cost: e2e **37 → 36**, `final_state_ok` **39 → 38**.
 - **Scope:** diagnostic comparison on DEV, sealed holdout not re-run. Details: [docs/v2/m1-a2-grounding-eval.md](docs/v2/m1-a2-grounding-eval.md).
 
+## M3 Phase 3：知识库运行时（待审阅）
+
+Phase 2 评测集已通过 [PR #43](https://github.com/sjhesjaj/GroundedAgent/pull/43) 合并；Phase 3 从合并后的 `main`（`94961f2`）开发。方案为 [第 9 版](docs/v2/m3-policy-rag.md)。默认策略仍为 `stage6`，完整评测和切换默认值留到 Phase 4/5。
+
+```powershell
+# 启动 API 前设置；每个会话绑定创建时的策略
+$env:AFTERSALES_DECISION_POLICY = 'm3'
+.\start_api.ps1
+```
+
+- 知识库按演示业务时间过滤生效期。hybrid 逐段要求 cosine ≥ 0.45 后沿用 RRF；Ollama / `bge-m3` 不可用时退回 BM25，整次最高分 ≥ 2 才放行。阈值只用 KB-DEV 选择，trace 记录模式、退回原因、阈值和过滤数量。
+- `get_my_pending_requests` 只读本会话 gateway 仍待审批的申请；结果用于回答进度，不能作为新动作的 grounding。它只返回待审批申请；空列表不能据此证明某申请已执行。
+- m3 使用方案中的固定拒答、转人工和能力边界话术；完整的问候、致谢和告别在创建模型 provider 前回复，暂停追问和混合业务问题仍进入控制循环。
+- 前端「依据」显示知识库标题、版本、段落和 doc_id；「Agent Trace」显示每次决策和回复生成的 token 用量。
+- 会话 manifest schema 2 显式保存策略。缓存和重启加载时不一致返回 409 `policy_version_mismatch`，前端提示新建会话。旧 manifest 缺少明确策略也返回 409，不自动猜测或迁移。
+
+决策调用 `max_tokens=512`，回复生成 `max_tokens=1024`，每次调用使用 provider 的正数超时（默认 180 秒）。控制循环仍限制为最多 6 步；未知 token 用量记为 null。真实 DeepSeek 手工抽查 4 段 / 10 回合：19 次调用，共输入 75,729、输出 1,309 tokens；两次进度追问均读取本会话待审批状态，其中一次在重启后；三轮寒暄为 0 次调用。这是基本功能抽查，未做 DEV / HOLDOUT 成绩评测或账单费用测量。建议 DeepSeek 账户仅保留小额余额并关闭自动充值。
+
+本阶段不实现评测 runner，不打开 HOLDOUT。知识库及 Phase 2 数据集保持冻结。完整证据与限制见 [Phase 3 记录](eval_m3/phase3/phase3-report.md)。
+
 ## 重启恢复（M2）
 
 M2 把产品控制流换成 LangGraph `StateGraph`，状态存进 `SqliteSaver`，会话因此能跨进程重启保留。进程在业务写入之后、会话保存之前崩溃时，也能补记这次写入。设计、提交协议和崩溃矩阵见 [docs/v2/m2-session-recovery.md](docs/v2/m2-session-recovery.md)。
