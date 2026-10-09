@@ -10,7 +10,9 @@ main `ed0b06b`. Phase 4's `eval_m3` runner (`eval_m3/phase4/phase4-report.md`)
 merges together with this revision; its runner needed no change for these
 decisions. Phase 5 part 1 (DEV only) is recorded on `m3-phase5` in
 `eval_m3/phase5/part1-report.md`; its rerun after rule 18 is in
-`eval_m3/phase5/part1b-report.md`, pending the user's review. Scope cut to the basic
+`eval_m3/phase5/part1b-report.md`. The user kept rule 18 and confirmed part 2:
+KB-HOLDOUT was opened and run once, the default policy is now `m3`, and the
+final results are in `eval_m3/phase5/final-report.md`. Scope cut to the basic
 feature: a knowledge base the agent searches, answers with citations, follow-ups
 that refer to the previous reply, and honest customer-facing wording. Hardening
 that is not needed for that is listed under "Deferred".
