@@ -1,20 +1,24 @@
 """Real DeepSeek call through the LLMProvider interface.
 
-Skipped automatically unless `.env` holds complete DeepSeek settings
+Skipped unless RUN_LIVE_TESTS=1 and `.env` holds complete DeepSeek settings
 (DEEPSEEK_BASE_URL, DEEPSEEK_MODEL, DEEPSEEK_API_KEY). The unit suite disables
-`.env` for everything else, so this file names the path explicitly.
+`.env` for everything else, so this file names the path explicitly when enabled.
 """
 
 import json
+import os
 import unittest
 
 import llm_provider
 
-try:
-    CONFIG = llm_provider.load_config("deepseek", environ={}, dotenv_path=llm_provider.DEFAULT_DOTENV)
-    SKIP_REASON = None
-except llm_provider.LLMConfigError as exc:
-    CONFIG, SKIP_REASON = None, f"DeepSeek not configured in .env: {exc}"
+if os.environ.get("RUN_LIVE_TESTS") != "1":
+    CONFIG, SKIP_REASON = None, "Real DeepSeek tests disabled; set RUN_LIVE_TESTS=1 to enable."
+else:
+    try:
+        CONFIG = llm_provider.load_config("deepseek", environ={}, dotenv_path=llm_provider.DEFAULT_DOTENV)
+        SKIP_REASON = None
+    except llm_provider.LLMConfigError as exc:
+        CONFIG, SKIP_REASON = None, f"DeepSeek not configured in .env: {exc}"
 
 
 @unittest.skipIf(CONFIG is None, SKIP_REASON or "")
