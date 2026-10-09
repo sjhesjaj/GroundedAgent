@@ -1,0 +1,956 @@
+{
+  "started_at": "2026-10-09T13:01:13+08:00",
+  "finished_at": "2026-10-09T13:01:37+08:00",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "decision_policy": "m3-decision/1",
+  "answer_policy": "m3-answer/1",
+  "embedding_model": "bge-m3",
+  "persona": "demo-a",
+  "fixture_isolation": "fresh database per dialogue and repeat",
+  "summary": {
+    "turns": 8,
+    "seconds": {
+      "p50": 2.941,
+      "max": 4.701,
+      "min": 1.287
+    },
+    "model_calls_per_turn": {
+      "p50": 2.0,
+      "max": 3,
+      "min": 1
+    },
+    "prompt_tokens": {
+      "p50": 8832.0,
+      "max": 9372,
+      "min": 5790
+    },
+    "completion_tokens": {
+      "p50": 149.0,
+      "max": 246,
+      "min": 87
+    },
+    "cached_tokens": {
+      "p50": 8448.0,
+      "max": 8828,
+      "min": 5632
+    },
+    "all_retrieval_hybrid": true
+  },
+  "runs": [
+    {
+      "dialogue": "f",
+      "repeat": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "ORD-1001 我要退货，尺码不合适",
+          "seconds": 2.841,
+          "status": "NEEDS_CLARIFICATION",
+          "reply_kind": "clarification",
+          "reply": "为了继续处理，请告诉我：订单里具体是哪一件商品。",
+          "tools": [
+            "get_order{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_order",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "clarify"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "get_order",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "ask_user",
+              "batch_functions": [],
+              "action_kind": "clarify",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.281,
+              "http_status": 200,
+              "prompt_tokens": 3101,
+              "completion_tokens": 56,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 157,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.485,
+              "http_status": 200,
+              "prompt_tokens": 5731,
+              "completion_tokens": 76,
+              "cached_tokens": 5504,
+              "cache_miss_tokens": 227,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 8832,
+          "completion_tokens": 132,
+          "cached_tokens": 8448,
+          "answer_errors": []
+        },
+        {
+          "turn": 2,
+          "text": "我要退内衣那件，商品明细号 OI-1001-2，尺码不合适，不换货。",
+          "seconds": 1.287,
+          "status": "WAITING_APPROVAL",
+          "reply_kind": "action",
+          "reply": "该退货申请需要人工审批，目前正在等待审批；审批通过前不会执行。",
+          "tools": [],
+          "steps": [
+            {
+              "run": 1,
+              "step": 3,
+              "kind": "action_proposed",
+              "action_name": "create_return"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 3,
+              "selected_function": "create_return",
+              "batch_functions": [],
+              "action_kind": "action_intent",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": {
+            "action_name": "create_return",
+            "status": "WAITING_APPROVAL",
+            "arguments": {
+              "order_id": "ORD-1001",
+              "order_item_id": "OI-1001-2",
+              "reason_code": "size_or_spec_mismatch"
+            }
+          },
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.216,
+              "http_status": 200,
+              "prompt_tokens": 5790,
+              "completion_tokens": 87,
+              "cached_tokens": 5632,
+              "cache_miss_tokens": 158,
+              "messages": 6,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 5790,
+          "completion_tokens": 87,
+          "cached_tokens": 5632,
+          "answer_errors": []
+        },
+        {
+          "turn": 3,
+          "text": "现在进度怎么样？",
+          "seconds": 4.701,
+          "status": "WAITING_APPROVAL",
+          "reply_kind": "answer",
+          "reply": "你订单 ORD-1001 中商品明细 OI-1001-1 的售后单 AS-1001 类型为换货，目前状态是已完成。该售后单创建于 2026-11-06。",
+          "tools": [
+            "get_after_sales_case{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_after_sales_case",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "get_after_sales_case",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#order_id"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#order_item_id"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#type"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#status"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#created_at"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.269,
+              "http_status": 200,
+              "prompt_tokens": 3202,
+              "completion_tokens": 57,
+              "cached_tokens": 3068,
+              "cache_miss_tokens": 134,
+              "messages": 6,
+              "history_messages": 2,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.36,
+              "http_status": 200,
+              "prompt_tokens": 4608,
+              "completion_tokens": 38,
+              "cached_tokens": 4352,
+              "cache_miss_tokens": 256,
+              "messages": 8,
+              "history_messages": 2,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.988,
+              "http_status": 200,
+              "prompt_tokens": 1562,
+              "completion_tokens": 151,
+              "cached_tokens": 1408,
+              "cache_miss_tokens": 154,
+              "messages": 2,
+              "history_messages": 2,
+              "offered": [],
+              "history_kinds": [
+                "clarification",
+                "action"
+              ],
+              "current_question": [
+                "现在进度怎么样？"
+              ],
+              "offered_refs": [
+                "ev-business-63129a2722d43aae6add603b",
+                "ev-business-68975967ee0d21d5d00bfbfe",
+                "ev-business-44a7eff6e5f46114c02af8f1",
+                "ev-business-78885624c3ccd66bfcd0d34f",
+                "ev-business-1ad1c827049465e6aea3b7ff",
+                "ev-business-9b45a725b74da0be00fc320c"
+              ],
+              "answer_content": "{\"answer\":\"你订单 ORD-1001 中商品明细 OI-1001-1 的售后单 AS-1001 类型为换货，目前状态是已完成。该售后单创建于 2026-11-06。\",\"citation_refs\":[\"ev-business-63129a2722d43aae6add603b\",\"ev-business-68975967ee0d21d5d00bfbfe\",\"ev-business-44a7eff6e5f46114c02af8f1\",\"ev-business-78885624c3ccd66bfcd0d34f\",\"ev-business-9b45a725b74da0be00fc320c\"]}"
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 9372,
+          "completion_tokens": 246,
+          "cached_tokens": 8828,
+          "answer_errors": []
+        }
+      ],
+      "reached_waiting_approval": true
+    },
+    {
+      "dialogue": "f",
+      "repeat": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "ORD-1001 我要退货，尺码不合适",
+          "seconds": 3.04,
+          "status": "NEEDS_CLARIFICATION",
+          "reply_kind": "clarification",
+          "reply": "为了继续处理，请告诉我：订单里具体是哪一件商品。",
+          "tools": [
+            "get_order{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_order",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "clarify"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "get_order",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "ask_user",
+              "batch_functions": [],
+              "action_kind": "clarify",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.627,
+              "http_status": 200,
+              "prompt_tokens": 3101,
+              "completion_tokens": 56,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 157,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.3,
+              "http_status": 200,
+              "prompt_tokens": 5731,
+              "completion_tokens": 76,
+              "cached_tokens": 5504,
+              "cache_miss_tokens": 227,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 8832,
+          "completion_tokens": 132,
+          "cached_tokens": 8448,
+          "answer_errors": []
+        },
+        {
+          "turn": 2,
+          "text": "我要退内衣那件，商品明细号 OI-1001-2，尺码不合适，不换货。",
+          "seconds": 1.459,
+          "status": "WAITING_APPROVAL",
+          "reply_kind": "action",
+          "reply": "该退货申请需要人工审批，目前正在等待审批；审批通过前不会执行。",
+          "tools": [],
+          "steps": [
+            {
+              "run": 1,
+              "step": 3,
+              "kind": "action_proposed",
+              "action_name": "create_return"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 3,
+              "selected_function": "create_return",
+              "batch_functions": [],
+              "action_kind": "action_intent",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": {
+            "action_name": "create_return",
+            "status": "WAITING_APPROVAL",
+            "arguments": {
+              "order_id": "ORD-1001",
+              "order_item_id": "OI-1001-2",
+              "reason_code": "size_or_spec_mismatch"
+            }
+          },
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.391,
+              "http_status": 200,
+              "prompt_tokens": 5790,
+              "completion_tokens": 87,
+              "cached_tokens": 5632,
+              "cache_miss_tokens": 158,
+              "messages": 6,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 5790,
+          "completion_tokens": 87,
+          "cached_tokens": 5632,
+          "answer_errors": []
+        },
+        {
+          "turn": 3,
+          "text": "现在进度怎么样？",
+          "seconds": 3.776,
+          "status": "WAITING_APPROVAL",
+          "reply_kind": "answer",
+          "reply": "你关联的售后单 AS-1001（对应订单 ORD-1001、订单明细 OI-1001-1）类型为换货，目前状态是已完成。",
+          "tools": [
+            "get_after_sales_case{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_after_sales_case",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "get_after_sales_case",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#order_id"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#order_item_id"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#type"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#status"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.402,
+              "http_status": 200,
+              "prompt_tokens": 3202,
+              "completion_tokens": 57,
+              "cached_tokens": 3068,
+              "cache_miss_tokens": 134,
+              "messages": 6,
+              "history_messages": 2,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 0.995,
+              "http_status": 200,
+              "prompt_tokens": 4608,
+              "completion_tokens": 38,
+              "cached_tokens": 4352,
+              "cache_miss_tokens": 256,
+              "messages": 8,
+              "history_messages": 2,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.281,
+              "http_status": 200,
+              "prompt_tokens": 1562,
+              "completion_tokens": 121,
+              "cached_tokens": 1408,
+              "cache_miss_tokens": 154,
+              "messages": 2,
+              "history_messages": 2,
+              "offered": [],
+              "history_kinds": [
+                "clarification",
+                "action"
+              ],
+              "current_question": [
+                "现在进度怎么样？"
+              ],
+              "offered_refs": [
+                "ev-business-63129a2722d43aae6add603b",
+                "ev-business-68975967ee0d21d5d00bfbfe",
+                "ev-business-44a7eff6e5f46114c02af8f1",
+                "ev-business-78885624c3ccd66bfcd0d34f",
+                "ev-business-1ad1c827049465e6aea3b7ff",
+                "ev-business-9b45a725b74da0be00fc320c"
+              ],
+              "answer_content": "{\"answer\":\"你关联的售后单 AS-1001（对应订单 ORD-1001、订单明细 OI-1001-1）类型为换货，目前状态是已完成。\",\"citation_refs\":[\"ev-business-63129a2722d43aae6add603b\",\"ev-business-68975967ee0d21d5d00bfbfe\",\"ev-business-44a7eff6e5f46114c02af8f1\",\"ev-business-78885624c3ccd66bfcd0d34f\"]}"
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 9372,
+          "completion_tokens": 216,
+          "cached_tokens": 8828,
+          "answer_errors": []
+        }
+      ],
+      "reached_waiting_approval": true
+    },
+    {
+      "dialogue": "f",
+      "repeat": 3,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "ORD-1001 我要退货，尺码不合适",
+          "seconds": 2.641,
+          "status": "WAITING_APPROVAL",
+          "reply_kind": "action",
+          "reply": "该退货申请需要人工审批，目前正在等待审批；审批通过前不会执行。",
+          "tools": [
+            "get_order{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_order",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "action_proposed",
+              "action_name": "create_return"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "get_order",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "create_return",
+              "batch_functions": [],
+              "action_kind": "action_intent",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": {
+            "action_name": "create_return",
+            "status": "WAITING_APPROVAL",
+            "arguments": {
+              "order_id": "ORD-1001",
+              "order_item_id": "OI-1001-1",
+              "reason_code": "size_or_spec_mismatch"
+            }
+          },
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.325,
+              "http_status": 200,
+              "prompt_tokens": 3101,
+              "completion_tokens": 56,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 157,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.203,
+              "http_status": 200,
+              "prompt_tokens": 5731,
+              "completion_tokens": 110,
+              "cached_tokens": 5504,
+              "cache_miss_tokens": 227,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 8832,
+          "completion_tokens": 166,
+          "cached_tokens": 8448,
+          "answer_errors": []
+        },
+        {
+          "turn": 2,
+          "text": "现在进度怎么样？",
+          "seconds": 4.105,
+          "status": "WAITING_APPROVAL",
+          "reply_kind": "answer",
+          "reply": "您的售后单 AS-1001 目前状态为“已完成”，类型为换货，关联订单 ORD-1001，创建于 2026-11-06。",
+          "tools": [
+            "get_after_sales_case{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_after_sales_case",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "get_after_sales_case",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#order_id"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#type"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#status"
+            },
+            {
+              "producer": "get_after_sales_case",
+              "source_type": "business",
+              "locator": "after_sales_case:AS-1001#created_at"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.187,
+              "http_status": 200,
+              "prompt_tokens": 3143,
+              "completion_tokens": 57,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 199,
+              "messages": 4,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.403,
+              "http_status": 200,
+              "prompt_tokens": 4549,
+              "completion_tokens": 38,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 1605,
+              "messages": 6,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.428,
+              "http_status": 200,
+              "prompt_tokens": 1482,
+              "completion_tokens": 120,
+              "cached_tokens": 640,
+              "cache_miss_tokens": 842,
+              "messages": 2,
+              "history_messages": 1,
+              "offered": [],
+              "history_kinds": [
+                "action"
+              ],
+              "current_question": [
+                "现在进度怎么样？"
+              ],
+              "offered_refs": [
+                "ev-business-63129a2722d43aae6add603b",
+                "ev-business-68975967ee0d21d5d00bfbfe",
+                "ev-business-44a7eff6e5f46114c02af8f1",
+                "ev-business-78885624c3ccd66bfcd0d34f",
+                "ev-business-1ad1c827049465e6aea3b7ff",
+                "ev-business-9b45a725b74da0be00fc320c"
+              ],
+              "answer_content": "{\"answer\":\"您的售后单 AS-1001 目前状态为“已完成”，类型为换货，关联订单 ORD-1001，创建于 2026-11-06。\",\"citation_refs\":[\"ev-business-63129a2722d43aae6add603b\",\"ev-business-44a7eff6e5f46114c02af8f1\",\"ev-business-78885624c3ccd66bfcd0d34f\",\"ev-business-9b45a725b74da0be00fc320c\"]}"
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 9174,
+          "completion_tokens": 215,
+          "cached_tokens": 6528,
+          "answer_errors": []
+        }
+      ],
+      "reached_waiting_approval": true
+    }
+  ]
+}

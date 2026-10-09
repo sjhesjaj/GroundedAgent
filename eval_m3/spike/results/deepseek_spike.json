@@ -1,0 +1,2695 @@
+{
+  "started_at": "2026-10-09T12:24:03+08:00",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "decision_policy": "m3-decision/1",
+  "embedding_model": "bge-m3",
+  "persona": "demo-a",
+  "summary": {
+    "turns": 14,
+    "seconds": {
+      "p50": 4.365,
+      "max": 10.221,
+      "min": 1.27
+    },
+    "model_calls_per_turn": {
+      "p50": 3.0,
+      "max": 4,
+      "min": 1
+    },
+    "prompt_tokens": {
+      "p50": 8612.0,
+      "max": 47752,
+      "min": 3250
+    },
+    "completion_tokens": {
+      "p50": 316.0,
+      "max": 1178,
+      "min": 62
+    },
+    "cached_tokens": {
+      "p50": 8064.0,
+      "max": 28800,
+      "min": 1664
+    },
+    "all_retrieval_hybrid": true
+  },
+  "runs": [
+    {
+      "dialogue": "a",
+      "repeat": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "退货运费谁出？",
+          "seconds": 4.271,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "退货运费由谁承担要看退货原因：如果是商品质量问题、发错货或商品与描述不符，寄回运费由商家承担，您先垫付，在售后申请中上传运费凭证，审核通过后运费随退款一并返还，单笔最高补贴 20 元；如果是因不喜欢、尺码不合适等非质量原因退货，寄回运费由您自行承担。另外，如果下单时购买了运费险，非质量原因退货的寄回运费由保险公司按保单理赔，理赔款在退货包裹被仓库签收后 72 小时内打到您的支付账户，与商城退款分开到账。寄回时请不要使用到付方式，到付包裹会被仓库拒收，并请在包裹内附上写有订单号的纸条。",
+          "tools": [
+            "search_knowledge_base{\"query\": \"退货运费由谁承担\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_knowledge_base",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_knowledge_base",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#退货寄回的运费由谁承担"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#运费险理赔"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#寄回方式"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [
+            {
+              "mode": "hybrid",
+              "fallback": null,
+              "passages": 4
+            }
+          ],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.252,
+              "http_status": 200,
+              "prompt_tokens": 3096,
+              "completion_tokens": 54,
+              "cached_tokens": 0,
+              "cache_miss_tokens": 3096,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.211,
+              "http_status": 200,
+              "prompt_tokens": 4072,
+              "completion_tokens": 38,
+              "cached_tokens": 1152,
+              "cache_miss_tokens": 2920,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.493,
+              "http_status": 200,
+              "prompt_tokens": 1444,
+              "completion_tokens": 227,
+              "cached_tokens": 512,
+              "cache_miss_tokens": 932,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [
+            {
+              "kind": "embed",
+              "seconds": 0.168,
+              "inputs": 8
+            },
+            {
+              "kind": "embed",
+              "seconds": 0.06,
+              "inputs": 1
+            }
+          ],
+          "prompt_tokens": 8612,
+          "completion_tokens": 319,
+          "cached_tokens": 1664
+        }
+      ]
+    },
+    {
+      "dialogue": "b",
+      "repeat": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "退款几天到账？",
+          "seconds": 3.788,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "退款按原支付渠道退回，到账时间因渠道不同：商城余额和微信支付通常即时到账；支付宝 1 至 3 个工作日到账；银行卡 3 至 7 个工作日到账，具体以发卡银行的入账时间为准。另外，退货商品寄回仓库并验收通过后，系统会在 1 个工作日内发起退款。",
+          "tools": [
+            "search_knowledge_base{\"query\": \"退款到账时间 几天到账\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_knowledge_base",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_knowledge_base",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-refund-timing#各支付渠道的到账时间"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-refund-timing#退款什么时候发起"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [
+            {
+              "mode": "hybrid",
+              "fallback": null,
+              "passages": 4
+            }
+          ],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.246,
+              "http_status": 200,
+              "prompt_tokens": 3095,
+              "completion_tokens": 57,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 151,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 0.938,
+              "http_status": 200,
+              "prompt_tokens": 4063,
+              "completion_tokens": 38,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 1119,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.488,
+              "http_status": 200,
+              "prompt_tokens": 1423,
+              "completion_tokens": 133,
+              "cached_tokens": 512,
+              "cache_miss_tokens": 911,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [
+            {
+              "kind": "embed",
+              "seconds": 0.04,
+              "inputs": 1
+            }
+          ],
+          "prompt_tokens": 8581,
+          "completion_tokens": 228,
+          "cached_tokens": 6400
+        }
+      ]
+    },
+    {
+      "dialogue": "c",
+      "repeat": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "ORD-1001 这件能退吗？",
+          "seconds": 6.802,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "您好，订单 ORD-1001 中的两件商品目前都在退货窗口内，可以申请退货。\n\n具体来说：\n- 纯棉T恤 M码（服装，数量2件）：在退货窗口内。\n- 棉质内衣 L码（贴身衣物，数量1件）：在退货窗口内。\n\n该订单已于 2026-11-05 签收，签收至今 10 天，符合十一月促销退货窗口（自签收次日起 15 个自然日）的要求。\n\n如需办理，请告诉我您要退哪件商品，我帮您继续处理。",
+          "tools": [
+            "get_order{\"order_id\": \"ORD-1001\"}",
+            "get_logistics{\"order_id\": \"ORD-1001\"}",
+            "search_after_sales_policy{\"query\": \"签收后几天内可以无理由退货\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_order",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "tool_call",
+              "tool_name": "get_logistics",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 3,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 4,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": null,
+              "batch_functions": [
+                "get_order",
+                "get_logistics",
+                "search_after_sales_policy"
+              ],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 4,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order:ORD-1001#status"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#order_id"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#status"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#delivered_at"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#category"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#category"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#sku"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#product_name"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#sku"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#product_name"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order:ORD-1001#business_state_conflict"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "logistics:SF1001#days_since_delivery"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-1#within_return_window"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-2#within_return_window"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#window_days"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.556,
+              "http_status": 200,
+              "prompt_tokens": 3100,
+              "completion_tokens": 126,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 156,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 2.086,
+              "http_status": 200,
+              "prompt_tokens": 18394,
+              "completion_tokens": 162,
+              "cached_tokens": 1152,
+              "cache_miss_tokens": 17242,
+              "messages": 6,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 2.932,
+              "http_status": 200,
+              "prompt_tokens": 7912,
+              "completion_tokens": 591,
+              "cached_tokens": 7680,
+              "cache_miss_tokens": 232,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 29406,
+          "completion_tokens": 879,
+          "cached_tokens": 11776
+        },
+        {
+          "turn": 2,
+          "text": "你刚才说的天数从哪天开始算？",
+          "seconds": 10.221,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "关于 ORD-1001 能否退货，需要先确认商品是否属于定制商品：定制商品有专门的退货限制，属于不可退货范围。如果该商品不是定制商品，则要看是否在退货窗口内。目前我这边没有该订单的商品类型和签收信息，无法直接判断。\n\n关于天数从哪天开始算：退货窗口从签收（delivered）当天开始起算，按自然日计算，从签收次日开始数。",
+          "tools": [
+            "search_after_sales_policy{\"query\": \"退货时限从哪天开始计算 签收次日起算\"}"
+          ],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_after_sales_policy",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#reason_code"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#window_days"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 6.104,
+              "http_status": 200,
+              "prompt_tokens": 3255,
+              "completion_tokens": 53,
+              "cached_tokens": 3072,
+              "cache_miss_tokens": 183,
+              "messages": 4,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.513,
+              "http_status": 200,
+              "prompt_tokens": 14616,
+              "completion_tokens": 38,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 11672,
+              "messages": 6,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 2.435,
+              "http_status": 200,
+              "prompt_tokens": 4397,
+              "completion_tokens": 419,
+              "cached_tokens": 4224,
+              "cache_miss_tokens": 173,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 22268,
+          "completion_tokens": 510,
+          "cached_tokens": 10240
+        }
+      ]
+    },
+    {
+      "dialogue": "d",
+      "repeat": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "不是 7 天无理由吗？",
+          "seconds": 7.493,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "您好，退换货时限并不是统一的“7天无理由”，而是根据商品和活动规则有所不同：\n\n- 服装类商品：换货窗口为签收后次日起 30 个自然日内（服装换货窗口）。\n- 标准换货：签收后次日起 15 个自然日内（标准换货窗口）。\n- 十一月促销退货：签收后次日起 15 个自然日内（十一月促销退货窗口）。\n- 定制商品：属于定制类，不支持退货（定制商品退货限制）。\n\n具体适用哪一条，需要结合您购买的商品品类和是否参加促销活动来判断。",
+          "tools": [
+            "search_after_sales_policy{\"query\": \"签收后几天内可以无理由退货\"}",
+            "search_after_sales_policy{\"query\": \"无理由退货窗口 7天 标准退货时限\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 3,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_after_sales_policy",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "search_after_sales_policy",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 3,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#window_days"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#reason_code"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#window_days"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#window_days"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.167,
+              "http_status": 200,
+              "prompt_tokens": 3099,
+              "completion_tokens": 79,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 155,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.161,
+              "http_status": 200,
+              "prompt_tokens": 14457,
+              "completion_tokens": 52,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 11513,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.548,
+              "http_status": 200,
+              "prompt_tokens": 25817,
+              "completion_tokens": 38,
+              "cached_tokens": 1152,
+              "cache_miss_tokens": 24665,
+              "messages": 6,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 3.385,
+              "http_status": 200,
+              "prompt_tokens": 4379,
+              "completion_tokens": 851,
+              "cached_tokens": 4224,
+              "cache_miss_tokens": 155,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 47752,
+          "completion_tokens": 1020,
+          "cached_tokens": 11264
+        }
+      ]
+    },
+    {
+      "dialogue": "e",
+      "repeat": 1,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "运费谁出？",
+          "seconds": 3.507,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "退货寄回的运费按退货原因区分：因商品质量问题、发错货或商品与描述不符而退货的，寄回运费由商家承担，您需先行垫付，并在售后申请中上传运费凭证，审核通过后运费随退款一并返还，单笔最高补贴 20 元；因不喜欢、尺码不合适等非质量原因退货的，寄回运费由您自行承担。另外，如果下单时购买了运费险，非质量原因退货的寄回运费由保险公司按保单理赔，理赔款在退货包裹被仓库签收后 72 小时内打到您的支付账户，与商城退款分开到账。",
+          "tools": [
+            "search_knowledge_base{\"query\": \"退货运费由谁承担\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_knowledge_base",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_knowledge_base",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#退货寄回的运费由谁承担"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#运费险理赔"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [
+            {
+              "mode": "hybrid",
+              "fallback": null,
+              "passages": 4
+            }
+          ],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 0.917,
+              "http_status": 200,
+              "prompt_tokens": 3094,
+              "completion_tokens": 55,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 150,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 0.986,
+              "http_status": 200,
+              "prompt_tokens": 4070,
+              "completion_tokens": 38,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 1126,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.462,
+              "http_status": 200,
+              "prompt_tokens": 1442,
+              "completion_tokens": 183,
+              "cached_tokens": 1280,
+              "cache_miss_tokens": 162,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [
+            {
+              "kind": "embed",
+              "seconds": 0.05,
+              "inputs": 1
+            }
+          ],
+          "prompt_tokens": 8606,
+          "completion_tokens": 276,
+          "cached_tokens": 7168
+        },
+        {
+          "turn": 2,
+          "text": "那帮我退了",
+          "seconds": 1.27,
+          "status": "NEEDS_CLARIFICATION",
+          "reply_kind": "clarification",
+          "reply": "为了继续处理，请告诉我：您要办理的订单号。",
+          "tools": [],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "clarify"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "ask_user",
+              "batch_functions": [],
+              "action_kind": "clarify",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.205,
+              "http_status": 200,
+              "prompt_tokens": 3251,
+              "completion_tokens": 62,
+              "cached_tokens": 3072,
+              "cache_miss_tokens": 179,
+              "messages": 4,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 3251,
+          "completion_tokens": 62,
+          "cached_tokens": 3072
+        }
+      ]
+    },
+    {
+      "dialogue": "a",
+      "repeat": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "退货运费谁出？",
+          "seconds": 4.09,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "退货运费的承担方取决于退货原因：如果是商品质量问题、发错货或商品与描述不符，寄回运费由商家承担，您先垫付并在售后申请中上传运费凭证，审核通过后运费随退款一并返还，单笔最高补贴20元；如果是因不喜欢、尺码不合适等非质量原因退货，寄回运费由您自行承担。另外，如果下单时购买了运费险，非质量原因退货的寄回运费由保险公司按保单理赔，理赔款在退货包裹被仓库签收后72小时内打到您的支付账户，与商城退款分开到账。寄回时请不要使用到付方式，到付包裹会被仓库拒收，并请在包裹内附上写有订单号的纸条。",
+          "tools": [
+            "search_knowledge_base{\"query\": \"退货运费由谁承担\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_knowledge_base",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_knowledge_base",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#退货寄回的运费由谁承担"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#运费险理赔"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#寄回方式"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [
+            {
+              "mode": "hybrid",
+              "fallback": null,
+              "passages": 4
+            }
+          ],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.176,
+              "http_status": 200,
+              "prompt_tokens": 3096,
+              "completion_tokens": 54,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 152,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.13,
+              "http_status": 200,
+              "prompt_tokens": 4072,
+              "completion_tokens": 38,
+              "cached_tokens": 3840,
+              "cache_miss_tokens": 232,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.419,
+              "http_status": 200,
+              "prompt_tokens": 1444,
+              "completion_tokens": 221,
+              "cached_tokens": 1280,
+              "cache_miss_tokens": 164,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [
+            {
+              "kind": "embed",
+              "seconds": 0.286,
+              "inputs": 1
+            }
+          ],
+          "prompt_tokens": 8612,
+          "completion_tokens": 313,
+          "cached_tokens": 8064
+        }
+      ]
+    },
+    {
+      "dialogue": "b",
+      "repeat": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "退款几天到账？",
+          "seconds": 4.46,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "退款按原支付渠道退回，到账时间因渠道不同：商城余额和微信支付通常即时到账；支付宝 1 至 3 个工作日到账；银行卡 3 至 7 个工作日到账，具体以发卡银行的入账时间为准。另外，退货商品寄回仓库并验收通过后，系统会在 1 个工作日内发起退款。",
+          "tools": [
+            "search_knowledge_base{\"query\": \"退款到账时间 几天到账\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_knowledge_base",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_knowledge_base",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-refund-timing#各支付渠道的到账时间"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-refund-timing#退款什么时候发起"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [
+            {
+              "mode": "hybrid",
+              "fallback": null,
+              "passages": 4
+            }
+          ],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.333,
+              "http_status": 200,
+              "prompt_tokens": 3095,
+              "completion_tokens": 57,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 151,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 0.912,
+              "http_status": 200,
+              "prompt_tokens": 4063,
+              "completion_tokens": 38,
+              "cached_tokens": 3840,
+              "cache_miss_tokens": 223,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.552,
+              "http_status": 200,
+              "prompt_tokens": 1423,
+              "completion_tokens": 133,
+              "cached_tokens": 1280,
+              "cache_miss_tokens": 143,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [
+            {
+              "kind": "embed",
+              "seconds": 0.208,
+              "inputs": 1
+            }
+          ],
+          "prompt_tokens": 8581,
+          "completion_tokens": 228,
+          "cached_tokens": 8064
+        }
+      ]
+    },
+    {
+      "dialogue": "c",
+      "repeat": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "ORD-1001 这件能退吗？",
+          "seconds": 6.959,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "您好，订单 ORD-1001 中的两件商品目前都在退货窗口内，可以申请退货。\n\n具体说明：\n- 纯棉T恤 M码（服装，数量2件）：在服装换货窗口及十一月促销退货窗口内，可退。\n- 棉质内衣 L码（贴身衣物，数量1件）：在标准换货窗口及十一月促销退货窗口内，可退。\n\n该订单物流已于 2026-11-05 签收，距今 10 天，未超过相关窗口期限。如需办理，请告诉我您想退哪件商品，我帮您继续处理。",
+          "tools": [
+            "get_order{\"order_id\": \"ORD-1001\"}",
+            "get_logistics{\"order_id\": \"ORD-1001\"}",
+            "search_after_sales_policy{\"query\": \"签收后几天内可以无理由退货\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "get_order",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "tool_call",
+              "tool_name": "get_logistics",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 3,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 4,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": null,
+              "batch_functions": [
+                "get_order",
+                "get_logistics",
+                "search_after_sales_policy"
+              ],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 4,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order:ORD-1001#status"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#order_id"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#status"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#delivered_at"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#category"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#category"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#sku"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#product_name"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#sku"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#product_name"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order:ORD-1001#business_state_conflict"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "logistics:SF1001#days_since_delivery"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-1#within_exchange_window"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-2#within_exchange_window"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-1#within_return_window"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-2#within_return_window"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#window_days"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#window_days"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#window_days"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.417,
+              "http_status": 200,
+              "prompt_tokens": 3100,
+              "completion_tokens": 126,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 156,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.22,
+              "http_status": 200,
+              "prompt_tokens": 18394,
+              "completion_tokens": 38,
+              "cached_tokens": 18176,
+              "cache_miss_tokens": 218,
+              "messages": 6,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 4.151,
+              "http_status": 200,
+              "prompt_tokens": 7912,
+              "completion_tokens": 1014,
+              "cached_tokens": 7680,
+              "cache_miss_tokens": 232,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 29406,
+          "completion_tokens": 1178,
+          "cached_tokens": 28800
+        },
+        {
+          "turn": 2,
+          "text": "你刚才说的天数从哪天开始算？",
+          "seconds": 5.803,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "您好，订单 ORD-1001 目前是已签收状态，签收时间为 2026-11-05，距今 10 天。\n\n关于退货：\n- 纯棉T恤 M码（服装）：在十一月促销退货窗口内（窗口 15 天，从签收次日开始按自然日计算），可以退货。\n- 棉质内衣 L码（贴身衣物）：同样在十一月促销退货窗口内，可以退货。\n\n关于天数起算：从签收日的次日开始按自然日计算。本单签收日为 11 月 5 日，因此从 11 月 6 日起算。",
+          "tools": [
+            "search_after_sales_policy{\"query\": \"退货换货时限从哪天开始计算 签收日\"}",
+            "get_order{\"order_id\": \"ORD-1001\"}",
+            "get_logistics{\"order_id\": \"ORD-1001\"}"
+          ],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 2,
+              "kind": "tool_call",
+              "tool_name": "get_order",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 3,
+              "kind": "tool_call",
+              "tool_name": "get_logistics",
+              "result_status": "ok"
+            },
+            {
+              "run": 2,
+              "step": 4,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": null,
+              "batch_functions": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics"
+              ],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 4,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order:ORD-1001#status"
+            },
+            {
+              "producer": "get_logistics",
+              "source_type": "business",
+              "locator": "logistics:SF1001#delivered_at"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "logistics:SF1001#days_since_delivery"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-1#category"
+            },
+            {
+              "producer": "get_order",
+              "source_type": "business",
+              "locator": "order_item:OI-1001-2#category"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-1#within_return_window"
+            },
+            {
+              "producer": "derived_facts",
+              "source_type": "derived",
+              "locator": "order_item:OI-1001-2#within_return_window"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#window_days"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.326,
+              "http_status": 200,
+              "prompt_tokens": 3260,
+              "completion_tokens": 118,
+              "cached_tokens": 3072,
+              "cache_miss_tokens": 188,
+              "messages": 4,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 1.415,
+              "http_status": 200,
+              "prompt_tokens": 18557,
+              "completion_tokens": 38,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 15613,
+              "messages": 8,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 2.713,
+              "http_status": 200,
+              "prompt_tokens": 7929,
+              "completion_tokens": 466,
+              "cached_tokens": 4352,
+              "cache_miss_tokens": 3577,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 29746,
+          "completion_tokens": 622,
+          "cached_tokens": 10368
+        }
+      ]
+    },
+    {
+      "dialogue": "d",
+      "repeat": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "不是 7 天无理由吗？",
+          "seconds": 7.614,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "您好，退换货时限并不是统一的“7天无理由”，而是根据商品和活动规则有所不同：\n\n- 服装类商品：换货窗口为签收后次日起 30 个自然日内（服装换货窗口）。\n- 标准换货：签收后次日起 15 个自然日内（标准换货窗口）。\n- 十一月促销退货：签收后次日起 15 个自然日内（十一月促销退货窗口）。\n- 定制商品：属于定制类，不支持退货（定制商品退货限制）。\n\n具体适用哪条规则，需要结合您购买的商品类型和是否参加促销活动来判断。",
+          "tools": [
+            "search_after_sales_policy{\"query\": \"签收后几天内可以无理由退货\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_after_sales_policy",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_after_sales_policy",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:apparel-exchange#window_days"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#reason_code"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:custom-non-returnable#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:november-promo-return#window_days"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#counting_rule"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#effective_from"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#effective_to"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#priority"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#rule_type"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#scope"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#start_event"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#title"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#utc_offset"
+            },
+            {
+              "producer": "search_after_sales_policy",
+              "source_type": "document",
+              "locator": "policy:standard-exchange#window_days"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.225,
+              "http_status": 200,
+              "prompt_tokens": 3099,
+              "completion_tokens": 78,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 155,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 2.547,
+              "http_status": 200,
+              "prompt_tokens": 14457,
+              "completion_tokens": 38,
+              "cached_tokens": 14208,
+              "cache_miss_tokens": 249,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 3.717,
+              "http_status": 200,
+              "prompt_tokens": 4379,
+              "completion_tokens": 852,
+              "cached_tokens": 4224,
+              "cache_miss_tokens": 155,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 21935,
+          "completion_tokens": 968,
+          "cached_tokens": 21376
+        }
+      ]
+    },
+    {
+      "dialogue": "e",
+      "repeat": 2,
+      "turns": [
+        {
+          "turn": 1,
+          "text": "运费谁出？",
+          "seconds": 3.814,
+          "status": "OPEN",
+          "reply_kind": "answer",
+          "reply": "退货寄回的运费按退货原因区分：因商品质量问题、发错货或商品与描述不符而退货的，寄回运费由商家承担，请您先行垫付，在售后申请中上传运费凭证，审核通过后运费随退款一并返还，单笔最高补贴 20 元；因不喜欢、尺码不合适等非质量原因退货的，寄回运费由您自行承担。另外，如果下单时购买了运费险，非质量原因退货的寄回运费由保险公司按保单理赔，理赔款在退货包裹被仓库签收后 72 小时内打到您的支付账户，与商城退款分开到账。",
+          "tools": [
+            "search_knowledge_base{\"query\": \"退货运费由谁承担\"}"
+          ],
+          "steps": [
+            {
+              "run": 1,
+              "step": 1,
+              "kind": "tool_call",
+              "tool_name": "search_knowledge_base",
+              "result_status": "ok"
+            },
+            {
+              "run": 1,
+              "step": 2,
+              "kind": "finish",
+              "disposition": "answer"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "search_knowledge_base",
+              "batch_functions": [],
+              "action_kind": "tool_call",
+              "diagnostic": null
+            },
+            {
+              "control_step": 2,
+              "selected_function": "finish",
+              "batch_functions": [],
+              "action_kind": "finish",
+              "diagnostic": null
+            }
+          ],
+          "citations": [
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#退货寄回的运费由谁承担"
+            },
+            {
+              "producer": "search_knowledge_base",
+              "source_type": "document",
+              "locator": "kb:kb-return-shipping#运费险理赔"
+            }
+          ],
+          "action": null,
+          "retrieval_modes": [
+            {
+              "mode": "hybrid",
+              "fallback": null,
+              "passages": 4
+            }
+          ],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.309,
+              "http_status": 200,
+              "prompt_tokens": 3094,
+              "completion_tokens": 55,
+              "cached_tokens": 2944,
+              "cache_miss_tokens": 150,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "decision",
+              "seconds": 0.889,
+              "http_status": 200,
+              "prompt_tokens": 4070,
+              "completion_tokens": 38,
+              "cached_tokens": 3840,
+              "cache_miss_tokens": 230,
+              "messages": 4,
+              "history_messages": 0,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            },
+            {
+              "kind": "generation",
+              "seconds": 1.369,
+              "http_status": 200,
+              "prompt_tokens": 1442,
+              "completion_tokens": 182,
+              "cached_tokens": 1280,
+              "cache_miss_tokens": 162,
+              "messages": 2,
+              "history_messages": 0,
+              "offered": []
+            }
+          ],
+          "embed_calls": [
+            {
+              "kind": "embed",
+              "seconds": 0.189,
+              "inputs": 1
+            }
+          ],
+          "prompt_tokens": 8606,
+          "completion_tokens": 275,
+          "cached_tokens": 8064
+        },
+        {
+          "turn": 2,
+          "text": "那帮我退了",
+          "seconds": 1.303,
+          "status": "NEEDS_CLARIFICATION",
+          "reply_kind": "clarification",
+          "reply": "为了继续处理，请告诉我：您要办理的订单号；订单里具体是哪一件商品。",
+          "tools": [],
+          "steps": [
+            {
+              "run": 2,
+              "step": 1,
+              "kind": "clarify"
+            }
+          ],
+          "decisions": [
+            {
+              "control_step": 1,
+              "selected_function": "ask_user",
+              "batch_functions": [],
+              "action_kind": "clarify",
+              "diagnostic": null
+            }
+          ],
+          "citations": [],
+          "action": null,
+          "retrieval_modes": [],
+          "model_calls": [
+            {
+              "kind": "decision",
+              "seconds": 1.216,
+              "http_status": 200,
+              "prompt_tokens": 3250,
+              "completion_tokens": 71,
+              "cached_tokens": 3072,
+              "cache_miss_tokens": 178,
+              "messages": 4,
+              "history_messages": 1,
+              "offered": [
+                "search_after_sales_policy",
+                "get_order",
+                "get_logistics",
+                "get_inventory",
+                "get_after_sales_case",
+                "search_knowledge_base",
+                "create_return",
+                "create_exchange",
+                "escalate_to_human",
+                "ask_user",
+                "finish"
+              ]
+            }
+          ],
+          "embed_calls": [],
+          "prompt_tokens": 3250,
+          "completion_tokens": 71,
+          "cached_tokens": 3072
+        }
+      ]
+    }
+  ]
+}

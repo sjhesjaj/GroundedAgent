@@ -1,0 +1,234 @@
+{
+  "p95_method": "nearest rank ceil(0.95*n)",
+  "baseline_matched_turns": 6,
+  "phase0_5_matched_turns": 9,
+  "baseline_matched": {
+    "prompt_tokens": {
+      "p50": 29406.0,
+      "p95": 47752,
+      "max": 47752
+    },
+    "completion_tokens": {
+      "p50": 923.5,
+      "p95": 1178,
+      "max": 1178
+    },
+    "cached_tokens": {
+      "p50": 11520.0,
+      "p95": 28800,
+      "max": 28800
+    },
+    "seconds": {
+      "p50": 7.226,
+      "p95": 10.221,
+      "max": 10.221
+    }
+  },
+  "phase0_5_matched": {
+    "prompt_tokens": {
+      "p50": 29482,
+      "p95": 47840,
+      "max": 47840
+    },
+    "completion_tokens": {
+      "p50": 486,
+      "p95": 1188,
+      "max": 1188
+    },
+    "cached_tokens": {
+      "p50": 17792,
+      "p95": 28928,
+      "max": 28928
+    },
+    "seconds": {
+      "p50": 5.443,
+      "p95": 9.635,
+      "max": 9.635
+    }
+  },
+  "baseline_all_14": {
+    "prompt_tokens": {
+      "p50": 8612.0,
+      "p95": 47752,
+      "max": 47752
+    },
+    "completion_tokens": {
+      "p50": 316.0,
+      "p95": 1178,
+      "max": 1178
+    },
+    "cached_tokens": {
+      "p50": 8064.0,
+      "p95": 28800,
+      "max": 28800
+    },
+    "seconds": {
+      "p50": 4.365,
+      "p95": 10.221,
+      "max": 10.221
+    }
+  },
+  "progress_fresh_database": {
+    "prompt_tokens": {
+      "p50": 8832.0,
+      "p95": 9372,
+      "max": 9372
+    },
+    "completion_tokens": {
+      "p50": 149.0,
+      "p95": 246,
+      "max": 246
+    },
+    "cached_tokens": {
+      "p50": 8448.0,
+      "p95": 8828,
+      "max": 8828
+    },
+    "seconds": {
+      "p50": 2.941,
+      "p95": 4.701,
+      "max": 4.701
+    }
+  },
+  "per_question": {
+    "c1": {
+      "baseline": {
+        "prompt_tokens": {
+          "p50": 29406.0,
+          "p95": 29406,
+          "max": 29406
+        },
+        "completion_tokens": {
+          "p50": 1028.5,
+          "p95": 1178,
+          "max": 1178
+        },
+        "cached_tokens": {
+          "p50": 20288.0,
+          "p95": 28800,
+          "max": 28800
+        },
+        "seconds": {
+          "p50": 6.88,
+          "p95": 6.959,
+          "max": 6.959
+        }
+      },
+      "phase0_5": {
+        "prompt_tokens": {
+          "p50": 29482,
+          "p95": 29482,
+          "max": 29482
+        },
+        "completion_tokens": {
+          "p50": 889,
+          "p95": 1188,
+          "max": 1188
+        },
+        "cached_tokens": {
+          "p50": 28928,
+          "p95": 28928,
+          "max": 28928
+        },
+        "seconds": {
+          "p50": 5.948,
+          "p95": 6.648,
+          "max": 6.648
+        }
+      }
+    },
+    "c2": {
+      "baseline": {
+        "prompt_tokens": {
+          "p50": 26007.0,
+          "p95": 29746,
+          "max": 29746
+        },
+        "completion_tokens": {
+          "p50": 566.0,
+          "p95": 622,
+          "max": 622
+        },
+        "cached_tokens": {
+          "p50": 10304.0,
+          "p95": 10368,
+          "max": 10368
+        },
+        "seconds": {
+          "p50": 8.012,
+          "p95": 10.221,
+          "max": 10.221
+        }
+      },
+      "phase0_5": {
+        "prompt_tokens": {
+          "p50": 22558,
+          "p95": 29654,
+          "max": 29654
+        },
+        "completion_tokens": {
+          "p50": 264,
+          "p95": 297,
+          "max": 297
+        },
+        "cached_tokens": {
+          "p50": 6656,
+          "p95": 6656,
+          "max": 6656
+        },
+        "seconds": {
+          "p50": 4.017,
+          "p95": 9.635,
+          "max": 9.635
+        }
+      }
+    },
+    "d1": {
+      "baseline": {
+        "prompt_tokens": {
+          "p50": 34843.5,
+          "p95": 47752,
+          "max": 47752
+        },
+        "completion_tokens": {
+          "p50": 994.0,
+          "p95": 1020,
+          "max": 1020
+        },
+        "cached_tokens": {
+          "p50": 16320.0,
+          "p95": 21376,
+          "max": 21376
+        },
+        "seconds": {
+          "p50": 7.553,
+          "p95": 7.614,
+          "max": 7.614
+        }
+      },
+      "phase0_5": {
+        "prompt_tokens": {
+          "p50": 22011,
+          "p95": 47840,
+          "max": 47840
+        },
+        "completion_tokens": {
+          "p50": 486,
+          "p95": 625,
+          "max": 625
+        },
+        "cached_tokens": {
+          "p50": 17792,
+          "p95": 21376,
+          "max": 21376
+        },
+        "seconds": {
+          "p50": 5.443,
+          "p95": 9.509,
+          "max": 9.509
+        }
+      }
+    }
+  },
+  "exclusions": "Original first batch f repeats 2 and 3 reused a database and were duplicate-action denials. They are retained as raw diagnostics and excluded from progress evaluation. c/d original requested three repeats are all retained; progress assessed on fresh-database supplementary runs."
+}
