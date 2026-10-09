@@ -15,6 +15,12 @@ instead of copying them:
     eval_v2.generation      the answer layer's pure functions (sources, prompt,
                             protocol, fixed non-answer texts)
 
+M3 (docs/v2/m3-policy-rag.md): the product decision policy m3-decision/1
+(decision_policy.py) composes the public action_loop / tool_loop helpers
+re-exported below the main imports. It replaces the prompt, the offered
+functions, the schemas, the translation and the earlier replies it shows;
+everything else is the evaluated loop.
+
 Dependency strategy (M0). Import-only reuse, confined to this module and
 pinned by an AST allowlist test. Moving these modules out of eval_v2 would
 rewrite frozen Stage 5/6 files whose bytes are pinned by tests and would make
@@ -63,6 +69,44 @@ from eval_v2.generation import (
     parse_answer,
 )
 from eval_v2.tool_loop import ToolLoopProtocolError
+
+# M3: the evaluated loop's public helpers, for the product decision policy
+# m3-decision/1 (decision_policy.py). It composes them; it never copies the
+# loop or subclasses the evaluated policy.
+from eval_v2.action_loop import (
+    DIAG_ACTION_NOT_SINGLE_CALL,
+    STAGE6_ACTION_FUNCTIONS,
+    STAGE6_SYSTEM_PROMPT,
+    ActionLoopDecisionRecord,
+    ActionTranslation,
+    NativeActionCall,
+    build_action_messages,
+    stage6_offered_functions,
+    stage6_tool_schemas,
+    translate_action_response,
+)
+from eval_v2.tool_loop import (
+    CONTROL_FUNCTIONS,
+    DIAG_BATCH_EXCEEDS_STEP_BUDGET,
+    DIAG_FUNCTION_NOT_OFFERED,
+    DIAG_IDENTITY_ARGUMENT,
+    DIAG_INVALID_ARGUMENTS,
+    DIAG_MULTIPLE_TOOL_CALLS,
+    DIAG_NO_TOOL_CALL,
+    DIAG_RETRY_CAP_EXCEEDED,
+    DIAG_TOOL_NOT_ALLOWED,
+    DIAG_UNKNOWN_FUNCTION,
+    RETRY_CAP,
+    STAGE5_RUNTIME_TOOLS,
+    TOOL_LOOP_MAX_TOKENS,
+    TOOL_LOOP_TEMPERATURE,
+    UNKNOWN_FUNCTION_NAME,
+    NativeCallEnvelope,
+    call_key,
+    envelope_matches,
+    prior_attempts,
+    runtime_tool_specs,
+)
 
 __all__ = [
     "FIXED_RESPONSES",

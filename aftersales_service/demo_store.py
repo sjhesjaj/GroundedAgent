@@ -30,6 +30,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Mapping
 
@@ -46,6 +47,8 @@ from aftersales.ids import DeterministicIdProvider
 from aftersales.policy_catalog import PublishedPolicyCatalog
 from aftersales.registry import ToolRegistry, build_runtime_registry
 from orchestration.contracts import ToolResult
+
+from .knowledge_base import KNOWLEDGE_TOOL_NAME, KnowledgeBase, knowledge_tool_result
 
 DEMO_ID_NAMESPACE = "m0-demo"
 DEMO_OPERATOR_REF = "op-demo-1"
@@ -70,6 +73,7 @@ class ReadSide:
                  read_tools: tuple[str, ...]) -> None:
         self._registry = registry
         self._context = context
+        self.read_tools = tuple(read_tools)
         self._read_tools = frozenset(read_tools)
 
     def execute(self, tool_name: str, arguments: Mapping[str, str], *,
@@ -78,6 +82,29 @@ class ReadSide:
             raise ValueError("the read tool is not in the effective capabilities")
         return execute_tool(self._registry, self._context, tool_name, arguments,
                             observation_id=observation_id)
+
+
+class KnowledgeReadSide:
+    """The m3 read side: a ReadSide's five tools plus search_knowledge_base (M3).
+
+    Product-owned and read-only. The knowledge tool is not a CapabilityGate
+    tool and not in the frozen registry: it is executed here, over the
+    knowledge base, at the store's business time. Every other call goes to
+    the ReadSide unchanged.
+    """
+
+    def __init__(self, reader: ReadSide, knowledge: KnowledgeBase, business_time: datetime) -> None:
+        self._reader = reader
+        self._knowledge = knowledge
+        self._business_time = business_time
+        self.read_tools = reader.read_tools + (KNOWLEDGE_TOOL_NAME,)
+
+    def execute(self, tool_name: str, arguments: Mapping[str, str], *,
+                observation_id: str) -> ToolResult:
+        if tool_name == KNOWLEDGE_TOOL_NAME:
+            return knowledge_tool_result(self._knowledge, arguments, observation_id=observation_id,
+                                         as_of=self._business_time)
+        return self._reader.execute(tool_name, arguments, observation_id=observation_id)
 
 
 def seed_demo_database(db_path: Path) -> None:

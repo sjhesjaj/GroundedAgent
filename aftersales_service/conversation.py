@@ -43,6 +43,13 @@ Control runs
     per-run retry cap stays per run. The Guard re-reads trusted state for
     every action anyway.
 
+    The decision policy is chosen per request (M3, decision_policy.py):
+    AFTERSALES_DECISION_POLICY=stage6 (default) is the evaluated policy over
+    the five read tools; m3 is m3-decision/1 with search_knowledge_base added
+    to the read side and the last earlier replies shown to the decision as
+    labelled history. Earlier replies are never observations, so they can
+    neither ground an action nor become answer evidence.
+
 Action grounding (M1-A1, docs/v2/m1-a1-action-grounding.md)
     Every read is registered as an immutable structured observation
     (observation_provenance.py) once its result is confirmed to be the call's
@@ -123,6 +130,7 @@ from aftersales.ids import RequestIdentity, idempotency_key
 from orchestration.contracts import ToolResult
 
 from . import agent_core as core
+from . import decision_policy
 from .action_grounding import (
     GROUNDING_VERSION,
     GroundedSubmission,
@@ -144,7 +152,8 @@ from .conversation_graph import (
     ConversationContext,
 )
 from .conversation_state import encode_text, pack_state, unpack_state
-from .demo_store import ReadSide
+from .demo_store import KnowledgeReadSide, ReadSide
+from .knowledge_base import shared_knowledge_base
 from .observation_provenance import ObservationLedger
 from .persistence import Generation, PersistenceError
 
@@ -306,6 +315,8 @@ class Conversation:
         self._identity = RequestIdentity(persona_id=persona.persona_id,
                                          request_id=REQUEST_ID_PREFIX + session_id)
         self._validator = ActionIntentValidator(build_action_registry(), store.capabilities.actions)
+        # The read tools of the current request's read side (m3 adds the knowledge tool).
+        self._read_tools = store.capabilities.read_tools
         self._renderer = ActionOutcomeRenderer()
         self._messages: list[core.UserMessage] = []
         self._observations: list[core.ToolObservation] = []
@@ -410,13 +421,22 @@ class Conversation:
             raise ValueError("a customer message needs text")
         if len(self._messages) >= MAX_CUSTOMER_MESSAGES:
             raise ConversationFull("the conversation is full; reset the demo")
+        chosen = decision_policy.configured_policy()
         head, saved = self._head, self._snapshot()
         guarded = _GuardedProvider(provider)
         gateway = ConversationContext(self)   # the gateway step needs no policy and no provider
         marked = False
         try:
             with self._store.read_side(self.persona) as reader:
-                context = ConversationContext(self, core.new_control_policy(guarded), guarded, reader)
+                if chosen == decision_policy.POLICY_M3:
+                    # M3: the knowledge tool joins the read side; the product decision policy.
+                    reader = KnowledgeReadSide(reader, shared_knowledge_base(), self._store.business_time)
+                    policy = decision_policy.M3DecisionPolicy(
+                        guarded, earlier=decision_policy.earlier_replies(self._transcript))
+                else:
+                    policy = core.new_control_policy(guarded)
+                self._read_tools = reader.read_tools
+                context = ConversationContext(self, policy, guarded, reader)
                 # Ordinary input from the head - also the answer to a clarification.
                 checkpoint = self._invoke({"customer_text": encode_text(text)}, head, context)
                 if checkpoint.next == (GATEWAY,):
@@ -647,7 +667,7 @@ class Conversation:
         return core.ActionControlState(
             virtual_now=self._store.business_time_iso,
             persona_id=self.persona.persona_id,
-            allowed_tools=capabilities.read_tools,
+            allowed_tools=self._read_tools,
             allowed_actions=capabilities.actions,
             max_steps=core.STAGE6_MAX_STEPS,
             step_number=step,
@@ -720,7 +740,7 @@ class Conversation:
         return self._end_turn(turn)
 
     def _read(self, run_index: int, step: int, action, reader: ReadSide, turn: _Turn) -> None:
-        if action.tool_name not in self._store.capabilities.read_tools:
+        if action.tool_name not in reader.read_tools:
             raise core.ControlPolicyContractError("a ToolCall named a tool outside the capabilities")
         self._tool_steps += 1
         turn_index = len(self._messages)
