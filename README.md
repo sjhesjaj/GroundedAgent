@@ -177,6 +177,8 @@ pnpm dev
 cd frontend; node --test tests/api.test.js                               # 前端 API 测试（20 项）
 ```
 
+真实 DeepSeek 测试默认跳过；配置好 `.env` 后，在项目根目录执行 `$env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m unittest tests.test_llm_provider_live -v` 可开启。
+
 ## Known limitations（V2）
 
 - **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察；M1 在网关前加了 grounding gate 来拦截这类动作（见上文 M1），但它只在 DEV 上做过诊断对比，sealed holdout 没有重跑。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
