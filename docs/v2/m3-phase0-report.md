@@ -157,3 +157,205 @@ prompt 达到约 30k token，而且答案又把第一问完整答了一遍。
   - `python -X utf8 -m unittest tests.test_m3_decision_policy tests.test_m3_scripted_equivalence`
   - `python -X utf8 -m eval_m3.spike.bge_m3_latency --runs 20`
   - `python -X utf8 -m eval_m3.spike.run_deepseek_spike --dotenv <含 DeepSeek key 的 .env> --repeats 2`
+
+## Phase 0.5
+
+### 文档、范围与实现
+
+- 按用户提供的 `D:\Users\h000_\Downloads\m3-policy-rag.md` 整体替换第 4 版，没有合并旧版内容；
+  原文件和替换后的文件 SHA256 都为
+  `aa0f15712d54bc324d82486458487e82466388407832cc72be40cdf52a5d6b3b`。
+  独立提交 **`8669a29`，`docs: M3 plan revision 6`**。
+- 在第 6 版基础上更新第 7 版：明确 `m3-answer/1`、全部模板历史、规则 17 原文；
+  检索相关性下限放在 **Phase 3 Runtime，以 KB-DEV 定阈值**；本轮不加阈值。
+  新增 Phase 0.5 的 1–1.5 h，总工时由 11–15 h 调为 **12–16.5 h**。
+  30–40 篇语料、KB-DEV 约 40、KB-HOLDOUT 约 20、阶段 0–5 与 Deferred 保持第 6 版范围。
+- `aftersales_service/answer_policy.py` 是产品侧 fork。经 `agent_core` 复用原
+  `build_sources`、`parse_answer`、generation/answer schema、生成参数和证据推导；只注入消息构建。
+  原 system 和 sources 不变，data JSON 标记最新顾客消息为“当前问题”、其余为上下文，
+  历史仅供理解指代；只有 `m3` 选择它，默认 `stage6` 仍走原生成路径。
+- 决策和答案共用 `earlier_replies`：answer、动作结果、审批结果、追问句、refuse/handoff/boundary、
+  step_limit、grounding_rejected、answer_unavailable 等全部现有客服模板，共取最近 3 条，每条 ≤300 字。
+  只选 assistant 回复；同一顾客轮次中的多个动作/审批结果保持顺序，修正了原来的按 turn 字典覆盖。
+  决策历史放在下一条顾客消息之前，不插进 tool_call 与 tool 结果之间；答案历史放在独立 data 字段。
+
+第 6 版与 Phase 0 代码**没有发现需要迁就的实质冲突**：第 6 版本来就允许 Phase 0 证明必要后 fork
+答案层。规则 17 的文档遗漏和历史范围在本轮补齐。原报告中“方案要求两侧历史”以及 Phase 4/6
+的编号针对旧版，保留作为历史记录，以本追加节和第 7 版为准。
+不带 `restates` 的资格表述 lint、完整语料仍待 Phase 1；会话策略绑定、新话术、暂停时关闭的寒暄
+预拦截、生成调用 token 纳入产品 trace、前端引用仍待 Phase 3。没有提前实现 Deferred 的限流、
+每轮 token 预算、运行时一致性关卡或埋注入的评测语料。
+
+### 验证
+
+本工作树原无 `.venv`，本轮创建本地环境并安装 `requirements.txt`；最终全量检查使用本地解释器。
+
+| 项目 | 结果 |
+|---|---|
+| 全量离线 unittest，仅排除 `tests.test_llm_provider_live` 的 2 个真实调用测试 | **2786/2786 OK**，0 failures/errors/skips，290.824 s，exit 0；比 Phase 0 新增 16 个测试 |
+| Stage 6 golden | 全量中通过，45 个场景原始输出逐字节一致；fixture SHA256 仍为 `41d761955e2e5e970ad4e83383bf8346ec298f1fcad5addbfdb703eb71f5d214` |
+| m3 scripted equivalence | 全量中通过，45/45 HTTP 载荷一致，仅排除 `trace.model_calls`；没有话术差异 |
+| 新答案层 | 11 个测试：当前问题、原 system/sources/schema/parser、共享 3/300 限额、同 turn 模板、拒绝历史假 ref、stage6 默认消息完全相同 |
+| 全模板 grounding / 引用产品回归 | 3 个测试（含全部 reply kind 的 subTest）：历史含 ORD/OI 仍 `missing_order_observation`、无 pending/审计写入；真实等待审批历史不能 ground 另一个商品；假历史引用返回 `answer_unavailable / unknown_citation_ref` |
+| 决策历史新回归 | 2 个新增测试：全部模板来源与 role 过滤、同一 turn 多审批保序；已有暂停恢复测试改为验证追问模板进入历史且 tool 结果仍紧随调用 |
+| 前端 API | `node --test tests/api.test.js`，**20/20 OK**，exit 0 |
+| 冻结边界 | `aftersales/`、`eval_v2/`、`eval/v2/`、`policy_sources/` 相对 `v2-stage6-final` diff 为空；冻结测试和 golden fixture 相对 `0157b37` 未改 |
+
+全量测试在临时审计 runner 中拦截真实 HTTP，并隔离 V1 导入时的默认数据库；底层 socket 和仓库
+持久数据库访问均有保护。拦截到 4 次旧测试的未 mock embed 请求，详见下节；**实际没有调用 Ollama、
+DeepSeek 或真实持久数据库**。这证明测试在隔离下通过，并不证明旧 suite 已经消除了网络调用缺口。
+原始检查结果：`eval_m3/spike/results/offline_phase0_5.json`。
+
+引用边界：历史不在 sources/offered_refs，原 `parse_answer` 拒绝历史假 ref；历史不在 observation/
+provenance，不能满足 grounding gate。但 parser 不检查答案文字是否语义上复用了历史事实，不能把
+引用 allowlist 测试扩大成“模型绝不会把历史当作事实”。真实 c2 R3 暴露了这个区别。
+
+### Ollama 用例调查（只调查，没有修复）
+
+准确用例：
+`tests.test_boundary_messages.PolicyQuestionsAreUnaffectedTests.test_such_a_question_produces_no_boundary_message`
+（`tests/test_boundary_messages.py:151`，调用 `prepare(question, CHUNKS)` 在第 154 行）。
+四个 subTest 分别问“退货办法是怎么规定的”“补货流程的规定发我”“缺货预警的管理制度写了什么”
+“现货管理办法有哪些要求”。
+
+调用路径：
+
+```text
+prepare (chat_orchestration.py:298)
+  -> _execute (:342)
+  -> execute_plan (orchestration/executor.py:643)
+  -> _invoke (:377)
+  -> document_search (orchestration/document_adapter.py:65)
+  -> rag.retrieve_fast (:661)
+  -> retrieve_with_rerank (:355)
+  -> embed_many (:104)
+  -> POST /api/embed (nomic-embed-text)
+  -> retrieve_with_rerank (:381)
+  -> rag.rerank (:239)
+  -> OllamaProvider.chat (llm_provider.py:193)
+  -> POST /api/chat (qwen3:4b)
+```
+
+这是文档检索的语义重排调用，发生在答案生成之前。独立进程给
+`requests.sessions.Session.request` 加探针：embed 返回假向量，chat 记录后抛 ConnectionError。
+单用例 **1/1 OK**，准确捕获 **4 embed + 4 chat**，没有真实网络请求，与 Phase 0 的观察次数吻合。
+最终全量探针在 embed 阶段就抛 ConnectionError，只捕获同一用例的 4 次 embed，未发现其他未 mock HTTP。
+
+不开 Ollama 也通过的原因：executor 的 `except Exception` 将嵌入失败变成工具错误；rag 的
+`except requests.RequestException` 将重排失败回退为候选；这个测试只断言回复不是三种 boundary 模板。
+
+建议修法：仅在该测试 patch `orchestration.document_adapter.retrieve_fast` 返回固定
+`[(CHUNKS[0], 1.0)]`，保留真实 planner/executor 路径；离线入口另记录并断言零网络尝试。
+只抛普通异常可能被上述 fallback 吞掉。本轮未改该测试或 V1 生产代码。
+
+### 真实 DeepSeek 抽查结果
+
+deepseek-flash，思考模式关闭，demo-a，业务时间仍为 2026-11-15 10:00；
+**2026-10-09 周五，北京时间 12:58:07–12:59:24 和 13:01:13–13:01:37**，均在工作日高峰之外。
+bge-m3 预检通过；本次 c/d/f 的实际路由未调用 KB，因此不能把 summary 的
+`all_retrieval_hybrid=true`（空集合）当成新的 hybrid 检索验证。
+
+| 抽查 | R1 | R2 | R3 | 结论 |
+|---|---|---|---|---|
+| c1 能退吗 | answer_unavailable；生成 completion 达到 1024 上限 | 答两件都在 15 天退货窗口内，混入换货说明 | 答两件都在促销 15 天窗口内 | 2/3 有可用答案；R1 未保存具体 parser error/finish_reason，达到上限提示可能截断，不能断言原因 |
+| c2 天数从哪天算 | 重查规则、订单、物流；签收次日，本单 11-06 起算 | 只查规则；只答签收次日按自然日计算 | 只查规则，却补出本单 11-05 签收、11-06 起算 | **起算事实 3/3 正确；按“事实只来自本 run 证据”严格计 2/3**，R3 具体日期无本轮业务读取/引用依据 |
+| d 不是 7 天吗 | 说出十一月促销退货 15 天 | 说出促销期间签收次日起 15 天 | 说出十一月促销退货 15 天 | **3/3 说出活动期 15 天**；三轮都先讲换货，仍不够直接 |
+| f 等待审批后问进度（独立数据库补跑） | 错答 OI-1001-1 的旧换货单 AS-1001 已完成 | 同样错接旧换货单 | 同样错接旧换货单 | **0/3 接上当前退货审批进度**；API status 三次仍正确为 WAITING_APPROVAL，没有执行审批中的退货 |
+
+f 的首句严格使用“ORD-1001 我要退货，尺码不合适”。R1/R2 追问是哪件，再回答
+“我要退内衣那件，商品明细号 OI-1001-2，尺码不合适，不换货。”，到等待审批后发“现在进度怎么样？”。
+R3 未追问商品，直接选了 OI-1001-1 并进入等待审批，然后问进度。补跑的三段均为独立数据库。
+
+进度错误的读取路径是 `get_after_sales_case(order_id=ORD-1001)`，它返回种子数据中
+OI-1001-1 的已完成换货单：对 R1/R2 来说是另一商品，对 R3 来说是同商品的旧换货申请。
+等待审批的是产品层新的退货 pending action，尚未创建该退货售后单，冻结工具看不到
+这笔 pending。加入历史没有解决“当前申请对象”和“可信审批状态来源”缺口。本轮没有改变冻结工具或
+添加新的状态能力。
+
+保留抽查脚本的失误证据：首批脚本只隔离 session，复用了数据库；f R1 正常等待审批但进度错接旧单，
+f R2/R3 被判重复申请，没有真正走到等待审批，所以不计进度成功率。修正为每个 dialogue/repeat
+独立数据库后，仅补跑 f 三遍；**没有重抽或替换已完成的 c/d 三遍**。c/d 没有写业务状态，且只读
+订单/物流/规则，所以保留原结果。首批 16 轮全部原始记录仍在 `deepseek_phase0_5.json`，
+进度补跑 8 轮在 `deepseek_phase0_5_progress.json`；其中 f R1/R2 各 3 轮，R3 共 2 轮。
+
+### 每轮 token / 耗时与 Phase 0 对比
+
+输入、输出、缓存均为这一顾客轮次所有决策+生成调用的 token 总和；秒数为端到端实测。
+先对同样的 c/d 比较，避免把 Phase 0 的 a/b/e 短问题混进来。统计见
+`eval_m3/spike/results/phase0_5_comparison.json`；p95 用 nearest rank `ceil(0.95*n)`。
+小样本、实时服务负载和缓存不同，这些不是对 fork 的因果性能证明。
+
+| 同题 c/d 每轮 | Phase 0（6 轮） | Phase 0.5（9 轮） |
+|---|---:|---:|
+| 输入 p50 / p95 | 29,406 / 47,752 | 29,482 / 47,840 |
+| 输出 p50 / p95 | 923.5 / 1,178 | 486 / 1,188 |
+| 缓存 p50 / p95 | 11,520 / 28,800 | 17,792 / 28,928 |
+| 耗时 p50 / p95 | 7.226 / 10.221 s | 5.443 / 9.635 s |
+| c2 追问：输入 p50、输出 p50、耗时 p50 | 26,007；566；8.012 s | 22,558；264；4.017 s |
+
+Phase 0 原 14 轮 p50 仍是输入 8,612、输出 316、4.365 s；与本轮 c/d 的题目构成不同。
+f 的独立数据库补跑没有 Phase 0 对照，8 轮 p50 输入 8,832、输出 149、2.941 s，p95 4.701 s。
+
+| Phase 0 对照轮 | 输入 | 输出 | 缓存 | 秒 |
+|---|---:|---:|---:|---:|
+| c1 R1 | 29,406 | 879 | 11,776 | 6.802 |
+| c2 R1 | 22,268 | 510 | 10,240 | 10.221 |
+| d R1 | 47,752 | 1,020 | 11,264 | 7.493 |
+| c1 R2 | 29,406 | 1,178 | 28,800 | 6.959 |
+| c2 R2 | 29,746 | 622 | 10,368 | 5.803 |
+| d R2 | 21,935 | 968 | 21,376 | 7.614 |
+
+| Phase 0.5 轮 | 输入 | 输出 | 缓存 | 秒 |
+|---|---:|---:|---:|---:|
+| c1 R1 | 29,482 | 1,188 | 21,632 | 6.648 |
+| c2 R1 | 29,654 | 297 | 6,400 | 9.635 |
+| d R1 | 22,011 | 486 | 17,792 | 5.443 |
+| c1 R2 | 29,482 | 889 | 28,928 | 5.948 |
+| c2 R2 | 22,558 | 181 | 6,656 | 3.980 |
+| d R2 | 47,840 | 625 | 13,056 | 9.509 |
+| c1 R3 | 29,482 | 580 | 28,928 | 5.245 |
+| c2 R3 | 22,414 | 264 | 6,656 | 4.017 |
+| d R3 | 22,011 | 476 | 21,376 | 5.290 |
+| f 首句 R1 | 8,832 | 132 | 8,448 | 2.841 |
+| f 商品追问回答 R1 | 5,790 | 87 | 5,632 | 1.287 |
+| f 进度 R1 | 9,372 | 246 | 8,828 | 4.701 |
+| f 首句 R2 | 8,832 | 132 | 8,448 | 3.040 |
+| f 商品追问回答 R2 | 5,790 | 87 | 5,632 | 1.459 |
+| f 进度 R2 | 9,372 | 216 | 8,828 | 3.776 |
+| f 首句 R3（直接等待审批） | 8,832 | 166 | 8,448 | 2.641 |
+| f 进度 R3 | 9,174 | 215 | 6,528 | 4.105 |
+
+### 改动文件与复现
+
+- 产品：`aftersales_service/answer_policy.py`（新）、`agent_core.py`、`conversation.py`、`decision_policy.py`。
+- 测试：`tests/test_m3_answer_policy.py`（新）、`test_m3_history_safety.py`（新）、`test_m3_decision_policy.py`。
+- 文档：`docs/v2/m3-policy-rag.md`、本报告。
+- 抽查：`eval_m3/spike/run_deepseek_phase0_5.py`（新）、results 下两个 DeepSeek 原始记录、离线检查
+  `offline_phase0_5.json`、对比 `phase0_5_comparison.json`。Phase 0 旧原始记录和脚本未改。
+
+命令（工作树根目录，均 exit 0）：
+
+```powershell
+# 全量：临时审计脚本，不修改测试；仅排除真实 DeepSeek 的两个测试
+.\.venv\Scripts\python.exe -X utf8 C:\Users\h000_\AppData\Local\Temp\m3-phase0-5-offline.py C:\Users\h000_\Documents\ChatGPT\agent项目改进\knowledge-agent-m3-phase0
+# 独立 focused 回归 67/67、历史安全回归 3/3；最终全量也覆盖这些
+..\knowledge-agent-m2\.venv\Scripts\python.exe -X utf8 -m unittest tests.test_m3_answer_policy tests.test_m3_decision_policy tests.test_m3_scripted_equivalence tests.test_aftersales_service tests.test_aftersales_golden
+..\knowledge-agent-m2\.venv\Scripts\python.exe -X utf8 -m unittest tests.test_m3_history_safety
+# 原始 c/d 结果保留；修正隔离后的完整复现请用新文件名，避免覆盖本轮证据
+.\.venv\Scripts\python.exe -X utf8 -m eval_m3.spike.run_deepseek_phase0_5 --dotenv ..\knowledge-agent\.env --repeats 3 --output deepseek_phase0_5_replay.json
+# 本轮修正隔离后实际补跑的命令
+.\.venv\Scripts\python.exe -X utf8 -m eval_m3.spike.run_deepseek_phase0_5 --dotenv ..\knowledge-agent\.env --repeats 3 --dialogues f --output deepseek_phase0_5_progress.json
+```
+
+### 需要用户决定
+
+1. **建议 Phase 3 加入可信的产品 pending/审批状态来源，并把进度问题绑定到当前申请对象。**
+   否则只靠历史和 `get_after_sales_case(order_id)` 会稳定错接到同订单的旧售后单。需要决定是否纳入
+   Phase 3；本轮没有擅自扩展工具、状态证据或确定性回复能力。
+2. **建议将 c2 R3 的“事实正确但没有本轮依据”作为 KB-DEV 失败条件。** 现有 ref 校验发现不了这种
+   语义复用；继续改数据消息/重查策略可在后续阶段做，运行时一致性关卡仍按第 6 版放在 Deferred。
+3. c1 的一次 answer_unavailable 与 d 的换货干扰保留为质量问题，后续基本功能调优时需要关注；
+   本轮未提高生成 token 上限、未改冻结回答 prompt。Ollama 用例修复建议可另开测试隔离任务。
+
+本轮只在 `m3-phase0` 提交，没有推送或合并。为抽查临时启动的 Ollama 在结束后关闭；
+未改变其他工作树、冻结目录或真实业务数据库。

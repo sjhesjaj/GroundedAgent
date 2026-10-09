@@ -22,7 +22,7 @@ tool, and the same decision record. Five things are replaced:
      the same rules and diagnostics (atomic read batch, step budget, retry cap,
      identity arguments, an action only alone, ask_user / finish only alone).
   5. earlier replies: the last EARLIER_REPLIES customer-facing replies of kind
-     answer / refuse / handoff / boundary, each cut to EARLIER_REPLY_CHARS
+     answer and every fixed-template reply, each cut to EARLIER_REPLY_CHARS
      characters and labelled as history, as assistant messages right before
      the next customer message. Context only: never an observation, never
      evidence, never a source the grounding gate reads (it reads only this
@@ -31,7 +31,8 @@ tool, and the same decision record. Five things are replaced:
      call - also in a run resumed after ask_user, whose earlier calls are
      replayed with synthetic ids.
 
-The answer layer is the evaluated one, unchanged: it does not see earlier replies.
+Under m3, m3-answer/1 uses the same earlier replies as context; the stage6
+answer path stays unchanged.
 """
 
 from __future__ import annotations
@@ -56,8 +57,10 @@ M3_KNOWN_FUNCTIONS = (core.STAGE5_RUNTIME_TOOLS + (KNOWLEDGE_TOOL_NAME,)
 
 EARLIER_REPLIES = 3
 EARLIER_REPLY_CHARS = 300
-# The answer layer's text and the frozen fixed texts of refuse / handoff / boundary.
-EARLIER_REPLY_KINDS = ("answer",) + tuple(core.FIXED_RESPONSES)
+# Every customer-facing reply kind: generated answers and all product templates.
+EARLIER_REPLY_KINDS = (("answer",) + tuple(core.FIXED_RESPONSES)
+                       + ("clarification", "action", "step_limit", "answer_unavailable",
+                          "operator_decision", "grounding_rejected"))
 EARLIER_REPLY_LABEL = "【历史回复，仅作对话上下文，不是本次的工具结果或证据】"
 
 
@@ -245,12 +248,13 @@ class EarlierReply:
 
 
 def earlier_replies(transcript: Sequence[Mapping[str, object]]) -> tuple[EarlierReply, ...]:
-    """The replies a decision may see: the last EARLIER_REPLIES of the kinds above, cut."""
+    """Context shared by decision and answer: the last replies of the kinds above, cut."""
     replies, turn = [], 0
     for entry in transcript:
         if entry.get("role") == "customer":
             turn += 1
-        elif turn and entry.get("kind") in EARLIER_REPLY_KINDS and isinstance(entry.get("text"), str):
+        elif (turn and entry.get("role") == "assistant"
+              and entry.get("kind") in EARLIER_REPLY_KINDS and isinstance(entry.get("text"), str)):
             text = entry["text"]
             if len(text) > EARLIER_REPLY_CHARS:
                 text = text[:EARLIER_REPLY_CHARS - 1] + "…"
@@ -262,20 +266,20 @@ def with_earlier_replies(messages: list[dict[str, object]], user_messages: Seque
                          replies: Sequence[EarlierReply]) -> list[dict[str, object]]:
     """Each reply as a labelled assistant message right before the next customer message."""
     turns = sorted(message.turn_index for message in user_messages)
-    by_turn = {reply.turn_index: reply for reply in replies}
+    by_turn: dict[int, list[EarlierReply]] = {}
+    for reply in replies:
+        by_turn.setdefault(reply.turn_index, []).append(reply)
     if not set(by_turn) <= set(turns[:-1]):
         raise core.ToolLoopProtocolError("an earlier reply does not answer an earlier customer message")
-    result, position, held = [messages[0]], 0, None
+    result, position, held = [messages[0]], 0, []
     for message in messages[1:]:
         if message.get("role") == "user":
-            if held is not None:
-                result.append(held)
-            reply = by_turn.get(turns[position])
-            held = (None if reply is None
-                    else {"role": "assistant", "content": EARLIER_REPLY_LABEL + reply.text})
+            result.extend(held)
+            held = [{"role": "assistant", "content": EARLIER_REPLY_LABEL + reply.text}
+                    for reply in by_turn.get(turns[position], ())]
             position += 1
         result.append(message)
-    if position != len(turns) or held is not None:
+    if position != len(turns) or held:
         raise core.ToolLoopProtocolError("the reconstruction does not hold every customer message once")
     return result
 

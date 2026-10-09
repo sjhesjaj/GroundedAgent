@@ -283,10 +283,37 @@ class DecisionPolicyTests(unittest.TestCase):
         transcript.append({"role": "assistant", "kind": "operator_decision", "text": "审批结果"})
         replies = dp.earlier_replies(transcript)
         self.assertEqual([(reply.turn_index, reply.kind) for reply in replies],
-                         [(5, "handoff"), (6, "boundary"), (8, "answer")])
-        for reply in replies:
+                         [(7, "grounding_rejected"), (8, "answer"), (8, "operator_decision")])
+        for reply in replies[:-1]:
             self.assertEqual(len(reply.text), dp.EARLIER_REPLY_CHARS)
             self.assertTrue(reply.text.endswith("…"))
+        self.assertEqual(replies[-1].text, "审批结果")
+
+    def test_every_fixed_template_kind_is_history_and_only_assistant_text_is_selected(self):
+        for kind in dp.EARLIER_REPLY_KINDS:
+            with self.subTest(kind=kind):
+                replies = dp.earlier_replies([
+                    {"role": "customer", "text": "问题", "kind": kind},
+                    {"role": "tool", "kind": kind, "text": "不是客服回复"},
+                    {"role": "assistant", "kind": kind, "text": "客服回复"},
+                ])
+                self.assertEqual(replies, (dp.EarlierReply(1, kind, "客服回复"),))
+
+    def test_action_and_multiple_operator_results_on_one_turn_are_preserved_in_order(self):
+        transcript = [
+            {"role": "customer", "text": "我要退货"},
+            {"role": "assistant", "kind": "action", "text": "等待审批"},
+            {"role": "assistant", "kind": "operator_decision", "text": "审批通过"},
+            {"role": "assistant", "kind": "operator_decision", "text": "重复审批结果"},
+            {"role": "customer", "text": "现在进度怎么样？"},
+        ]
+        messages = dp.build_m3_messages(state(messages=("我要退货", "现在进度怎么样？")), {},
+                                        dp.earlier_replies(transcript))
+        self.assertEqual([message["role"] for message in messages],
+                         ["system", "user", "assistant", "assistant", "assistant", "user"])
+        self.assertEqual([message["content"] for message in messages[2:5]],
+                         [dp.EARLIER_REPLY_LABEL + text
+                          for text in ("等待审批", "审批通过", "重复审批结果")])
 
     def test_history_goes_right_before_the_next_customer_message(self):
         current = state(messages=("运费谁出？", "那帮我退了", "第三句"))
@@ -409,13 +436,13 @@ class M3ConversationTests(M3ProductTestCase):
         last = requests[-1]["messages"]
         self.assertEqual([message["role"] for message in last],
                          ["system", "user", "assistant", "user", "assistant", "tool",
-                          "user", "assistant", "tool", "tool"])
+                          "assistant", "user", "assistant", "tool", "tool"])
         # The answer of run 1 is history; run 2's KB call is replayed with its synthetic id
-        # after the resume; the clarification text is not history.
+        # after the resume; the clarification template is history before the new user.
         self.assertEqual(last[2]["content"], dp.EARLIER_REPLY_LABEL + "非质量原因退货的寄回运费由您承担。")
         self.assertEqual(last[4]["tool_calls"][0]["id"], "obs-turn:2:tool:2")
-        self.assertEqual([item["id"] for item in last[7]["tool_calls"]], ["batch-1", "batch-2"])
-        self.assertNotIn("为了继续处理", json.dumps(last, ensure_ascii=False))
+        self.assertTrue(last[6]["content"].startswith(dp.EARLIER_REPLY_LABEL + "为了继续处理"))
+        self.assertEqual([item["id"] for item in last[8]["tool_calls"]], ["batch-1", "batch-2"])
 
 
 class KnowledgeNeverGroundsTests(M3ProductTestCase):

@@ -18,7 +18,7 @@ Control runs
                   semantics: the answer to a clarification continues the run),
                   with every earlier message, observation and the step budget.
                   Nothing is pre-scripted: the reply is whatever the customer sends.
-    Finish        the run ends. answer -> the evaluated answer layer (one model
+    Finish        the run ends. answer -> the selected answer layer (one model
                   call, grounded sources, validated citations); refuse / handoff /
                   boundary -> the frozen fixed texts.
     ActionIntent  validated again here (the policy is untrusted), grounded in the
@@ -46,9 +46,9 @@ Control runs
     The decision policy is chosen per request (M3, decision_policy.py):
     AFTERSALES_DECISION_POLICY=stage6 (default) is the evaluated policy over
     the five read tools; m3 is m3-decision/1 with search_knowledge_base added
-    to the read side and the last earlier replies shown to the decision as
-    labelled history. Earlier replies are never observations, so they can
-    neither ground an action nor become answer evidence.
+    to the read side and the last earlier replies shown to the decision and
+    m3-answer/1 as labelled history. Earlier replies are never observations,
+    so they can neither ground an action nor become answer evidence.
 
 Action grounding (M1-A1, docs/v2/m1-a1-action-grounding.md)
     Every read is registered as an immutable structured observation
@@ -130,6 +130,7 @@ from aftersales.ids import RequestIdentity, idempotency_key
 from orchestration.contracts import ToolResult
 
 from . import agent_core as core
+from . import answer_policy
 from . import decision_policy
 from .action_grounding import (
     GROUNDING_VERSION,
@@ -769,7 +770,11 @@ class Conversation:
             turn.reply(disposition, core.FIXED_RESPONSES[disposition])
             return
         try:
-            answer = core.generate_answer(provider, state)
+            if decision_policy.configured_policy() == decision_policy.POLICY_M3:
+                answer = answer_policy.generate_answer(
+                    provider, state, decision_policy.earlier_replies(self._transcript))
+            else:
+                answer = core.generate_answer(provider, state)
         except core.AnswerUnavailable as error:
             turn.steps[-1]["answer_error"] = error.code
             turn.reply(REPLY_ANSWER_UNAVAILABLE, ANSWER_UNAVAILABLE_TEXT)
