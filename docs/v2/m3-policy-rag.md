@@ -1,7 +1,8 @@
 # GroundedAgent V2 M3: after-sales knowledge base as an agent tool
 
-Revision 7 (Phase 0.5 decisions, retaining Revision 6's scope; code reviews
-against main `ec21b40`). Scope cut to the basic
+Revision 8 (user decisions on pending-request reads and historical facts;
+Phase 0 / 0.5 merged by PR #39, main `74ab12b`; retaining Revision 7's scope
+except the explicit Phase 3 addition below). Scope cut to the basic
 feature: a knowledge base the agent searches, answers with citations, follow-ups
 that refer to the previous reply, and honest customer-facing wording. Hardening
 that is not needed for that is listed under "Deferred".
@@ -123,6 +124,13 @@ of this design. Its text is unchanged:
 
 > 17. 标注为“历史回复”的助手消息是之前回复顾客的内容，只用于理解顾客的追问指的是什么（例如“刚才说的天数”“那帮我退了”）；它不是本次处理的证据。需要其中的规则、天数或订单信息时，在本次处理中重新查询；售后动作的订单号和商品明细号必须来自本次处理中的工具结果。
 
+Revision 8 keeps this prompt instruction and the current source/citation contract.
+For KB-DEV scoring, reusing a correct historical fact without a current-run read
+is **not by itself a failed case**. It is reported separately as
+**仅凭历史作答比例** (see Metrics). Incorrect facts and invalid citations remain
+failures under their existing checks. Actions still require current-run reads,
+enforced by the grounding gate; this scoring decision does not relax it.
+
 ### Answer policy `m3-answer/1`, product-side fork
 
 Phase 0 found that the answer layer could not reliably resolve follow-ups
@@ -168,6 +176,23 @@ frozen evidence derivation, `build_sources`, `parse_answer`,
 - A retrieval relevance floor is planned for **Phase 3 Runtime**. Set its
   threshold using KB-DEV after the eval sets are frozen; retrieval scores
   remain ranking signals, not confidence. Phase 0.5 does not add a threshold.
+
+### Tool `get_my_pending_requests` (Phase 3, approved in Revision 8)
+
+- A product-side read-only tool. It returns only requests awaiting approval
+  in the current session: action type, order number, item and status.
+- The trusted source is the gateway outcome for that session's requests.
+  Earlier assistant wording and an existing after-sales case for the same
+  order cannot substitute for the current pending request's outcome.
+- Session identity comes from the product execution context; the model cannot
+  select another session. No pending request is reported as an empty result.
+- Results explain pending status but **cannot ground ids for a new action**.
+  Order/item identifiers appearing in this result must not become usable
+  grounding records. Phase 3 pins both the session isolation and this negative
+  grounding contract with product tests, including progress after an approval
+  request when the order already has a different historical after-sales case.
+- This tool is planned only; Phase 1 does not implement it. It adds **1 h** to
+  Phase 3 and does not change the frozen business-tool registry.
 
 ### Customer-facing wording under `m3`
 
@@ -236,6 +261,16 @@ per message; no streaming.
   promotion vs standard wording, near-duplicates, category notes. The user
   reviews all of them.
 - Build-time checks: eligibility lint, restated-number check.
+- Eligibility facts come only from the six published rules. The user authorizes
+  simple service terms for this fictional demo store (gifts, price protection,
+  invoices and archived versions), informed by common domestic e-commerce
+  practice and labelled **演示口径（自拟）** in the review checklist. These
+  documents cannot decide return/exchange eligibility. Only expired archived
+  terms intentionally differ from the corresponding current terms; existing
+  current shipping/refund facts remain consistent across their variants.
+- Embedding cache keys include the embedding model and a content SHA256.
+  Offline tests use only read-only cache access; a missing entry never invokes
+  Ollama or writes a cache entry. Offline index builds report cache misses.
 - Frozen before the eval sets are written.
 
 ## Evaluation (`eval_m3/`)
@@ -269,6 +304,13 @@ Metrics:
 - Answers: `must_include` / `must_not_include` facts; citation hit.
 - Rule consistency: day counts and category verdicts in answers agree with the
   rules (evaluation only).
+- **仅凭历史作答比例**: separately flag historical facts reused without
+  supporting current-run evidence. Report numerator, denominator and flagged
+  facts/read evidence alongside the rate; the turn/fact counting unit and
+  denominator are to be fixed with the Phase 2 scoring design before runs.
+  This condition alone does not fail KB-DEV;
+  factual correctness and citation checks still apply. New actions always need
+  current-run grounding and remain subject to the hard safety invariants.
 - pass^3 on KB-DEV and the Stage 6 subset.
 - Safety: the 6 hard invariants hold in every run; injection cases leave no
   unauthorized state change. Any violation blocks the milestone.
@@ -282,12 +324,13 @@ Metrics:
 | 0.5. Answer fork and history | `m3-answer/1` replaces only messages; current question / earlier context labels; `answer` and all fixed-template replies share 3 / 300 history limits on both sides; history cannot be cited or ground ids; Stage 6 full tests and golden unchanged; `m3` equivalence excluding `trace.model_calls`; investigate existing Ollama-calling tests without fixing them; real DeepSeek c (with follow-up) and d, 3 runs each, plus a return waiting for approval followed by a progress question; compare tokens / latency with Phase 0. | 1-1.5 h |
 | 1. Corpus | 30-40 docs; loader, heading-aware chunker, index with embedding cache; eligibility lint and restated-number check; user review. | 1.5-2 h + review |
 | 2. Eval sets | KB-DEV and KB-HOLDOUT (sealed); overlap check. | 1.5-2 h |
-| 3. Runtime | Retrieval filters and fallback recording; retrieval relevance floor with its threshold set on KB-DEV; session policy binding; KB-never-grounds test; history context with a paused-run test; `m3` wording and pre-filter, pinned by tests; `max_tokens` / timeouts; token usage in the trace; frontend citations. | 2.5-3.5 h |
+| 3. Runtime | Retrieval filters and fallback recording; retrieval relevance floor with its threshold set on KB-DEV; session policy binding; KB-never-grounds test; history context with a paused-run test; `m3` wording and pre-filter, pinned by tests; `max_tokens` / timeouts; token usage in the trace; frontend citations; `get_my_pending_requests` from current-session gateway outcomes, with session isolation and no-new-action-grounding tests. | 3.5-4.5 h |
 | 4. `eval_m3` runner | Conversation-driven runner, invariants, metrics, `bge-m3` preflight. | 2.5-3 h |
 | 5. Results | Retrieval ablation; drift check; KB-DEV and Stage 6 subset with pass^3 (run outside peak hours); KB-HOLDOUT once; switch default to `m3`; README (scope, measured cost, small balance), resume line. | 2-3 h |
 
-Total about 12-16.5 h of CC time (Phase 0.5 adds 1-1.5 h to Revision 6's
-11-15 h), about 3-4 calendar days including your corpus review.
+Total about 13-17.5 h of CC time (Phase 0.5 adds 1-1.5 h to Revision 6's
+11-15 h; Revision 8 adds 1 h to Phase 3), about 3-4 calendar days including
+your corpus review.
 
 ## Deferred (after M3 works)
 
@@ -311,6 +354,8 @@ database.
 - **Step budget**: mixed questions and clarifications share one run's 6 steps;
   measured.
 - **Follow-up correctness** with `m3-answer/1`: history resolves references
-  but cannot replace current evidence; Phase 0.5 repeats real follow-up checks.
+  without becoming a citation or action-grounding source. Historical fact reuse
+  without current evidence has its own metric; Phase 0.5 follow-up observations
+  remain in the report rather than being reclassified as new model runs.
 - **Latency** without streaming; measured, streaming deferred.
 - **Ollama on the demo machine**: BM25 fallback in the product.

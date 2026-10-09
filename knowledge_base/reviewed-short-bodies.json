@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "user_confirmed": true,
+  "hash_normalization": "utf-8-lf",
+  "exceptions": [
+    {
+      "doc_id": "kb-apparel-exchange",
+      "normalized_markdown_sha256": "8e8142ac6268496e5900e0383ee0426bd5b96a7545872bc0715f6f1954ea1aa8"
+    },
+    {
+      "doc_id": "kb-custom-category-note",
+      "normalized_markdown_sha256": "13980d09bc3ac1d85460377a8365edd713f3bb2e505214e609b0099968071a28"
+    },
+    {
+      "doc_id": "kb-custom-non-returnable",
+      "normalized_markdown_sha256": "e2cfeae5e5810b03698202ab5800b41effd30f339d11d9fd80046a3d8110f706"
+    },
+    {
+      "doc_id": "kb-evidence-purpose",
+      "normalized_markdown_sha256": "71a04027c6553750f972e55e2f77ae401211df6bb526df8c3faaf699ce1d13a2"
+    },
+    {
+      "doc_id": "kb-quality-evidence",
+      "normalized_markdown_sha256": "5aa4517f8ced9825f43ed2d9cf3087cffe84bff208aa5c17de9a7047f0564f09"
+    },
+    {
+      "doc_id": "kb-quality-handoff",
+      "normalized_markdown_sha256": "fc0aaf295f8ff1899e6ae63ab1fcc047356ee407c18c43a2670f429e0d2d35b0"
+    },
+    {
+      "doc_id": "kb-refund-channels",
+      "normalized_markdown_sha256": "66e09edfe09294026c5b651719d69016c3eac1581bb0d450231f00ce20aa387a"
+    },
+    {
+      "doc_id": "kb-refund-coupon",
+      "normalized_markdown_sha256": "b7a952c54d57c1a4922ed31d010720c89dcb35106282aff32f0dded144f48ae9"
+    },
+    {
+      "doc_id": "kb-refund-initiation",
+      "normalized_markdown_sha256": "a3b257254956adb700949dc7eb69e66092a6685e59c243172fa0f5f20632725f"
+    },
+    {
+      "doc_id": "kb-shipping-insurance",
+      "normalized_markdown_sha256": "3599a1d5558baade8ce97fee72eb37f308f3fc27261cf24b0e5489fc40004487"
+    },
+    {
+      "doc_id": "kb-shipping-quality-cost",
+      "normalized_markdown_sha256": "936e6e5f9e439bef2464171ced32cf678d101e9a75430ce090c987ff6bf40779"
+    },
+    {
+      "doc_id": "kb-standard-exchange-counting",
+      "normalized_markdown_sha256": "18a69d1d5206fc33ea45dd071ee9b4284b42ea935f29c89f14cbc0a77a536118"
+    },
+    {
+      "doc_id": "kb-standard-exchange",
+      "normalized_markdown_sha256": "b28bc179cb6303217ddc6abbd0d3897f1a494efc94442a0b201555f3819ce782"
+    }
+  ]
+}

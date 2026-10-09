@@ -90,8 +90,10 @@ class KnowledgeBaseTests(unittest.TestCase):
 
     def test_the_corpus_builds_and_every_passage_fits_the_cap(self):
         documents = kb.load_corpus()
-        self.assertEqual(sorted(document.doc_id for document in documents),
-                         ["kb-november-promo", "kb-refund-timing", "kb-return-shipping"])
+        self.assertGreaterEqual(len(documents), 30)
+        self.assertLessEqual(len(documents), 40)
+        self.assertTrue({"kb-november-promo", "kb-refund-timing", "kb-return-shipping"}
+                        .issubset({document.doc_id for document in documents}))
         base = kb.KnowledgeBase(documents)
         self.assertTrue(base.passages)
         for passage in base.passages:
