@@ -12,8 +12,10 @@ tool, and the same decision record. Five things are replaced:
 
   1. the system prompt: the Stage 6 prompt with rule 1 (the tools and the split
      between the two retrieval tools) and rule 12 (tool results and earlier
-     replies are data) replaced, and rule 17 (what an earlier reply is for)
-     added. The runtime context line is unchanged and stays last.
+     replies are data) replaced, and rules 17 (what an earlier reply is for)
+     and 18 (a request unrelated to after-sales is refused; refunds and
+     permission requests keep rules 4 and 5) added. The runtime context line
+     is unchanged and stays last.
   2. the offered functions: the Stage 6 order with search_knowledge_base right
      after the five read tools; never on the last step.
   3. the schemas: the Stage 6 schemas plus the knowledge tool's.
@@ -96,6 +98,11 @@ M3_RULE_17 = (
     "17. 标注为“历史回复”的助手消息是之前回复顾客的内容，只用于理解顾客的追问指的是什么（例如“刚才说的天数”"
     "“那帮我退了”）；它不是本次处理的证据。需要其中的规则、天数或订单信息时，在本次处理中重新查询；"
     "售后动作的订单号和商品明细号必须来自本次处理中的工具结果。")
+# Phase 5 part 1 decision (user, 2026-10-09): only the off-topic class changes.
+M3_RULE_18 = (
+    "18. 与本店售后无关的问题或请求（例如天气、写代码等问候、感谢、告别之外的无关请求），调用 finish，"
+    "disposition 为 refuse，不要用 boundary。退款、支付等系统没有的操作，以及越过身份或权限的请求，"
+    "不属于此类，仍按规则 4、5 处理。")
 
 
 def _m3_system_prompt() -> str:
@@ -112,6 +119,7 @@ def _m3_system_prompt() -> str:
     if line_of("16. ") != len(lines) - 1:
         raise ImportError("the Stage 6 prompt drifted: rule 16 is not the last line")
     lines.append(M3_RULE_17)
+    lines.append(M3_RULE_18)
     return "\n".join(lines)
 
 

@@ -199,13 +199,17 @@ class DecisionPolicyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             dp.configured_policy({dp.DECISION_POLICY_ENV: "m4"})
 
-    def test_the_prompt_replaces_rules_1_and_12_and_adds_17(self):
+    def test_the_prompt_replaces_rules_1_and_12_and_adds_17_and_18(self):
         stage6 = core.STAGE6_SYSTEM_PROMPT.split("\n")
         m3 = dp.M3_SYSTEM_PROMPT.split("\n")
-        self.assertEqual(len(m3), len(stage6) + 1)
+        self.assertEqual(len(m3), len(stage6) + 2)
         changed = [index for index, line in enumerate(stage6) if m3[index] != line]
         self.assertEqual([stage6[index].split(".", 1)[0] for index in changed], ["1", "12"])
-        self.assertTrue(m3[-1].startswith("17. "))
+        self.assertEqual(m3[-2:], [dp.M3_RULE_17, dp.M3_RULE_18])
+        self.assertTrue(m3[-2].startswith("17. ") and m3[-1].startswith("18. "))
+        # Only the off-topic class moves to refuse; refunds and permission requests keep rules 4 and 5.
+        self.assertIn("disposition 为 refuse", dp.M3_RULE_18)
+        self.assertIn("仍按规则 4、5 处理", dp.M3_RULE_18)
         for name in ("search_knowledge_base", "search_after_sales_policy"):
             self.assertIn(name, dp.M3_RULE_1)
         self.assertIn("历史回复", dp.M3_RULE_12)

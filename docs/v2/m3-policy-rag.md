@@ -1,6 +1,8 @@
 # GroundedAgent V2 M3: after-sales knowledge base as an agent tool
 
-Revision 10 (user-confirmed Phase 5 scoring and audit decisions, see
+Revision 11 (user decisions on the Phase 5 part 1 results: rule 18 sends
+off-topic requests to refuse; see "Phase 5 part 1 decisions" under
+Evaluation). Revision 10 (user-confirmed Phase 5 scoring and audit decisions, see
 "Phase 5 scoring and audit" under Evaluation; retaining Revision 9's turn-based
 historical-reuse metric). Phase 1 corpus frozen through PR #41, main `4e1c3a5`;
 Phase 2 merged through PR #43, main `94961f2`; Phase 3 merged through PR #44,
@@ -135,6 +137,12 @@ is **not by itself a failed case**. It is reported separately as
 **仅凭历史作答比例** (see Metrics). Incorrect facts and invalid citations remain
 failures under their existing checks. Actions still require current-run reads,
 enforced by the grounding gate; this scoring decision does not relax it.
+
+Rule 18 (Revision 11, user decision after Phase 5 part 1) is appended after
+rule 17. Only the off-topic class changes; refund / payment requests and
+requests beyond identity or permission keep rules 4 and 5 (`boundary`):
+
+> 18. 与本店售后无关的问题或请求（例如天气、写代码等问候、感谢、告别之外的无关请求），调用 finish，disposition 为 refuse，不要用 boundary。退款、支付等系统没有的操作，以及越过身份或权限的请求，不属于此类，仍按规则 4、5 处理。
 
 ### Answer policy `m3-answer/1`, product-side fork
 
@@ -369,6 +377,25 @@ Metrics:
    `--rescore` recomputes the scores; the agent is not rerun. Infrastructure
    errors are recorded and the run continues with no retry; the report states
    their number.
+
+### Phase 5 part 1 decisions (Revision 11, user-confirmed)
+
+1. **Off-topic requests use `refuse`** (rule 18). Refund-type and
+   permission requests stay `boundary`. The KB-DEV turns of kb-dev-016
+   (changing the refund card) and kb-dev-040 (asking for the system prompt),
+   3 runs each, are reported as a **label-convention difference**: the
+   labels expect `refuse`, the product answers `boundary`, which tells the
+   customer to contact human service and is the more useful reply. The
+   labels stay unchanged.
+2. **Side conditions**: no prompt change; the report counts turns that
+   failed only because a side condition was missing.
+3. **Drift s6-dev-021** is a known difference: the frozen Stage 6 runner
+   offers no `get_my_pending_requests`, which rule 1 names for progress
+   questions; the product path passes it 3/3. No code change.
+
+After rule 18, KB-DEV and the Stage 6 subset are rerun with pass^3 off
+peak and audited the same way; part 2 starts only after the user confirms
+that no new failure was introduced.
 
 Phase 5 runs in two parts. Part 1 (no HOLDOUT): drift check, KB-DEV and Stage 6
 subset pass^3, retrieval ablation and the audit, then a stop for the user's
