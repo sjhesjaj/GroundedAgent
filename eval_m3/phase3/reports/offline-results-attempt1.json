@@ -1,0 +1,22 @@
+{
+  "tests_discovered": 2901,
+  "tests_selected": 2899,
+  "tests_run": 2899,
+  "excluded": [
+    "tests.test_llm_provider_live.DeepSeekLiveTests.test_plain_chat_returns_text_and_usage",
+    "tests.test_llm_provider_live.DeepSeekLiveTests.test_schema_request_returns_parseable_json"
+  ],
+  "failures": 1,
+  "errors": 0,
+  "skipped": 0,
+  "seconds": 291.893,
+  "successful": false,
+  "blocked_unmocked_http_attempts": [],
+  "unexpected_http_attempts": [],
+  "blocked_socket_attempts": [],
+  "blocked_persistent_database_attempts": [],
+  "interpreter": "C:\\Users\\h000_\\Documents\\ChatGPT\\agent项目改进\\knowledge-agent-m3-phase3\\.venv\\Scripts\\python.exe",
+  "persistent_embedding_cache_unchanged": true,
+  "persistent_embedding_cache_entries": 242,
+  "isolation": "Read-only M3 embedding cache; temporary V1 import database; real HTTP/socket and repository persistent DB blocked. Only two live DeepSeek tests excluded. Known legacy V1 HTTP attempts reported, not repaired."
+}

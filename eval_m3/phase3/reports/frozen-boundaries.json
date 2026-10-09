@@ -1,0 +1,28 @@
+{
+  "baseline_main_commit": "94961f21cf4f52c13aed99823cd85502a4793855",
+  "frozen_paths_checked": [
+    "knowledge_base",
+    "policy_sources",
+    "aftersales",
+    "eval_v2",
+    "eval/v2",
+    "system_fixtures",
+    "tests/fixtures",
+    "eval_m3/datasets",
+    "eval_m3/spec",
+    "eval_m3/sealed"
+  ],
+  "tracked_diff": [],
+  "corpus_files_verified_against_main": 36,
+  "corpus_normalized_content_mismatches": [],
+  "dev_normalized_sha256": "1486e9f227fe84dfd8ec7f62a889a4ef6d09e959e3ad06d05f4784dd14a4a655",
+  "dev_matches_frozen_manifest": true,
+  "stage6_subset_normalized_sha256": "73185fee471037f15eba5c3acb621dfdbb59709d029a87e788237bcd5ce4fe8e",
+  "stage6_subset_matches_frozen_manifest": true,
+  "holdout_archive_path": "eval_m3/sealed/kb-holdout.zip",
+  "holdout_archive_sha256": "4e6a705d86bf381825ad63bc347be6a15b792bd4e2d4831df971ea1a32ab3f63",
+  "holdout_matches_seal": true,
+  "holdout_size_bytes": 23711,
+  "holdout_readonly": true,
+  "archive_handling": "Hashed raw archive bytes only; never listed/opened/decompressed its contents"
+}
