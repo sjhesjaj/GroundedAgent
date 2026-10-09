@@ -3,7 +3,8 @@
 Revision 9 (user-confirmed turn-based historical-reuse metric; Phase 1 corpus
 frozen through PR #41, main `4e1c3a5`; Phase 2 merged through PR #43, main
 `94961f2`; retaining Revision 8's runtime scope and sealed Phase 2 datasets).
-Phase 3's basic runtime is implemented on `m3-phase3`, pending review. Scope cut to the basic
+Phase 3 merged through PR #44, main `ed0b06b`. Phase 4's `eval_m3` runner is implemented on
+`m3-phase4`, pending review (`eval_m3/phase4/phase4-report.md`). Scope cut to the basic
 feature: a knowledge base the agent searches, answers with citations, follow-ups
 that refer to the previous reply, and honest customer-facing wording. Hardening
 that is not needed for that is listed under "Deferred".
