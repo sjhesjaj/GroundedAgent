@@ -338,5 +338,27 @@ class CommandLineTests(unittest.TestCase):
                 self.assertEqual({key: again[key] for key in original}, original)
 
 
+class DriftCheckTest(unittest.TestCase):
+    def test_a_case_runs_through_the_frozen_stage6_runner_and_is_compared(self):
+        from eval_m3 import drift
+
+        class FormalNamedMock(MockAgent):   # SharedGenerator(formal=True) runs on "deepseek" only
+            name = "deepseek"
+
+        case = json.loads(runner.STAGE6_DEV_PATH.read_text(encoding="utf-8"))[0]
+        provider = runner.RecordingProvider(FormalNamedMock(), role="agent")
+        row = drift.run_one(case, provider)
+        self.assertIsNone(row["error"])
+        self.assertEqual(row["score"]["case_id"], "s6-dev-001")
+        self.assertGreaterEqual(len(row["calls"]), 2)
+        baseline = [{"case_id": "s6-dev-001", "score": copy.deepcopy(row["score"])}]
+        baseline[0]["score"]["stage6_e2e_success"] = not row["score"]["stage6_e2e_success"]
+        result = drift.compare([row], baseline)
+        self.assertEqual(result["changed_cases"], ["s6-dev-001"])
+        self.assertEqual(result["scored"], 1)
+        failed = dict(row, score=None, error={"phase": "run", "error_type": "Timeout"})
+        self.assertEqual(drift.compare([failed], baseline)["errors"][0]["error"]["error_type"], "Timeout")
+
+
 if __name__ == "__main__":
     unittest.main()
