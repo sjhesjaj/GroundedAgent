@@ -9,30 +9,9 @@
   "failures": 0,
   "errors": 0,
   "skipped": 0,
-  "seconds": 317.649,
+  "seconds": 306.315,
   "successful": true,
-  "blocked_unmocked_http_attempts": [
-    {
-      "test": "tests.test_boundary_messages.PolicyQuestionsAreUnaffectedTests.test_such_a_question_produces_no_boundary_message",
-      "method": "post",
-      "url": "http://localhost:11434/api/embed"
-    },
-    {
-      "test": "tests.test_boundary_messages.PolicyQuestionsAreUnaffectedTests.test_such_a_question_produces_no_boundary_message",
-      "method": "post",
-      "url": "http://localhost:11434/api/embed"
-    },
-    {
-      "test": "tests.test_boundary_messages.PolicyQuestionsAreUnaffectedTests.test_such_a_question_produces_no_boundary_message",
-      "method": "post",
-      "url": "http://localhost:11434/api/embed"
-    },
-    {
-      "test": "tests.test_boundary_messages.PolicyQuestionsAreUnaffectedTests.test_such_a_question_produces_no_boundary_message",
-      "method": "post",
-      "url": "http://localhost:11434/api/embed"
-    }
-  ],
+  "blocked_unmocked_http_attempts": [],
   "unexpected_http_attempts": [],
   "blocked_socket_attempts": [],
   "blocked_persistent_database_attempts": [],

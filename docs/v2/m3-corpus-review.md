@@ -87,50 +87,6 @@
 | kb-standard-exchange-counting | 125 | 用户已确认短文例外；不补字 |
 | kb-standard-exchange | 114 | 用户已确认短文例外；不补字 |
 
-## 删除元说明与短文例外
-
-2026-10-09 仅删除元说明片段，共 35 篇、151 处；正文事实、数字、活动日期、条件、品类前提和 front matter 保持不变。两篇旧版保留标题中的“2025 年存档旧版”，正文过期自声明删去，失效时间由 effective_to 体现。
-
-正文按去标题、去空白并计入数字与标点统计，为 **59–316 字**。普通文档要求 150–800 字；以下 13 篇不足 150，用户明确决定“这些篇允许短于 150 字，保留现有事实直接冻结”。例外在 knowledge_base/reviewed-short-bodies.json 中绑定全文经 LF 规范化后的 SHA256，内容改变即失效。
-
-| doc_id | 正文字数 | 决定 |
-|---|---:|---|
-| kb-apparel-exchange | 138 | 用户已确认短文例外；不补字 |
-| kb-custom-category-note | 88 | 用户已确认短文例外；不补字 |
-| kb-custom-non-returnable | 59 | 用户已确认短文例外；不补字 |
-| kb-evidence-purpose | 117 | 用户已确认短文例外；不补字 |
-| kb-quality-evidence | 80 | 用户已确认短文例外；不补字 |
-| kb-quality-handoff | 62 | 用户已确认短文例外；不补字 |
-| kb-refund-channels | 134 | 用户已确认短文例外；不补字 |
-| kb-refund-coupon | 140 | 用户已确认短文例外；不补字 |
-| kb-refund-initiation | 132 | 用户已确认短文例外；不补字 |
-| kb-shipping-insurance | 126 | 用户已确认短文例外；不补字 |
-| kb-shipping-quality-cost | 129 | 用户已确认短文例外；不补字 |
-| kb-standard-exchange-counting | 125 | 用户已确认短文例外；不补字 |
-| kb-standard-exchange | 114 | 用户已确认短文例外；不补字 |
-
-## 删除元说明与短文例外
-
-2026-10-09 仅删除元说明片段，共 35 篇、151 处；正文事实、数字、活动日期、条件、品类前提和 front matter 保持不变。两篇旧版保留标题中的“2025 年存档旧版”，正文过期自声明删去，失效时间由 effective_to 体现。
-
-正文按去标题、去空白并计入数字与标点统计，为 **59–316 字**。普通文档要求 150–800 字；以下 13 篇不足 150，用户明确决定“这些篇允许短于 150 字，保留现有事实直接冻结”。例外在 knowledge_base/reviewed-short-bodies.json 中绑定全文经 LF 规范化后的 SHA256，内容改变即失效。
-
-| doc_id | 正文字数 | 决定 |
-|---|---:|---|
-| kb-apparel-exchange | 138 | 用户已确认短文例外；不补字 |
-| kb-custom-category-note | 88 | 用户已确认短文例外；不补字 |
-| kb-custom-non-returnable | 59 | 用户已确认短文例外；不补字 |
-| kb-evidence-purpose | 117 | 用户已确认短文例外；不补字 |
-| kb-quality-evidence | 80 | 用户已确认短文例外；不补字 |
-| kb-quality-handoff | 62 | 用户已确认短文例外；不补字 |
-| kb-refund-channels | 134 | 用户已确认短文例外；不补字 |
-| kb-refund-coupon | 140 | 用户已确认短文例外；不补字 |
-| kb-refund-initiation | 132 | 用户已确认短文例外；不补字 |
-| kb-shipping-insurance | 126 | 用户已确认短文例外；不补字 |
-| kb-shipping-quality-cost | 129 | 用户已确认短文例外；不补字 |
-| kb-standard-exchange-counting | 125 | 用户已确认短文例外；不补字 |
-| kb-standard-exchange | 114 | 用户已确认短文例外；不补字 |
-
 ## 检查记录
 
 正式在线建缓存和严格只读离线复建均通过：**35 篇 / 95 段**，资格 lint、复述数字 / 单位和生效期检查通过；12 篇规则复述、23 篇知识库独有。业务时间仍为 2026-11-15T10:00:00+08:00，33 篇在期、2 篇存档已过期。真实 bge-m3 段落向量为 1024 维，缓存不随 Git 分发。

@@ -24,7 +24,7 @@
 
 | 检查 | 结果 |
 |---|---|
-| 全量离线 unittest | 2829/2829 OK；failures/errors/skips 均 0；317.649 s；exit 0 |
+| 全量离线 unittest | 2829/2829 OK；failures/errors/skips 均 0；306.315 s；exit 0 |
 | 构建 / 缓存 / 内容绑定短文例外 unittest | 43/43 OK；exit 0 |
 | 真实 bge-m3 在线建缓存、只读离线复建 | 各 exit 0；35 篇 / 95 段 / 1024 维 |
 | 资格 lint、复述数字 / 单位、生效期及批准后的长度门禁 | 35/35 通过 |
@@ -32,7 +32,7 @@
 | 前端 API | 20/20 OK；exit 0 |
 | 冻结目录及 fixture / whitespace | 零 diff；git diff --check exit 0 |
 
-全量由 tools/verify_m3_offline.py 隔离运行：只排除原两项真实 DeepSeek 测试，临时 V1 数据库，真实 HTTP/socket 和仓库持久数据库连接被拦截；缓存字节及 mtime 保持不变。旧 V1 用例仍有 4 次未 mock 的本地 /api/embed HTTP 尝试，均被拦截；无额外未 mock HTTP、无真实 socket 或仓库持久业务数据库连接。此结果证明本次隔离运行通过，不声称旧测试本身已消除网络尝试。
+全量由 tools/verify_m3_offline.py 隔离运行：只排除原两项真实 DeepSeek 测试，临时 V1 数据库，真实 HTTP/socket 和仓库持久数据库连接被拦截；缓存字节及 mtime 保持不变。已吸收 main 的 PR #40 测试隔离修复，本次未 mock HTTP、真实 socket 及仓库持久业务数据库连接尝试均为 0。
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m pip check
@@ -43,4 +43,4 @@ node --test frontend/tests/api.test.js
 git diff --check
 ```
 
-Phase 1 基于已合并的 PR #39 / main 74ab12b。按用户本轮授权提交并推送 m3-phase1，开 PR 并合并到 main；合并后的 main 是 Phase 2 的起点。
+Phase 1 从已合并的 PR #39 / main 74ab12b 起步，提交前吸收 PR #40 / main 3e40c15 并重新运行最终全量检查。按用户本轮授权提交并推送 m3-phase1，开 PR 并合并到 main；合并后的 main 是 Phase 2 的起点。
