@@ -1,0 +1,16 @@
+{
+  "location": "C:/Users/h000_/Documents/m3-phase5-results (outside the repository; per-case records are not committed)",
+  "commit_run": "3396f1d3028c220b0f700e474166f26e8e423895",
+  "files_sha256": {
+    "pass3-rule18/report.md": "eb690b6d99365c0cd0b429e0ea24bf27ef744beb36fade2e11f6dc6e7e1d69f3",
+    "pass3-rule18/retrieval.json": "66b2f2130b0e391db8a9c5474cbcd5f8538a0b5a5b2d7c9bfb9d08c30376355d",
+    "pass3-rule18/run-1/kb-dev.jsonl": "1b30063b47ed467d63ce609d2e01020ed7a4d903541fd39a25eac785863c5c82",
+    "pass3-rule18/run-1/stage6-subset.jsonl": "a95644e11adc94f2ffb5bb1db8ac239f22054ab852f87a17c6b52fb1b0c9a0de",
+    "pass3-rule18/run-2/kb-dev.jsonl": "9ab41efafa4e77e9cc1ded4b84916721b936e9c31fea644e4c3bbf9b0f639d9e",
+    "pass3-rule18/run-2/stage6-subset.jsonl": "2b68410cc72d3517e3d98e3116af59973693fd7705d2303e4643a82c981d5d02",
+    "pass3-rule18/run-3/kb-dev.jsonl": "bd5a6098f6643164cb16a918970f5421b381521d55ae44807ad56d233737894d",
+    "pass3-rule18/run-3/stage6-subset.jsonl": "87e6627d31e208b91483f67d8b047cc0c17a7f1bfb31d77c95661e9d85e529f4",
+    "pass3-rule18/summary.json": "cccf093e155323ab432c77514b366bde141c2cb6cd109f44f82c7e415c77aea3",
+    "pass3-rule18.log": "e9c12225f851941edb5ba46ccc7e44c982a1ba1c06228ab485d77d465d4a1eff"
+  }
+}
