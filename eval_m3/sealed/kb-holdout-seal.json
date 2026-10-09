@@ -1,0 +1,88 @@
+{
+  "schema_version": "m3-kb-holdout-seal/1",
+  "corpus_commit": "4e1c3a5fd36247b3c4ae1f862dd7ef7ddd9ae259",
+  "sealed_artifact": {
+    "path": "eval_m3/sealed/kb-holdout.zip",
+    "sha256": "4e6a705d86bf381825ad63bc347be6a15b792bd4e2d4831df971ea1a32ab3f63",
+    "size_bytes": 23711
+  },
+  "inner_dataset": {
+    "filename": "kb-holdout.json",
+    "raw_json_sha256": "ed3077962fa08b9f3af518f519ba635c7e1c2be3df85063b15528efc22e08de5"
+  },
+  "count": 20,
+  "distribution": {
+    "policy_single": 3,
+    "policy_multi": 2,
+    "expired_version": 1,
+    "promotion": 1,
+    "unanswerable": 1,
+    "action": 2,
+    "mixed": 2,
+    "followup": 3,
+    "smalltalk": 2,
+    "off_topic": 1,
+    "injection": 2
+  },
+  "turn_count": 25,
+  "schema_validation": {
+    "passed": true
+  },
+  "fixture_validation": {
+    "passed": true,
+    "reference_count": 5,
+    "distinct_fixture_count": 2,
+    "action_target_checks": 6,
+    "historical_case_pending_fixture_verified": true,
+    "execution_level": "static_in_memory_fixture_facts_only"
+  },
+  "gold_reference_validation": {
+    "passed": true,
+    "reference_count": 19,
+    "distinct_document_versions": 17,
+    "section_reference_count": 27,
+    "method": "checker validates exact source id, version and complete section headings"
+  },
+  "overlap": {
+    "algorithm": "max(normalized SequenceMatcher, character-bigram Jaccard)",
+    "blocking_threshold": 0.85,
+    "elevated_threshold": 0.8,
+    "case_count": 20,
+    "turn_count": 25,
+    "pair_count": 27,
+    "empty_gold_case_count": 9,
+    "empty_gold_turn_count": 12,
+    "max_similarity": 0.23880597014925373,
+    "blocking_pair_count": 0,
+    "blocking_turn_count": 0,
+    "elevated_pair_count": 0,
+    "elevated_turn_count": 0,
+    "elevated_only_pair_count": 0,
+    "passed": true
+  },
+  "author_isolation": {
+    "fresh_context": true,
+    "kb_dev_visible": false,
+    "kb_dev_read": false,
+    "dev_author_scripts_read": false,
+    "dev_question_reports_read": false,
+    "other_holdout_read": false,
+    "model_calls": 0,
+    "runner_executions": 0,
+    "retrieval_tuning": false,
+    "corpus_and_runtime_modified": false,
+    "declaration": "Authored independently from the allowed frozen corpus, public contracts and initial-state fixture facts only."
+  },
+  "plaintext_cleanup": {
+    "passed": true,
+    "scoped_file_count": 3
+  },
+  "archive_integrity_validation": {
+    "passed": true,
+    "before_seal": true,
+    "member_count": 3
+  },
+  "opened_after_seal": false,
+  "first_open_not_before": "M3 Phase 5",
+  "sealed_at": "2026-10-09T14:23:42+08:00"
+}

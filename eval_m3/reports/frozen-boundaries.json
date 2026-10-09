@@ -1,0 +1,290 @@
+{
+  "schema_version": "m3-frozen-boundaries/1",
+  "base_commit": "4e1c3a5fd36247b3c4ae1f862dd7ef7ddd9ae259",
+  "checked_head_commit": "4e1c3a5fd36247b3c4ae1f862dd7ef7ddd9ae259",
+  "branch": "m3-phase2",
+  "verification_scope": "Static hashes and Git boundaries only. No model, retrieval tuning, evaluation runner or real action execution. No HOLDOUT file or sealed archive read.",
+  "frozen_paths": {
+    "paths": [
+      "knowledge_base",
+      "policy_sources",
+      "aftersales",
+      "eval_v2",
+      "eval/v2",
+      "system_fixtures"
+    ],
+    "comparison": "git diff --quiet BASE -- PATHS; git diff --name-only BASE -- PATHS; git ls-files --others --exclude-standard -- PATHS",
+    "git_diff_exit_code": 0,
+    "changed_paths": [],
+    "untracked_paths": [],
+    "passed": true
+  },
+  "corpus": {
+    "manifest_path": "docs/v2/m3-corpus-build.json",
+    "normalization": "Decode UTF-8 (optional BOM removed), replace CRLF and CR with LF, encode UTF-8 without BOM. Preserve all other characters, whitespace and final newline.",
+    "expected_documents": 35,
+    "checked_documents": 35,
+    "matching_documents": 35,
+    "exact_markdown_file_set_match": true,
+    "passed": true,
+    "documents": [
+      {
+        "doc_id": "kb-apparel-exchange-category-note",
+        "path": "knowledge_base/kb-apparel-exchange-category-note.md",
+        "expected_normalized_markdown_sha256": "9700f579e201a8a64de6eee5538c0a72f37f89076356a4d90f74ff3d27e645cd",
+        "actual_normalized_markdown_sha256": "9700f579e201a8a64de6eee5538c0a72f37f89076356a4d90f74ff3d27e645cd",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-apparel-exchange",
+        "path": "knowledge_base/kb-apparel-exchange.md",
+        "expected_normalized_markdown_sha256": "8e8142ac6268496e5900e0383ee0426bd5b96a7545872bc0715f6f1954ea1aa8",
+        "actual_normalized_markdown_sha256": "8e8142ac6268496e5900e0383ee0426bd5b96a7545872bc0715f6f1954ea1aa8",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-custom-category-note",
+        "path": "knowledge_base/kb-custom-category-note.md",
+        "expected_normalized_markdown_sha256": "13980d09bc3ac1d85460377a8365edd713f3bb2e505214e609b0099968071a28",
+        "actual_normalized_markdown_sha256": "13980d09bc3ac1d85460377a8365edd713f3bb2e505214e609b0099968071a28",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-custom-non-returnable",
+        "path": "knowledge_base/kb-custom-non-returnable.md",
+        "expected_normalized_markdown_sha256": "e2cfeae5e5810b03698202ab5800b41effd30f339d11d9fd80046a3d8110f706",
+        "actual_normalized_markdown_sha256": "e2cfeae5e5810b03698202ab5800b41effd30f339d11d9fd80046a3d8110f706",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-evidence-purpose",
+        "path": "knowledge_base/kb-evidence-purpose.md",
+        "expected_normalized_markdown_sha256": "71a04027c6553750f972e55e2f77ae401211df6bb526df8c3faaf699ce1d13a2",
+        "actual_normalized_markdown_sha256": "71a04027c6553750f972e55e2f77ae401211df6bb526df8c3faaf699ce1d13a2",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-evidence-shipping",
+        "path": "knowledge_base/kb-evidence-shipping.md",
+        "expected_normalized_markdown_sha256": "5a7c001095f4c8240e9adc3d73735a2a4322d454703919b939eff598d8b16c94",
+        "actual_normalized_markdown_sha256": "5a7c001095f4c8240e9adc3d73735a2a4322d454703919b939eff598d8b16c94",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-faq-coupon-channel",
+        "path": "knowledge_base/kb-faq-coupon-channel.md",
+        "expected_normalized_markdown_sha256": "41b2b4e3785b21402b35e1fa693662230fb4b3b528229302d746119aa5435cbd",
+        "actual_normalized_markdown_sha256": "41b2b4e3785b21402b35e1fa693662230fb4b3b528229302d746119aa5435cbd",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-faq-parcel-refund",
+        "path": "knowledge_base/kb-faq-parcel-refund.md",
+        "expected_normalized_markdown_sha256": "da1fb9cacd76caf5631e790cd0b9db8125c20179c60bcdffa3e7277321d89c99",
+        "actual_normalized_markdown_sha256": "da1fb9cacd76caf5631e790cd0b9db8125c20179c60bcdffa3e7277321d89c99",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-faq-shipping-refund",
+        "path": "knowledge_base/kb-faq-shipping-refund.md",
+        "expected_normalized_markdown_sha256": "9d730de9379bc14710de8b42916997c3299047dd202a5e064b7334cf976a1f3c",
+        "actual_normalized_markdown_sha256": "9d730de9379bc14710de8b42916997c3299047dd202a5e064b7334cf976a1f3c",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-gift-refund-value",
+        "path": "knowledge_base/kb-gift-refund-value.md",
+        "expected_normalized_markdown_sha256": "db6527a1d18f74ef19eca6b8e649ff74fe0d4ee9602510f6a73ed65441eb6f6c",
+        "actual_normalized_markdown_sha256": "db6527a1d18f74ef19eca6b8e649ff74fe0d4ee9602510f6a73ed65441eb6f6c",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-gift-return-packaging",
+        "path": "knowledge_base/kb-gift-return-packaging.md",
+        "expected_normalized_markdown_sha256": "7d61ef933462c8131e7b284d1a50cd3f2b1b925ed743cbf58c0b4ac72bdcc456",
+        "actual_normalized_markdown_sha256": "7d61ef933462c8131e7b284d1a50cd3f2b1b925ed743cbf58c0b4ac72bdcc456",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-invoice-correction-faq",
+        "path": "knowledge_base/kb-invoice-correction-faq.md",
+        "expected_normalized_markdown_sha256": "940035cfce5f0392d0f7474e1bbb3daa637aaaa5ebe89586d16031541ac2c6d8",
+        "actual_normalized_markdown_sha256": "940035cfce5f0392d0f7474e1bbb3daa637aaaa5ebe89586d16031541ac2c6d8",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-invoice-request-guide",
+        "path": "knowledge_base/kb-invoice-request-guide.md",
+        "expected_normalized_markdown_sha256": "8c014946f339ae955c8a91b09244770716c450ecb085eefdd8c5b1ff61c4f067",
+        "actual_normalized_markdown_sha256": "8c014946f339ae955c8a91b09244770716c450ecb085eefdd8c5b1ff61c4f067",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-november-promo-counting",
+        "path": "knowledge_base/kb-november-promo-counting.md",
+        "expected_normalized_markdown_sha256": "327531661e950eba4955b1ad578c8bd30103ba082170d6f8a8f86c11a27fd727",
+        "actual_normalized_markdown_sha256": "327531661e950eba4955b1ad578c8bd30103ba082170d6f8a8f86c11a27fd727",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-november-promo",
+        "path": "knowledge_base/kb-november-promo.md",
+        "expected_normalized_markdown_sha256": "8f9901b14116d4e015fef706f5a30d99de9c60dddbd633d6fa8ac520d5d46f2d",
+        "actual_normalized_markdown_sha256": "8f9901b14116d4e015fef706f5a30d99de9c60dddbd633d6fa8ac520d5d46f2d",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-price-protection-faq",
+        "path": "knowledge_base/kb-price-protection-faq.md",
+        "expected_normalized_markdown_sha256": "2f58e6f1328a966e4fcb9b71b779ccb68075736d1bede97e41785c4658d1dfe9",
+        "actual_normalized_markdown_sha256": "2f58e6f1328a966e4fcb9b71b779ccb68075736d1bede97e41785c4658d1dfe9",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-price-protection-guide",
+        "path": "knowledge_base/kb-price-protection-guide.md",
+        "expected_normalized_markdown_sha256": "6b630dbf98d39c3139f9cd641ed669564cdb6e43b491717ca99a410314263d35",
+        "actual_normalized_markdown_sha256": "6b630dbf98d39c3139f9cd641ed669564cdb6e43b491717ca99a410314263d35",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-quality-evidence",
+        "path": "knowledge_base/kb-quality-evidence.md",
+        "expected_normalized_markdown_sha256": "5aa4517f8ced9825f43ed2d9cf3087cffe84bff208aa5c17de9a7047f0564f09",
+        "actual_normalized_markdown_sha256": "5aa4517f8ced9825f43ed2d9cf3087cffe84bff208aa5c17de9a7047f0564f09",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-quality-handoff",
+        "path": "knowledge_base/kb-quality-handoff.md",
+        "expected_normalized_markdown_sha256": "fc0aaf295f8ff1899e6ae63ab1fcc047356ee407c18c43a2670f429e0d2d35b0",
+        "actual_normalized_markdown_sha256": "fc0aaf295f8ff1899e6ae63ab1fcc047356ee407c18c43a2670f429e0d2d35b0",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-refund-channels",
+        "path": "knowledge_base/kb-refund-channels.md",
+        "expected_normalized_markdown_sha256": "66e09edfe09294026c5b651719d69016c3eac1581bb0d450231f00ce20aa387a",
+        "actual_normalized_markdown_sha256": "66e09edfe09294026c5b651719d69016c3eac1581bb0d450231f00ce20aa387a",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-refund-coupon",
+        "path": "knowledge_base/kb-refund-coupon.md",
+        "expected_normalized_markdown_sha256": "b7a952c54d57c1a4922ed31d010720c89dcb35106282aff32f0dded144f48ae9",
+        "actual_normalized_markdown_sha256": "b7a952c54d57c1a4922ed31d010720c89dcb35106282aff32f0dded144f48ae9",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-refund-initiation",
+        "path": "knowledge_base/kb-refund-initiation.md",
+        "expected_normalized_markdown_sha256": "a3b257254956adb700949dc7eb69e66092a6685e59c243172fa0f5f20632725f",
+        "actual_normalized_markdown_sha256": "a3b257254956adb700949dc7eb69e66092a6685e59c243172fa0f5f20632725f",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-refund-timing-archived",
+        "path": "knowledge_base/kb-refund-timing-archived.md",
+        "expected_normalized_markdown_sha256": "e02787dcf3434c44de1a188747e07d2e33fe2f618be593b318f40170015376cb",
+        "actual_normalized_markdown_sha256": "e02787dcf3434c44de1a188747e07d2e33fe2f618be593b318f40170015376cb",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-refund-timing",
+        "path": "knowledge_base/kb-refund-timing.md",
+        "expected_normalized_markdown_sha256": "a7027429ffbcfaf05ca7e072e709da03d27a585beeee4e6e985857ed954d37d6",
+        "actual_normalized_markdown_sha256": "a7027429ffbcfaf05ca7e072e709da03d27a585beeee4e6e985857ed954d37d6",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-refund-working-days",
+        "path": "knowledge_base/kb-refund-working-days.md",
+        "expected_normalized_markdown_sha256": "7156512719eb7dcdb6d6e7e0ca21600e894b9dc7812b075635376825ea830915",
+        "actual_normalized_markdown_sha256": "7156512719eb7dcdb6d6e7e0ca21600e894b9dc7812b075635376825ea830915",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-return-shipping-archived",
+        "path": "knowledge_base/kb-return-shipping-archived.md",
+        "expected_normalized_markdown_sha256": "487e00af1350304aae5e1391598c081fbd874d62b4d2d2a6f936603f51a2f31d",
+        "actual_normalized_markdown_sha256": "487e00af1350304aae5e1391598c081fbd874d62b4d2d2a6f936603f51a2f31d",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-return-shipping",
+        "path": "knowledge_base/kb-return-shipping.md",
+        "expected_normalized_markdown_sha256": "91a78ae90834d299e7767208630743796c37fc8d8f8a6303158ea2496f9918f7",
+        "actual_normalized_markdown_sha256": "91a78ae90834d299e7767208630743796c37fc8d8f8a6303158ea2496f9918f7",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-shipping-insurance",
+        "path": "knowledge_base/kb-shipping-insurance.md",
+        "expected_normalized_markdown_sha256": "3599a1d5558baade8ce97fee72eb37f308f3fc27261cf24b0e5489fc40004487",
+        "actual_normalized_markdown_sha256": "3599a1d5558baade8ce97fee72eb37f308f3fc27261cf24b0e5489fc40004487",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-shipping-nonquality-cost",
+        "path": "knowledge_base/kb-shipping-nonquality-cost.md",
+        "expected_normalized_markdown_sha256": "5f4b568a10d57b44711ddef187ba6be59ef8352594acf90a493747da40a3abc3",
+        "actual_normalized_markdown_sha256": "5f4b568a10d57b44711ddef187ba6be59ef8352594acf90a493747da40a3abc3",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-shipping-quality-cost",
+        "path": "knowledge_base/kb-shipping-quality-cost.md",
+        "expected_normalized_markdown_sha256": "936e6e5f9e439bef2464171ced32cf678d101e9a75430ce090c987ff6bf40779",
+        "actual_normalized_markdown_sha256": "936e6e5f9e439bef2464171ced32cf678d101e9a75430ce090c987ff6bf40779",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-shipping-return-parcel",
+        "path": "knowledge_base/kb-shipping-return-parcel.md",
+        "expected_normalized_markdown_sha256": "31f761d4297097f296274707f81a2c2b8d03257d5e728b9cecf0075fa1846f0c",
+        "actual_normalized_markdown_sha256": "31f761d4297097f296274707f81a2c2b8d03257d5e728b9cecf0075fa1846f0c",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-standard-exchange-counting",
+        "path": "knowledge_base/kb-standard-exchange-counting.md",
+        "expected_normalized_markdown_sha256": "18a69d1d5206fc33ea45dd071ee9b4284b42ea935f29c89f14cbc0a77a536118",
+        "actual_normalized_markdown_sha256": "18a69d1d5206fc33ea45dd071ee9b4284b42ea935f29c89f14cbc0a77a536118",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-standard-exchange",
+        "path": "knowledge_base/kb-standard-exchange.md",
+        "expected_normalized_markdown_sha256": "b28bc179cb6303217ddc6abbd0d3897f1a494efc94442a0b201555f3819ce782",
+        "actual_normalized_markdown_sha256": "b28bc179cb6303217ddc6abbd0d3897f1a494efc94442a0b201555f3819ce782",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-standard-return-counting",
+        "path": "knowledge_base/kb-standard-return-counting.md",
+        "expected_normalized_markdown_sha256": "f6dfa7d40a227380b1917ef1e922e35b904263059ee9503d1a5db35c9b15dff7",
+        "actual_normalized_markdown_sha256": "f6dfa7d40a227380b1917ef1e922e35b904263059ee9503d1a5db35c9b15dff7",
+        "matched": true
+      },
+      {
+        "doc_id": "kb-standard-return",
+        "path": "knowledge_base/kb-standard-return.md",
+        "expected_normalized_markdown_sha256": "84aa4ab9d210a637434238035135f51b0d1832b4d93eb7520bb6adf0900342b9",
+        "actual_normalized_markdown_sha256": "84aa4ab9d210a637434238035135f51b0d1832b4d93eb7520bb6adf0900342b9",
+        "matched": true
+      }
+    ]
+  },
+  "stage6_dev_subset": {
+    "path": "eval_m3/spec/stage6-dev-subset.json",
+    "sha256": "73185fee471037f15eba5c3acb621dfdbb59709d029a87e788237bcd5ce4fe8e",
+    "selection_count": 24,
+    "source_git_blob": "10b585e99921684acf463ab7d503792e298a9c5a",
+    "working_tree_source_git_blob": "10b585e99921684acf463ab7d503792e298a9c5a",
+    "source_normalized_utf8_lf_sha256": "80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3",
+    "all_ids_present": true,
+    "initial_state_hashes": 24,
+    "passed": true
+  },
+  "passed": true
+}

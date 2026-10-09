@@ -1,0 +1,16 @@
+{
+  "schema_version": "m3-holdout-integrity/1",
+  "verified_at": "2026-10-09T14:34:28+08:00",
+  "artifact_path": "eval_m3/sealed/kb-holdout.zip",
+  "expected_sha256": "4e6a705d86bf381825ad63bc347be6a15b792bd4e2d4831df971ea1a32ab3f63",
+  "actual_sha256": "4e6a705d86bf381825ad63bc347be6a15b792bd4e2d4831df971ea1a32ab3f63",
+  "size_bytes": 23711,
+  "local_read_only": true,
+  "receipt_sha256": "61adc3a17dcf154b9cd4ecf3dc8a5171a9a975babbaf19342813310fc27b11c4",
+  "passed": true,
+  "verification": "Opaque raw byte SHA256, size and file attributes only",
+  "archive_opened_or_listed": false,
+  "dataset_opened": false,
+  "content_validation_level": "Author self-check before sealing; no parent content inspection",
+  "first_open_not_before": "M3 Phase 5"
+}
