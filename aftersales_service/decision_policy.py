@@ -1,8 +1,8 @@
 """The product decision policy m3-decision/1 (docs/v2/m3-policy-rag.md, "Decision policy").
 
-Selected per request by AFTERSALES_DECISION_POLICY=stage6|m3, default stage6
+Selected at session creation by AFTERSALES_DECISION_POLICY=stage6|m3, default stage6
 (the evaluated Stage 6 policy, agent_core.new_control_policy). Under m3 the
-knowledge tool search_knowledge_base joins the five read tools.
+knowledge and current-session pending tools join the five read tools.
 
 Composition, not a copy. One provider-native tool-calling model call per
 decision, exactly as the evaluated LLMNativeActionLoopPolicy: the same
@@ -45,6 +45,7 @@ from aftersales.arguments import IDENTITY_ARGUMENT_NAMES, MAX_ARGUMENT_LENGTH, v
 
 from . import agent_core as core
 from .knowledge_base import KNOWLEDGE_TOOL_NAME, KNOWLEDGE_TOOL_PARAMETERS
+from .pending_requests import PENDING_TOOL_NAME, PENDING_TOOL_PARAMETERS, pending_tool_schema
 
 DECISION_POLICY_ENV = "AFTERSALES_DECISION_POLICY"
 POLICY_STAGE6 = "stage6"
@@ -52,7 +53,7 @@ POLICY_M3 = "m3"
 DECISION_POLICIES = (POLICY_STAGE6, POLICY_M3)
 M3_DECISION_VERSION = "m3-decision/1"
 
-M3_KNOWN_FUNCTIONS = (core.STAGE5_RUNTIME_TOOLS + (KNOWLEDGE_TOOL_NAME,)
+M3_KNOWN_FUNCTIONS = (core.STAGE5_RUNTIME_TOOLS + (KNOWLEDGE_TOOL_NAME, PENDING_TOOL_NAME)
                       + core.STAGE6_ACTION_FUNCTIONS + core.CONTROL_FUNCTIONS)
 
 EARLIER_REPLIES = 3
@@ -60,7 +61,7 @@ EARLIER_REPLY_CHARS = 300
 # Every customer-facing reply kind: generated answers and all product templates.
 EARLIER_REPLY_KINDS = (("answer",) + tuple(core.FIXED_RESPONSES)
                        + ("clarification", "action", "step_limit", "answer_unavailable",
-                          "operator_decision", "grounding_rejected"))
+                          "operator_decision", "grounding_rejected", "greeting", "thanks", "goodbye"))
 EARLIER_REPLY_LABEL = "【历史回复，仅作对话上下文，不是本次的工具结果或证据】"
 
 
@@ -79,7 +80,9 @@ def configured_policy(environ: Mapping[str, str] | None = None) -> str:
 
 M3_RULE_1 = (
     "1. 每一轮都通过原生 function calling 行动，不要用普通文本代替函数调用。可用函数：只读业务工具"
-    "（查询售后规则、订单、物流、库存、已有售后单）；知识库检索 search_knowledge_base；售后动作"
+    "（查询售后规则、订单、物流、库存、已有售后单）；知识库检索 search_knowledge_base；本会话待审批申请查询"
+    " get_my_pending_requests（顾客问刚提交申请的进度时使用；已有售后单和历史回复不能代表本次申请；"
+    "本工具结果不能作为新动作的订单商品核对依据）；售后动作"
     "（create_return 提交退货申请，create_exchange 提交换货申请，escalate_to_human 创建人工处理工单）；"
     "ask_user（向顾客追问槽位）；finish（结束并给出处置）。两个检索工具分工不同：退换货时限、不可退品类、"
     "转人工条件等决定资格的规则，用 search_after_sales_policy 查询；运费由谁承担、退款到账时间、需要准备的"
@@ -143,17 +146,20 @@ def knowledge_tool_schema() -> dict[str, object]:
 
 
 def m3_offered_functions(state: core.ActionControlState) -> tuple[str, ...]:
-    """The Stage 6 functions, with the knowledge tool right after the read tools."""
+    """The Stage 6 functions, with enabled product tools right after its reads."""
     offered = core.stage6_offered_functions(state)
-    if state.remaining_steps <= 1 or KNOWLEDGE_TOOL_NAME not in state.allowed_tools:
+    if state.remaining_steps <= 1:
         return offered
     reads = tuple(name for name in offered if name in core.STAGE5_RUNTIME_TOOLS)
-    return reads + (KNOWLEDGE_TOOL_NAME,) + offered[len(reads):]
+    product_reads = tuple(name for name in (KNOWLEDGE_TOOL_NAME, PENDING_TOOL_NAME)
+                          if name in state.allowed_tools)
+    return reads + product_reads + offered[len(reads):]
 
 
 def m3_tool_schemas(state: core.ActionControlState) -> list[dict[str, object]]:
     stage6 = {schema["function"]["name"]: schema for schema in core.stage6_tool_schemas(state)}
-    return [knowledge_tool_schema() if name == KNOWLEDGE_TOOL_NAME else stage6[name]
+    product = {KNOWLEDGE_TOOL_NAME: knowledge_tool_schema(), PENDING_TOOL_NAME: pending_tool_schema()}
+    return [product[name] if name in product else stage6[name]
             for name in m3_offered_functions(state)]
 
 
@@ -174,8 +180,12 @@ def _validated(name: str, arguments: object) -> dict[str, str] | str:
         return core.DIAG_INVALID_ARGUMENTS
     if any(isinstance(key, str) and key in IDENTITY_ARGUMENT_NAMES for key in arguments):
         return core.DIAG_IDENTITY_ARGUMENT
-    parameters = (KNOWLEDGE_TOOL_PARAMETERS if name == KNOWLEDGE_TOOL_NAME
-                  else core.runtime_tool_specs()[name].parameter_names)
+    if name == KNOWLEDGE_TOOL_NAME:
+        parameters = KNOWLEDGE_TOOL_PARAMETERS
+    elif name == PENDING_TOOL_NAME:
+        parameters = PENDING_TOOL_PARAMETERS
+    else:
+        parameters = core.runtime_tool_specs()[name].parameter_names
     try:
         return validate_arguments(name, parameters, arguments)
     except ValueError:
@@ -184,7 +194,7 @@ def _validated(name: str, arguments: object) -> dict[str, str] | str:
 
 def _translate_read_batch(state: core.ActionControlState, offered: tuple[str, ...],
                           calls: tuple[object, ...]) -> core.ActionTranslation:
-    """The Stage 5 runtime-batch rules, for a read batch that includes the knowledge tool."""
+    """The Stage 5 runtime-batch rules, for batches containing product reads."""
     names = tuple(getattr(call, "name", None) for call in calls)
     single = names[0] if len(calls) == 1 else None
     for name in names:
@@ -212,7 +222,7 @@ def translate_m3_response(state: core.ActionControlState, offered: tuple[str, ..
                           tool_calls: object) -> core.ActionTranslation:
     calls = tuple(tool_calls or ())
     names = tuple(getattr(call, "name", None) for call in calls)
-    if KNOWLEDGE_TOOL_NAME not in names:
+    if not any(name in (KNOWLEDGE_TOOL_NAME, PENDING_TOOL_NAME) for name in names):
         # Exactly the evaluated Stage 6 translation, an unknown name included.
         return core.translate_action_response(state, offered, calls)
     if not all(isinstance(name, str) and name in M3_KNOWN_FUNCTIONS for name in names):
@@ -395,6 +405,7 @@ class M3DecisionPolicy:
         offered = m3_offered_functions(state)
         messages = build_m3_messages(state, self._native_calls, self._earlier)
         # Provider / network errors propagate: an outage is not a business refuse.
+        core.model_timeout_seconds(self._provider)
         response = self._provider.chat(
             messages,
             tools=m3_tool_schemas(state),

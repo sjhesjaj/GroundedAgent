@@ -11,6 +11,7 @@ const ERROR_MESSAGES = {
   too_many_sessions: '演示会话已达到上限，请重置 Demo。',
   decision_refused: '本次审批未被接受，请刷新会话后查看动作状态。',
   recovery_pending: '会话正在恢复，请稍后点「重新连接」。',
+  policy_version_mismatch: '当前会话使用的策略与服务配置不一致，请新建会话后继续。',
 }
 
 export class AftersalesApiError extends Error {

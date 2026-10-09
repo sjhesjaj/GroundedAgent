@@ -1,8 +1,9 @@
 # GroundedAgent V2 M3: after-sales knowledge base as an agent tool
 
 Revision 9 (user-confirmed turn-based historical-reuse metric; Phase 1 corpus
-frozen through PR #41, main `4e1c3a5`; retaining Revision 8's runtime scope
-and sealed Phase 2 datasets). Scope cut to the basic
+frozen through PR #41, main `4e1c3a5`; Phase 2 merged through PR #43, main
+`94961f2`; retaining Revision 8's runtime scope and sealed Phase 2 datasets).
+Phase 3's basic runtime is implemented on `m3-phase3`, pending review. Scope cut to the basic
 feature: a knowledge base the agent searches, answers with citations, follow-ups
 that refer to the previous reply, and honest customer-facing wording. Hardening
 that is not needed for that is listed under "Deferred".
@@ -138,7 +139,9 @@ without history. Phase 0.5 therefore adds
 `aftersales_service/answer_policy.py`. Through `agent_core`, it reuses the
 frozen evidence derivation, `build_sources`, `parse_answer`,
 `GENERATION_SCHEMA`, answer response schema and generation parameters;
-**only message construction changes**. No frozen generation file is edited.
+Phase 0.5 changes only message construction. Phase 3 adds product-side call
+monitoring, KB citation labels and the latest pending-query source adaptation
+described below. No frozen generation file is edited.
 
 - The latest customer message is labelled **当前问题** and is the question
   to answer; all earlier customer messages are labelled as context.
@@ -151,14 +154,21 @@ frozen evidence derivation, `build_sources`, `parse_answer`,
   an order or item id.
 - This fork is selected only under `m3`; the `stage6` generation path,
   protocol, golden fixtures and limits are unchanged.
+- Only the latest current-run `get_my_pending_requests` read can supply pending
+  status to an answer. OK keeps its original evidence, EMPTY adds an ordinary
+  answer-only source with an empty list, and ERROR supplies no pending source.
+  Older pending sources are removed from answer input, including after a paused
+  run resumes. Observations and the grounding ledger are unchanged.
 
 ### Selection and sessions
 
 - `AFTERSALES_DECISION_POLICY=stage6|m3`, default `stage6` until Phase 5
   passes, then switched to `m3` in the PR that records the results.
 - A session stores the policy it was created with; loading it under the other
-  policy is refused (`policy_version_mismatch`, 409). This remains planned
-  for Phase 3; Phase 0.5 does not implement session policy binding.
+  policy is refused (`policy_version_mismatch`, 409). Phase 3 stores this in
+  session manifest schema 2 and checks cached/restarted loads, messages and
+  operator decisions. Old manifests without a known explicit binding also
+  return 409; the frontend offers a new session without automatic migration.
 - Everything new in this document applies under `m3` only. `stage6` behaviour,
   limits (40 messages, 2,000 characters) and golden fixtures are unchanged.
 
@@ -173,9 +183,13 @@ frozen evidence derivation, `build_sources`, `parse_answer`,
   version, inside explicit delimiters.
 - If Ollama or `bge-m3` is missing the product falls back to BM25 and records
   it; evaluation runs refuse to start without `bge-m3`.
-- A retrieval relevance floor is planned for **Phase 3 Runtime**. Set its
-  threshold using KB-DEV after the eval sets are frozen; retrieval scores
-  remain ranking signals, not confidence. Phase 0.5 does not add a threshold.
+- The **Phase 3 Runtime** relevance floor uses only frozen KB-DEV calibration.
+  User-confirmed scope: hybrid retrieval keeps passages with query/passage
+  cosine >= 0.45 before the unchanged RRF ranking; BM25 fallback returns no
+  passages if the query's highest BM25 score is < 2, otherwise preserves its
+  existing positive-score ranking. The different matching signals are not
+  confidence. Trace records the retrieval mode, fallback reason, signal,
+  threshold and filtered count. Phase 0.5 had no floor.
 
 ### Tool `get_my_pending_requests` (Phase 3, approved in Revision 8)
 
@@ -191,16 +205,16 @@ frozen evidence derivation, `build_sources`, `parse_answer`,
   grounding records. Phase 3 pins both the session isolation and this negative
   grounding contract with product tests, including progress after an approval
   request when the order already has a different historical after-sales case.
-- This tool is planned only; Phase 1 does not implement it. It adds **1 h** to
-  Phase 3 and does not change the frozen business-tool registry.
+- Implemented in Phase 3 without changing the frozen business-tool registry.
+  Revision 8 added **1 h** to Phase 3 for this tool.
 
 ### Customer-facing wording under `m3`
 
 Fixed texts replace the frozen ones under `m3`. None of them offers something
 the system cannot do (constraint 7):
 
-This wording and the small-talk pre-filter below remain planned for Phase 3;
-they are not implemented by Phase 0.5.
+Phase 3 implements this wording and the small-talk pre-filter below, pinned by
+product tests. Phase 0.5 did not implement them.
 
 | Case | Wording (final text fixed in Phase 3, pinned by tests) |
 |---|---|
@@ -234,6 +248,13 @@ turn, and the README records the measured figures.
 Controls in M3: the existing step limit and message limits, `max_tokens` and a
 timeout on every call, token usage per call in the trace, and in the README:
 keep a small DeepSeek balance with automatic top-up off.
+
+Phase 3 retains decision `max_tokens=512`, generation `max_tokens=1024`, and
+the provider's finite positive transport timeout (default 180 seconds). Every
+actual m3 call records kind, token usage, max_tokens, timeout and latency;
+unknown usage remains null. Failed provider calls are returned in the current
+error trace without committing the failed turn. Real-provider spot-check token
+counts are recorded separately from Phase 5 metrics and billable cost.
 
 ### Prompt injection
 
@@ -294,7 +315,10 @@ Runners:
   the 6 hard invariants.
 - **Scripted equivalence:** the 45 golden scenarios under `m3` match the
   `stage6` fixture excluding `trace.model_calls`; non-answer wording
-  differences are mapped back or listed.
+  differences are mapped back or listed. Error-response call monitoring is
+  excluded in the same way. As specified by the small-talk section, only the
+  provider-unavailable probe uses a non-greeting under `m3`; its exact input
+  difference is listed and narrowly mapped to the unchanged Stage 6 fixture.
 
 Metrics:
 

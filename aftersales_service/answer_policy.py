@@ -1,16 +1,19 @@
-"""Product answer policy m3-answer/1: replace only answer message construction.
+"""Product answer policy m3-answer/1: labelled context over the answer protocol.
 
 The Stage 6 system prompt, compact sources, answer schema and fail-closed
 parser remain the evaluated implementations exposed by agent_core. Customer
 messages distinguish the current question from earlier context. Earlier
 replies are bounded context for resolving references, never added to sources
 or the observation ledger.
+Phase 3 also records generation usage and renders KB citation labels through
+agent_core. A current-run empty pending query has a citable answer-only source;
+it never becomes grounding evidence.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Sequence
+from typing import Callable, Sequence
 
 from . import agent_core as core
 from . import decision_policy
@@ -62,9 +65,12 @@ def generate_answer(
     provider: object,
     state: core.ActionControlState,
     history_replies: Sequence[decision_policy.EarlierReply] = (),
+    *,
+    on_model_call: Callable[[dict[str, object]], None] | None = None,
 ) -> core.GeneratedAnswer:
-    """Use the evaluated generation flow with m3's message builder only."""
+    """Use the evaluated answer protocol with m3 context and call monitoring."""
     return core.generate_answer(
         provider, state,
         message_builder=lambda current, sources: build_messages(current, sources, history_replies),
+        m3=True, on_model_call=on_model_call,
     )

@@ -38,8 +38,11 @@ runner / runtime / scoring / baseline / e2e, and every formal=True mode.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, replace
 from typing import Callable, Sequence
+
+from orchestration.contracts import Evidence, SourceType, ToolStatus, evidence_ref
 
 from eval_v2.action_control import (
     STAGE6_MAX_STEPS,
@@ -57,7 +60,7 @@ from eval_v2.control import (
     UserMessage,
     clarification_slots,
 )
-from eval_v2.evidence import EvalEvidenceError, derive_from_control_state
+from eval_v2.evidence import EvidenceItem, EvalEvidenceError, derive_from_control_state
 from eval_v2.generation import (
     FIXED_RESPONSES,
     GENERATION_SCHEMA,
@@ -71,6 +74,8 @@ from eval_v2.generation import (
     parse_answer,
 )
 from eval_v2.tool_loop import ToolLoopProtocolError
+
+from .pending_requests import PENDING_TOOL_NAME
 
 # M3: the evaluated loop's public helpers, for the product decision policy
 # m3-decision/1 (decision_policy.py). It composes them; it never copies the
@@ -127,6 +132,7 @@ __all__ = [
     "UserMessage",
     "clarification_slots",
     "generate_answer",
+    "model_timeout_seconds",
     "new_control_policy",
     "require_stage6_action",
 ]
@@ -157,6 +163,94 @@ class GeneratedAnswer:
     citations: tuple[dict[str, object], ...]
     provider: str | None
     model: str | None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    latency_seconds: float | None = None
+
+
+def model_timeout_seconds(provider: object) -> float:
+    """Validate the transport timeout used by an m3 provider call.
+
+    The existing transports own their timeout (180 seconds by default); it is
+    not a chat argument. The product's guarded wrapper forwards to ``_inner``.
+    Small scripted providers may omit transport configuration altogether.
+    """
+    current, seen = provider, set()
+    while id(current) not in seen:
+        seen.add(id(current))
+        try:
+            attributes = vars(current)
+        except TypeError:
+            attributes = {}
+        timeout = attributes.get("timeout", getattr(type(current), "timeout", None))
+        if timeout is not None or "timeout" in attributes:
+            if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+                    or not math.isfinite(timeout) or timeout <= 0):
+                raise ValueError("m3 provider timeout must be a finite positive number")
+            return float(timeout)
+        inner = attributes.get("_inner")
+        if inner is None:
+            return 180.0
+        current = inner
+    raise ValueError("m3 provider wrappers must not form a cycle")
+
+
+def _usage(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _latency(value: object) -> float | None:
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(value) or value < 0):
+        return None
+    return float(value)
+
+
+def _text(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _generation_call(provider: object, response: object | None, *, timeout: float,
+                     status: str, diagnostic: str | None = None) -> dict[str, object]:
+    prompt = _usage(getattr(response, "prompt_tokens", None))
+    completion = _usage(getattr(response, "completion_tokens", None))
+    return {"kind": "generation", "provider": _text(getattr(provider, "name", None)),
+            "model_requested": _text(getattr(provider, "model", None)),
+            "model_reported": _text(getattr(response, "model", None)),
+            "prompt_tokens": prompt, "completion_tokens": completion,
+            "total_tokens": prompt + completion if prompt is not None and completion is not None else None,
+            "latency_seconds": _latency(getattr(response, "latency_seconds", None)),
+            "max_tokens": GENERATION_MAX_TOKENS, "timeout_seconds": timeout,
+            "status": status, "diagnostic": diagnostic}
+
+
+def _with_latest_pending_source(state: ActionControlState, evidence: object) -> object:
+    """Use only the latest current-run pending read in m3 answer sources.
+
+    A paused run may contain a pending read made before operator approval.
+    Its older source must not survive a later OK, EMPTY or ERROR query.
+    EMPTY receives answer-only ordinary Evidence; the observations and ledger
+    stay unchanged. No historical reply or other run can produce a source.
+    """
+    reads = [item for item in state.observations
+             if type(item) is ToolObservation and item.tool_name == PENDING_TOOL_NAME]
+    if not reads:
+        return evidence
+    latest = max(reads, key=lambda item: item.sequence)
+    current = tuple(item for item in evidence.evidence_items if item.producer != PENDING_TOOL_NAME)
+    pending = latest.result.evidence if latest.result.status is ToolStatus.OK else ()
+    if latest.result.status is ToolStatus.EMPTY:
+        pending = (Evidence(
+            content="【本会话待审批查询结果；仅用于解释进度，不能作为新动作依据】\n"
+                    '{"pending_requests":[]}',
+            source_type=SourceType.BUSINESS, source="current_session/gateway_pending_requests",
+            locator="current_session:pending_requests", version="1", authority=100,
+            observed_at=state.virtual_now,
+            metadata={"tool": PENDING_TOOL_NAME, "observation_id": latest.observation_id},
+        ),)
+    return replace(evidence, evidence_items=current + tuple(
+        EvidenceItem(ref=evidence_ref(item), producer=PENDING_TOOL_NAME, evidence=item)
+        for item in pending))
 
 
 def generate_answer(
@@ -165,6 +259,8 @@ def generate_answer(
     *,
     message_builder: Callable[[ActionControlState, Sequence[object]],
                               list[dict[str, object]]] | None = None,
+    m3: bool = False,
+    on_model_call: Callable[[dict[str, object]], None] | None = None,
 ) -> GeneratedAnswer:
     """The evaluated answer layer for a Finish("answer"), over this conversation's state.
 
@@ -172,32 +268,61 @@ def generate_answer(
     reply must follow the frozen JSON answer protocol with citations drawn only
     from those sources. A protocol or evidence failure is AnswerUnavailable;
     provider / network errors propagate unchanged (an outage is not an answer).
-    M3 may inject only message construction; the default uses the frozen
-    messages and the rest of the generation flow is shared by both paths.
+    The default uses the frozen messages and citations. M3 adds its message
+    builder, call monitoring, KB citation labels and an answer-only source for
+    the current run's empty pending query; its source parser stays unchanged.
     """
     try:
         evidence = derive_from_control_state(state.read_view())
+        if m3:
+            evidence = _with_latest_pending_source(state, evidence)
         sources = build_sources(evidence)
     except (EvalEvidenceError, GenerationInputError):
         raise AnswerUnavailable("evidence_unavailable") from None
     messages = (build_generation_messages(state.user_messages, state.virtual_now, sources)
                 if message_builder is None else message_builder(state, sources))
-    response = provider.chat(
-        messages,
-        response_format=answer_response_schema(),
-        temperature=GENERATION_TEMPERATURE,
-        max_tokens=GENERATION_MAX_TOKENS,
-    )
+    timeout = model_timeout_seconds(provider) if m3 else None
+    try:
+        response = provider.chat(
+            messages,
+            response_format=answer_response_schema(),
+            temperature=GENERATION_TEMPERATURE,
+            max_tokens=GENERATION_MAX_TOKENS,
+        )
+    except Exception as error:
+        if m3 and on_model_call is not None:
+            on_model_call(_generation_call(provider, None, timeout=timeout,
+                                          status="provider_error", diagnostic=type(error).__name__))
+        raise
     try:
         text, refs = parse_answer(getattr(response, "content", None),
                                   [source.ref for source in sources])
     except GenerationProtocolError as error:
+        if m3 and on_model_call is not None:
+            on_model_call(_generation_call(provider, response, timeout=timeout,
+                                          status="protocol_error", diagnostic=error.code))
         raise AnswerUnavailable(error.code) from None
+    if m3 and on_model_call is not None:
+        on_model_call(_generation_call(provider, response, timeout=timeout, status="success"))
     by_ref = {source.ref: source for source in sources}
     citations = tuple({"ref": ref, "producer": by_ref[ref].producer,
                        "source_type": by_ref[ref].source_type, "locator": by_ref[ref].locator}
                       for ref in refs)
+    if m3:
+        evidence_by_ref = {item.ref: item.evidence for item in evidence.evidence_items}
+        for citation in citations:
+            if citation["producer"] == "search_knowledge_base":
+                source = by_ref[citation["ref"]]
+                metadata = evidence_by_ref[citation["ref"]].metadata
+                citation["version"] = source.version
+                for key in ("doc_id", "title", "section"):
+                    value = metadata.get(key)
+                    if isinstance(value, str):
+                        citation[key] = value
     model = getattr(response, "model", None)
     return GeneratedAnswer(text=text, citations=citations,
                            provider=getattr(provider, "name", None),
-                           model=model if isinstance(model, str) else None)
+                           model=model if isinstance(model, str) else None,
+                           prompt_tokens=_usage(getattr(response, "prompt_tokens", None)),
+                           completion_tokens=_usage(getattr(response, "completion_tokens", None)),
+                           latency_seconds=_latency(getattr(response, "latency_seconds", None)))

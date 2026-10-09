@@ -8,6 +8,9 @@ const props = defineProps({
 })
 
 const steps = computed(() => Array.isArray(props.trace?.steps) ? props.trace.steps : [])
+const modelCalls = computed(() => Array.isArray(props.trace?.model_calls) ? props.trace.model_calls : [])
+const isKnowledge = (citation) => citation.producer === 'search_knowledge_base'
+const citationTitle = (citation) => isKnowledge(citation) ? (citation.title || citation.doc_id || '售后知识库') : citation.ref
 const actionNames = { create_return: '退货', create_exchange: '换货', escalate_to_human: '转人工' }
 const stepTitles = {
   clarify: '补充信息',
@@ -28,12 +31,20 @@ const outcomeTone = computed(() => {
       <summary>依据 <span class="detail-count">{{ citations.length }}</span></summary>
       <ul class="citation-list">
         <li v-for="(citation, index) in citations" :key="`${citation.ref}-${index}`" class="citation-item">
-          <strong>{{ citation.ref }}</strong>
+          <strong>{{ citationTitle(citation) }}</strong>
           <div class="citation-meta">
-            <span v-if="citation.producer">{{ citation.producer }}</span>
-            <span v-if="citation.source_type">{{ citation.source_type }}</span>
+            <template v-if="isKnowledge(citation)">
+              <span>知识库</span>
+              <span v-if="citation.version">版本 {{ citation.version }}</span>
+              <span v-if="citation.section">{{ citation.section }}</span>
+            </template>
+            <template v-else>
+              <span v-if="citation.producer">{{ citation.producer }}</span>
+              <span v-if="citation.source_type">{{ citation.source_type }}</span>
+            </template>
           </div>
-          <p v-if="citation.locator" class="citation-locator">{{ citation.locator }}</p>
+          <p v-if="isKnowledge(citation) && citation.doc_id" class="citation-locator">{{ citation.doc_id }}</p>
+          <p v-else-if="citation.locator" class="citation-locator">{{ citation.locator }}</p>
         </li>
       </ul>
     </details>
@@ -75,6 +86,14 @@ const outcomeTone = computed(() => {
         </li>
       </ol>
       <p v-else class="trace-empty">本次响应未包含步骤记录。</p>
+      <ol v-if="modelCalls.length" class="model-call-list" aria-label="模型调用用量">
+        <li v-for="(call, index) in modelCalls" :key="index">
+          <strong>{{ call.kind === 'generation' ? '回复生成' : '处理决策' }} {{ index + 1 }}</strong>
+          <span>输入 {{ call.prompt_tokens ?? '—' }} · 输出 {{ call.completion_tokens ?? '—' }} tokens</span>
+          <span v-if="call.latency_seconds != null">{{ Number(call.latency_seconds).toFixed(2) }} 秒</span>
+          <span v-if="call.status && call.status !== 'success'">{{ call.status === 'provider_error' ? '调用失败' : call.status === 'protocol_error' ? '回复校验失败' : call.status }}</span>
+        </li>
+      </ol>
     </details>
   </div>
 </template>
@@ -88,6 +107,9 @@ const outcomeTone = computed(() => {
 .detail-panel summary:focus-visible { outline: 2px solid #7ee2b8; outline-offset: 3px; border-radius: 8px; }
 .detail-count { margin-left: 7px; color: #91a69c; font-size: 11px; font-weight: 400; }
 .citation-list { display: grid; gap: 8px; margin: 0; padding: 0 13px 13px; list-style: none; }
+.model-call-list { display: grid; gap: 7px; margin: 0; padding: 0 13px 13px; list-style: none; font-size: 11px; color: #91a69c; }
+.model-call-list li { display: flex; flex-wrap: wrap; gap: 5px 12px; padding-top: 8px; border-top: 1px solid #ffffff10; }
+.model-call-list strong { color: #aec6bb; font-weight: 500; }
 .citation-item { min-width: 0; padding: 10px 12px; border-left: 2px solid #7ee2b855; border-radius: 0 7px 7px 0; background: #ffffff03; overflow-wrap: anywhere; }
 .citation-item strong { font-size: 12px; color: #d0e0d8; }
 .citation-meta { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 4px; color: #91a69c; font-size: 11px; }

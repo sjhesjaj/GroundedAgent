@@ -46,9 +46,9 @@ GENERATION_FILE = "generation.json"
 GENERATION_PREFIX = "gen-"
 CHECKPOINTS_NAME = "checkpoints.db"
 SESSIONS_DIR = "sessions"
-SESSION_SCHEMA = 1
+SESSION_SCHEMA = 2
 HEX_ID = re.compile(r"^[0-9a-f]{32}$")       # session ids and generation ids
-MANIFEST_FIELDS = frozenset({"schema", "persona_id", "generation", "head", "inflight"})
+MANIFEST_FIELDS = frozenset({"schema", "persona_id", "generation", "head", "inflight", "decision_policy"})
 MARKER_FIELDS = frozenset({"checkpoint_id", "idempotency_key", "action_name", "args_sha256"})
 
 # os.replace on Windows fails while another process (an indexer, a virus scan)
@@ -60,6 +60,10 @@ REMOVE_ATTEMPTS = 3
 
 class PersistenceError(RuntimeError):
     """The data directory or a session file is not what this version writes."""
+
+
+class SessionPolicyUnknown(PersistenceError):
+    """A session has no supported, explicit policy binding. Never infer one."""
 
 
 def data_directory(configured: str | Path | None = None) -> Path:
@@ -176,6 +180,8 @@ class SessionFiles:
         return self.directory / (session_id + ".json")
 
     def _validated(self, manifest: dict) -> dict:
+        if manifest.get("decision_policy") not in ("stage6", "m3"):
+            raise SessionPolicyUnknown("the session has no supported policy binding")
         if set(manifest) != MANIFEST_FIELDS or type(manifest["schema"]) is not int \
                 or manifest["schema"] != SESSION_SCHEMA:
             raise PersistenceError("unsupported session file")
@@ -200,10 +206,10 @@ class SessionFiles:
             return None
         return self._validated(manifest)
 
-    def write(self, session_id: str, *, persona_id: str, head: str,
+    def write(self, session_id: str, *, persona_id: str, head: str, decision_policy: str,
               inflight: dict | None) -> None:
         """Commit head and marker together, in one atomic replace."""
-        manifest = {"schema": SESSION_SCHEMA, "persona_id": persona_id,
+        manifest = {"schema": SESSION_SCHEMA, "persona_id": persona_id, "decision_policy": decision_policy,
                     "generation": self.generation, "head": head,
                     "inflight": None if inflight is None else dict(inflight)}
         atomic_write_json(self._path(session_id), self._validated(manifest))

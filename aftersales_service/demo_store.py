@@ -32,7 +32,7 @@ import tempfile
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, Mapping
+from typing import Callable, Iterator, Mapping
 
 from aftersales.action_db import create_stage6_database
 from aftersales.action_gateway import ActionGateway
@@ -49,6 +49,7 @@ from aftersales.registry import ToolRegistry, build_runtime_registry
 from orchestration.contracts import ToolResult
 
 from .knowledge_base import KNOWLEDGE_TOOL_NAME, KnowledgeBase, knowledge_tool_result
+from .pending_requests import PENDING_TOOL_NAME, pending_tool_result
 
 DEMO_ID_NAMESPACE = "m0-demo"
 DEMO_OPERATOR_REF = "op-demo-1"
@@ -85,25 +86,33 @@ class ReadSide:
 
 
 class KnowledgeReadSide:
-    """The m3 read side: a ReadSide's five tools plus search_knowledge_base (M3).
+    """The m3 read side: the five business tools and product-owned reads.
 
     Product-owned and read-only. The knowledge tool is not a CapabilityGate
     tool and not in the frozen registry: it is executed here, over the
-    knowledge base, at the store's business time. Every other call goes to
+    knowledge base, at the store's business time. Pending requests come from a
+    trusted session-bound callback. Every business call goes to
     the ReadSide unchanged.
     """
 
-    def __init__(self, reader: ReadSide, knowledge: KnowledgeBase, business_time: datetime) -> None:
+    def __init__(self, reader: ReadSide, knowledge: KnowledgeBase, business_time: datetime,
+                 read_pending: Callable[[], list[dict]] | None = None) -> None:
         self._reader = reader
         self._knowledge = knowledge
         self._business_time = business_time
-        self.read_tools = reader.read_tools + (KNOWLEDGE_TOOL_NAME,)
+        self._read_pending = read_pending
+        self.read_tools = reader.read_tools + (KNOWLEDGE_TOOL_NAME,) + (
+            (PENDING_TOOL_NAME,) if read_pending is not None else ())
 
     def execute(self, tool_name: str, arguments: Mapping[str, str], *,
                 observation_id: str) -> ToolResult:
         if tool_name == KNOWLEDGE_TOOL_NAME:
             return knowledge_tool_result(self._knowledge, arguments, observation_id=observation_id,
                                          as_of=self._business_time)
+        if tool_name == PENDING_TOOL_NAME and self._read_pending is not None:
+            return pending_tool_result(arguments, observation_id=observation_id,
+                                       read_pending=self._read_pending,
+                                       as_of=self._business_time.isoformat())
         return self._reader.execute(tool_name, arguments, observation_id=observation_id)
 
 

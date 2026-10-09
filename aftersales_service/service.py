@@ -44,11 +44,13 @@ from .conversation import (
     Conversation,
     ConversationError,
     PendingActionNotInConversation,
+    PolicyVersionMismatch,
     RecoveryPending,
     TurnFailed,
 )
 from .demo_store import DemoStore
-from .persistence import HEX_ID, DataDirectory, Generation, PersistenceError, data_directory
+from .persistence import HEX_ID, DataDirectory, Generation, PersistenceError, SessionPolicyUnknown, data_directory
+from . import decision_policy
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +120,8 @@ class AftersalesService:
                     continue
                 with conversation.lock:
                     conversation.ensure_loaded()
+            except PolicyVersionMismatch:
+                logger.warning("start-up recovery deferred for a session bound to another policy")
             except RecoveryPending:
                 logger.warning("start-up recovery failed for a session; it answers recovery_pending")
 
@@ -200,7 +204,7 @@ class AftersalesService:
                 raise TooManySessions("too many demo sessions; reset the demo")
             session_id = uuid.uuid4().hex
             conversation = Conversation.create(session_id=session_id, persona=persona,
-                                               runtime=runtime)
+                                               runtime=runtime, policy=decision_policy.configured_policy())
             self._sessions[session_id] = conversation
         with conversation.lock:
             return conversation.view()
@@ -215,15 +219,21 @@ class AftersalesService:
             runtime = self._require_runtime()
             try:
                 manifest = runtime.sessions.read(session_id)
+            except SessionPolicyUnknown:
+                raise PolicyVersionMismatch("the session has no supported policy binding") from None
             except PersistenceError:
                 raise RecoveryPending("the session file cannot be read") from None
             if manifest is None:
                 return None
+            if manifest["decision_policy"] != decision_policy.configured_policy():
+                raise PolicyVersionMismatch("the session was created under another policy")
             persona = DEMO_PERSONAS.get(manifest["persona_id"])
             if persona is None:
                 raise RecoveryPending("the session file names an unknown persona")
-            conversation = Conversation(session_id=session_id, persona=persona, runtime=runtime)
+            conversation = Conversation(session_id=session_id, persona=persona, runtime=runtime,
+                                        policy=manifest["decision_policy"])
             self._sessions[session_id] = conversation
+        conversation.require_configured_policy()
         return conversation
 
     @contextmanager
@@ -247,6 +257,9 @@ class AftersalesService:
 
     def submit(self, session_id: str, text: str) -> dict[str, object]:
         with self._locked(session_id) as conversation:
+            filtered = conversation.submit_smalltalk(text)
+            if filtered is not None:
+                return filtered
             try:
                 provider = self._provider_factory()
             except Exception:
