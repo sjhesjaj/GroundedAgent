@@ -16,19 +16,22 @@ assertions, expected outcomes) never leave this process: the harness reads a
 turn's text, the persona, the clock and the initial state, nothing else.
 Scoring happens afterwards (scoring.py).
 
-Only the two DEV-side suites exist here. KB-HOLDOUT stays sealed until
-Phase 5, which adds its own loader; nothing in this module can read the
-sealed directory.
+KB-HOLDOUT (Phase 5 part 2) is read only by load_kb_holdout: the sealed zip's
+raw bytes are hash-checked against the seal receipt and the dataset manifest,
+the inner JSON is read in memory and hash-checked, and no plaintext is written
+anywhere. It is scored with the KB-DEV rules (KB_SUITES).
 """
 
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import sqlite3
 import tempfile
 import threading
+import zipfile
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -60,10 +63,14 @@ DATASET_MANIFEST_PATH = ROOT / "eval_m3" / "spec" / "dataset-manifest.json"
 SUBSET_MANIFEST_PATH = ROOT / "eval_m3" / "spec" / "stage6-dev-subset.json"
 STAGE6_DEV_PATH = ROOT / "eval" / "v2" / "stage6-dev.json"
 SEALED_DIRECTORY = ROOT / "eval_m3" / "sealed"
+KB_HOLDOUT_ZIP = SEALED_DIRECTORY / "kb-holdout.zip"
+KB_HOLDOUT_SEAL = SEALED_DIRECTORY / "kb-holdout-seal.json"
 
 SUITE_KB_DEV = "kb-dev"
 SUITE_STAGE6 = "stage6-subset"
-SUITES = (SUITE_KB_DEV, SUITE_STAGE6)
+SUITE_KB_HOLDOUT = "kb-holdout"
+SUITES = (SUITE_KB_DEV, SUITE_STAGE6, SUITE_KB_HOLDOUT)
+KB_SUITES = (SUITE_KB_DEV, SUITE_KB_HOLDOUT)   # scored with the KB-DEV rules
 BEIJING = timezone(timedelta(hours=8))
 EVIDENCE_TEXT_CHARS = 800
 
@@ -156,6 +163,28 @@ def load_kb_dev(path: Path = KB_DEV_PATH) -> list[EvalCase]:
     raw = _json(path)
     if len(raw) != manifest["case_count"]:
         raise DatasetIntegrityError("KB-DEV case count differs from the manifest")
+    return _kb_cases(raw, SUITE_KB_DEV)
+
+
+def load_kb_holdout() -> list[EvalCase]:
+    """Phase 5 part 2 only: the sealed holdout, hash-checked, read in memory."""
+    manifest = next(item for item in _json(DATASET_MANIFEST_PATH)["datasets"] if item["name"] == "KB-HOLDOUT")
+    seal = _json(KB_HOLDOUT_SEAL)
+    data = KB_HOLDOUT_ZIP.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != manifest["raw_sha256"] or digest != seal["sealed_artifact"]["sha256"]:
+        raise DatasetIntegrityError("the sealed KB-HOLDOUT zip differs from its seal")
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        inner = archive.read(seal["inner_dataset"]["filename"])
+    if hashlib.sha256(inner).hexdigest() != seal["inner_dataset"]["raw_json_sha256"]:
+        raise DatasetIntegrityError("the KB-HOLDOUT JSON differs from its seal")
+    raw = json.loads(inner.decode("utf-8-sig"))
+    if len(raw) != manifest["case_count"] or sum(len(item["turns"]) for item in raw) != manifest["turn_count"]:
+        raise DatasetIntegrityError("KB-HOLDOUT case or turn count differs from the manifest")
+    return _kb_cases(raw, SUITE_KB_HOLDOUT)
+
+
+def _kb_cases(raw: list, suite: str) -> list[EvalCase]:
     stage6, entries = _stage6_cases(), _subset_entries()
     cases = []
     for item in raw:
@@ -171,7 +200,7 @@ def load_kb_dev(path: Path = KB_DEV_PATH) -> list[EvalCase]:
                                labels={key: value for key, value in turn.items() if key != "question"})
                       for index, turn in enumerate(item["turns"], 1))
         cases.append(EvalCase(
-            case_id=item["id"], suite=SUITE_KB_DEV, type=item["type"],
+            case_id=item["id"], suite=suite, type=item["type"],
             virtual_now=datetime.fromisoformat(item["virtual_now"]), persona_id=item["persona_id"],
             initial_state=state, action_faults=tuple((state or {}).get("action_faults", ())),
             operator_script=tuple(item["operator_script"]), turns=turns,
@@ -209,6 +238,8 @@ def load_suite(name: str) -> list[EvalCase]:
         return load_kb_dev()
     if name == SUITE_STAGE6:
         return load_stage6_subset()
+    if name == SUITE_KB_HOLDOUT:
+        return load_kb_holdout()
     raise ValueError("unknown suite: " + str(name))
 
 

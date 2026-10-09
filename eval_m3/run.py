@@ -4,6 +4,7 @@
         --dotenv ../knowledge-agent/.env --output eval_m3/phase4/trial --yes
     python -X utf8 -m eval_m3.run --suite kb-dev --suite stage6-subset --runs 3 ...   (Phase 5)
     python -X utf8 -m eval_m3.run --preflight-only --suite kb-dev
+    python -X utf8 -m eval_m3.run --suite kb-holdout --runs 1 ...   (Phase 5 part 2, once)
     python -X utf8 -m eval_m3.run --suite kb-dev --provider mock --output <dir>       (offline dry run)
     python -X utf8 -m eval_m3.run --rescore <dir>     (re-score saved records + verdicts, no model call)
 
@@ -17,6 +18,7 @@ A run whose knowledge-base reads were not all hybrid is marked invalid.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -26,7 +28,8 @@ from pathlib import Path
 
 from . import judge as judge_module
 from . import scoring
-from .runner import (BEIJING, KB_DEV_PATH, ROOT, STAGE6_DEV_PATH, SUITE_KB_DEV, SUITE_STAGE6, SUITES,
+from .runner import (BEIJING, KB_DEV_PATH, KB_HOLDOUT_ZIP, KB_SUITES, ROOT, STAGE6_DEV_PATH, SUITE_KB_DEV,
+                     SUITE_KB_HOLDOUT, SUITE_STAGE6, SUITES,
                      RecordingProvider, load_suite, new_run_directory, normalized_sha256, run_case)
 
 # deepseek-flash, USD per 1M tokens at peak (api-docs.deepseek.com/quick_start/pricing, read 2026-10-09);
@@ -73,7 +76,7 @@ def cost_summary(calls: list[dict]) -> dict:
 
 def estimate(cases, runs: int, *, judge: bool) -> dict:
     business = sum(1 for case in cases for _ in case.turns if case.type != "smalltalk") * runs
-    judged = sum(len(case.turns) for case in cases if case.suite == SUITE_KB_DEV) * runs if judge else 0
+    judged = sum(len(case.turns) for case in cases if case.suite in KB_SUITES) * runs if judge else 0
     tokens_in = business * EST_AGENT_INPUT + judged * EST_JUDGE_INPUT
     tokens_out = business * EST_AGENT_OUTPUT + judged * EST_JUDGE_OUTPUT
     peak = (tokens_in * PRICE_PEAK["cache_miss"] + tokens_out * PRICE_PEAK["output"]) / 1_000_000
@@ -153,7 +156,7 @@ def _write_report(path: Path, summary: dict) -> None:
 def rescore(directory: Path) -> dict:
     """Recompute scores and suite summaries from saved records and verdicts; no model call."""
     summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
-    cases = {case.case_id: case for suite in SUITES for case in load_suite(suite)}
+    cases = {case.case_id: case for suite in summary["suites"] for case in load_suite(suite)}
     runs = summary["meta"]["runs"]
     scores_by_suite: dict[str, list[list[dict]]] = {}
     for run_number in range(1, runs + 1):
@@ -262,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
                 run = run_case(case, agent, data_root=Path(temporary) / ("run-" + str(run_number)),
                                knowledge_base_factory=knowledge_factory)
                 verdicts = (judge_module.judge_case_run(judge, case, run)
-                            if use_judge and case.suite == SUITE_KB_DEV and "baseline_state" in run else None)
+                            if use_judge and case.suite in KB_SUITES and "baseline_state" in run else None)
                 score = scoring.score_case_run(case, run, verdicts)
                 scores_by_suite.setdefault(case.suite, [[] for _ in range(arguments.runs)])[run_number - 1].append(score)
                 line = {"run": run_number, "case_id": case.case_id, "record": _slim(run),
@@ -297,7 +300,9 @@ def main(argv: list[str] | None = None) -> int:
                  "policy": "m3", "judge": judge_module.JUDGE_VERSION if use_judge else None,
                  "runs": arguments.runs, "cases": [case.case_id for case in cases],
                  "inputs": {"kb_dev_normalized_sha256": normalized_sha256(KB_DEV_PATH),
-                            "stage6_dev_normalized_sha256": normalized_sha256(STAGE6_DEV_PATH)}},
+                            "stage6_dev_normalized_sha256": normalized_sha256(STAGE6_DEV_PATH),
+                            **({"kb_holdout_zip_sha256": hashlib.sha256(KB_HOLDOUT_ZIP.read_bytes()).hexdigest()}
+                               if any(case.suite == SUITE_KB_HOLDOUT for case in cases) else {})}},
         "preflight": preflight,
         "suites": suites,
         "cost": {"agent": cost_summary(agent.calls), "judge": cost_summary(judge.calls),

@@ -83,11 +83,19 @@ class FrozenInputTests(RunnerTestCase):
             with self.assertRaises(runner.DatasetIntegrityError):
                 runner.load_stage6_subset()
 
-    def test_the_sealed_holdout_is_never_read(self):
+    def test_the_sealed_holdout_is_read_only_by_its_own_hash_checked_loader(self):
         with self.assertRaises(runner.DatasetIntegrityError):
             runner.load_kb_dev(runner.SEALED_DIRECTORY / "kb-holdout.zip")
-        with self.assertRaises(ValueError):
-            runner.load_suite("kb-holdout")
+        # A zip that is not the sealed one is refused before anything is unpacked
+        # (the real holdout is never opened by the tests).
+        with tempfile.TemporaryDirectory() as directory:
+            other = Path(directory) / "kb-holdout.zip"
+            other.write_bytes(b"not the sealed archive")
+            with mock.patch.object(runner, "KB_HOLDOUT_ZIP", other), \
+                    mock.patch.object(runner.zipfile, "ZipFile", side_effect=AssertionError("unpacked")):
+                with self.assertRaises(runner.DatasetIntegrityError):
+                    runner.load_suite(runner.SUITE_KB_HOLDOUT)
+        self.assertEqual(runner.KB_SUITES, ("kb-dev", "kb-holdout"))
 
 
 class HarnessTests(RunnerTestCase):
