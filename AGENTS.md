@@ -110,6 +110,17 @@ introduced this section it was 2685 tests passing. V1 eval-environment tests pin
 dataset hashes and assume the Windows default CRLF checkout. Tests must not call
 DeepSeek, Ollama, the internet, or the real persistent database.
 
+V1-only unit tests have been deleted; the V1 code is kept but no longer
+maintained. The V1-touching tests that remain guard the V1 Q&A endpoints in
+`api.py`, V1 modules that V2 imports (`orchestration.contracts`,
+`orchestration.wiki_adapter`, `wiki_maintenance`, `llm_provider`), and the V1
+dataset pins.
+
+For day-to-day changes run the fast set, `.\run_tests.ps1 -Fast`
+(`tests/fast_suite.py`: after-sales runtime, M1-M3 and freeze checks, under one
+minute). Before opening a PR the full offline suite, `.\run_tests.ps1 -Full`,
+must pass. Both accept `-Python <path>` when the worktree has no `.venv`.
+
 ## Required Handoff
 
 At the end of a coding task, report:
