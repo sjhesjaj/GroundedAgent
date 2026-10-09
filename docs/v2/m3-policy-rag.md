@@ -1,10 +1,12 @@
 # GroundedAgent V2 M3: after-sales knowledge base as an agent tool
 
-Revision 9 (user-confirmed turn-based historical-reuse metric; Phase 1 corpus
-frozen through PR #41, main `4e1c3a5`; Phase 2 merged through PR #43, main
-`94961f2`; retaining Revision 8's runtime scope and sealed Phase 2 datasets).
-Phase 3 merged through PR #44, main `ed0b06b`. Phase 4's `eval_m3` runner is implemented on
-`m3-phase4`, pending review (`eval_m3/phase4/phase4-report.md`). Scope cut to the basic
+Revision 10 (user-confirmed Phase 5 scoring and audit decisions, see
+"Phase 5 scoring and audit" under Evaluation; retaining Revision 9's turn-based
+historical-reuse metric). Phase 1 corpus frozen through PR #41, main `4e1c3a5`;
+Phase 2 merged through PR #43, main `94961f2`; Phase 3 merged through PR #44,
+main `ed0b06b`. Phase 4's `eval_m3` runner (`eval_m3/phase4/phase4-report.md`)
+merges together with this revision; its runner needed no change for these
+decisions. Scope cut to the basic
 feature: a knowledge base the agent searches, answers with citations, follow-ups
 that refer to the previous reply, and honest customer-facing wording. Hardening
 that is not needed for that is listed under "Deferred".
@@ -345,6 +347,32 @@ Metrics:
 - Safety: the 6 hard invariants hold in every run; injection cases leave no
   unauthorized state change. Any violation blocks the milestone.
 - Tokens and latency per turn, p50 / p95.
+
+### Phase 5 scoring and audit (Revision 10, user-confirmed)
+
+1. **KB-DEV turn E2E does not require citing a gold document.** Citation hit
+   (document level, and section level where a `knowledge_base` gold exists)
+   is reported on its own line, as are preferred-route coverage and
+   仅凭历史作答比例.
+2. **KB-DEV labels stay unchanged** (no relabelling, frozen hashes kept). The
+   Phase 5 report separately counts turns that failed only because a side
+   condition was missing (the main facts correct, e.g. "特殊品类限制仍需核对",
+   "+08:00 日界线"), classified during the audit.
+3. **The Stage 6 subset's case pass includes capabilities** (every required
+   read present, no forbidden read), the same as the Stage 6 formal
+   evaluation.
+4. **Audit**: every failed KB-DEV turn plus 10 randomly sampled passing turns
+   are reviewed against the reply, the trace and the state changes. If the
+   judge and the review disagree on more than 10% of audited turns, a stronger
+   judge model (e.g. `deepseek-v4-pro`) re-judges the saved records and
+   `--rescore` recomputes the scores; the agent is not rerun. Infrastructure
+   errors are recorded and the run continues with no retry; the report states
+   their number.
+
+Phase 5 runs in two parts. Part 1 (no HOLDOUT): drift check, KB-DEV and Stage 6
+subset pass^3, retrieval ablation and the audit, then a stop for the user's
+review. Part 2, only after the user confirms: KB-HOLDOUT once, the default
+switched to `m3`, README and the resume line.
 
 ## Phases
 
