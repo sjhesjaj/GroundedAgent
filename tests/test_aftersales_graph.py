@@ -29,6 +29,14 @@ def user_messages(request: dict) -> list[str]:
 
 
 class ClarificationRetryTests(ProductTestCase):
+    def setUp(self) -> None:
+        # Pins the Stage 6 policy this test was written against (its 503 detail carries
+        # no trace); the default is m3 since M3 Phase 5 part 2.
+        environment = mock.patch.dict("os.environ", {"AFTERSALES_DECISION_POLICY": "stage6"})
+        environment.start()
+        self.addCleanup(environment.stop)
+        super().setUp()
+
     def test_a_failed_answer_to_a_clarification_leaves_no_trace(self):
         # Review finding: resuming an interrupt stores the answer on the head itself,
         # so a retry from the same head reached the policy with the FAILED answer.

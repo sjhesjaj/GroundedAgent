@@ -192,10 +192,12 @@ class KnowledgeBaseTests(unittest.TestCase):
 
 
 class DecisionPolicyTests(unittest.TestCase):
-    def test_the_switch_defaults_to_stage6(self):
-        self.assertEqual(dp.configured_policy({}), dp.POLICY_STAGE6)
+    def test_the_switch_defaults_to_m3(self):
+        # M3 Phase 5 part 2: the default moved from stage6 to m3; stage6 stays selectable.
+        self.assertEqual(dp.configured_policy({}), dp.POLICY_M3)
+        self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: ""}), dp.POLICY_M3)
+        self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: "stage6"}), dp.POLICY_STAGE6)
         self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: "m3"}), dp.POLICY_M3)
-        self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: ""}), dp.POLICY_STAGE6)
         with self.assertRaises(ValueError):
             dp.configured_policy({dp.DECISION_POLICY_ENV: "m4"})
 
@@ -479,10 +481,9 @@ class KnowledgeNeverGroundsTests(M3ProductTestCase):
         self.assertEqual((entry.tool_name, entry.records), (kb.KNOWLEDGE_TOOL_NAME, ()))
 
 
-class Stage6DefaultTests(ProductTestCase):
-    def test_without_the_switch_the_product_offers_no_knowledge_tool(self):
-        with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(dp.DECISION_POLICY_ENV, None)
+class Stage6SwitchTests(ProductTestCase):
+    def test_with_the_stage6_switch_the_product_offers_no_knowledge_tool(self):
+        with mock.patch.dict(os.environ, {dp.DECISION_POLICY_ENV: dp.POLICY_STAGE6}):
             session_id = self.session()
             payload = self.say(session_id, "ORD-1001 发货了吗",
                                decision(call("get_order", {"order_id": "ORD-1001"})),

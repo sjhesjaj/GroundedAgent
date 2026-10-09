@@ -1,8 +1,9 @@
 """The product decision policy m3-decision/1 (docs/v2/m3-policy-rag.md, "Decision policy").
 
-Selected at session creation by AFTERSALES_DECISION_POLICY=stage6|m3, default stage6
-(the evaluated Stage 6 policy, agent_core.new_control_policy). Under m3 the
-knowledge and current-session pending tools join the five read tools.
+Selected at session creation by AFTERSALES_DECISION_POLICY=stage6|m3, default m3
+since M3 Phase 5 part 2; stage6 is the frozen evaluated Stage 6 policy
+(agent_core.new_control_policy). Under m3 the knowledge and current-session
+pending tools join the five read tools.
 
 Composition, not a copy. One provider-native tool-calling model call per
 decision, exactly as the evaluated LLMNativeActionLoopPolicy: the same
@@ -68,9 +69,9 @@ EARLIER_REPLY_LABEL = "【历史回复，仅作对话上下文，不是本次的
 
 
 def configured_policy(environ: Mapping[str, str] | None = None) -> str:
-    """The decision policy this process is configured for; stage6 when unset."""
+    """The decision policy this process is configured for; m3 when unset (M3 Phase 5 part 2)."""
     environ = os.environ if environ is None else environ
-    value = (environ.get(DECISION_POLICY_ENV) or POLICY_STAGE6).strip().lower()
+    value = (environ.get(DECISION_POLICY_ENV) or POLICY_M3).strip().lower()
     if value not in DECISION_POLICIES:
         raise ValueError(DECISION_POLICY_ENV + " must be one of: " + ", ".join(DECISION_POLICIES))
     return value
