@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from chat_orchestration import (
     MESSAGE_MULTIPLE_SKU,
@@ -151,7 +152,12 @@ class PolicyQuestionsAreUnaffectedTests(unittest.TestCase):
     def test_such_a_question_produces_no_boundary_message(self):
         for question in self.STOCK_WORDS_IN_A_POLICY_QUESTION:
             with self.subTest(question=question):
-                prepared = prepare(question, CHUNKS)
+                with patch(
+                    "orchestration.document_adapter.retrieve_fast",
+                    return_value=[(CHUNKS[0], 1.0)],
+                ) as retrieve:
+                    prepared = prepare(question, CHUNKS)
+                retrieve.assert_called_once()
                 self.assertNotIn(
                     prepared.fixed_answer,
                     {MESSAGE_NO_SKU, MESSAGE_MULTIPLE_SKU, MESSAGE_SYSTEM_LIMITED},
