@@ -22,6 +22,12 @@ Read-only. Touches no model, no network, and no production module.
 
 Usage:
     python check_evaluation_overlap.py [--report <json>]
+    python check_evaluation_overlap.py --m3-dataset <json> [--report <json>]
+
+M3 compares each customer turn only with its referenced complete gold sections.
+It does not open other question sets. Scores >= 0.85 block freezing; scores
+>= 0.80 are reported, with no elevated-fraction gate. M3 console output contains
+aggregate counts only; --report explicitly opts into writing pair-level text.
 """
 
 from __future__ import annotations
@@ -150,11 +156,16 @@ def _corpus_entities() -> list[str]:
     return sorted((e for e in entities if e), key=len, reverse=True)
 
 
-ENTITIES = _corpus_entities()
+ENTITIES: list[str] | None = None
 
 
 def mask(text: str) -> str:
     """Replace SKUs, entity names, and numbers with placeholders."""
+    global ENTITIES
+    if ENTITIES is None:
+        # Legacy masking is not used by M3. Defer its source reads so invoking
+        # M3 does not read the legacy corpus at module import time.
+        ENTITIES = _corpus_entities()
     masked = _SKU.sub("§S", text)
     for entity in ENTITIES:
         masked = masked.replace(entity, "§E")
@@ -540,6 +551,179 @@ def evaluate_v2() -> dict:
     return {"comparisons": reports, "gates": gates}
 
 
+_M3_SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}\Z")
+_M3_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
+
+
+def _m3_document(path: Path, source: str, doc_id: str, version: str) -> dict[str, str]:
+    """Read one explicitly referenced source, without importing product code."""
+    if not path.is_file():
+        raise ValueError(f"{source}/{doc_id}: source document is missing ({path})")
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    if not lines or lines[0] != "---":
+        raise ValueError(f"{path}: JSON front matter must start with ---")
+    try:
+        end = lines.index("---", 1)
+    except ValueError:
+        raise ValueError(f"{path}: front matter closing --- is missing") from None
+    try:
+        metadata = json.loads("\n".join(lines[1:end]))
+    except ValueError as error:
+        raise ValueError(f"{path}: invalid JSON front matter: {error}") from None
+    id_key = "doc_id" if source == "knowledge_base" else "policy_id"
+    if not isinstance(metadata, dict) or metadata.get(id_key) != doc_id:
+        raise ValueError(f"{path}: {id_key} does not match gold doc_id {doc_id!r}")
+    if metadata.get("version") != version:
+        raise ValueError(f"{path}: gold version {version!r} does not match source version "
+                         f"{metadata.get('version')!r}")
+
+    sections: dict[str, str] = {}
+    heading: str | None = None
+    body: list[str] = []
+    fenced = False
+
+    def finish_section() -> None:
+        if heading is None:
+            return
+        text = " ".join(body).strip()
+        if not normalize(text):
+            raise ValueError(f"{path}: section {heading!r} has no body text")
+        sections[heading] = text
+
+    for line in lines[end + 1:]:
+        stripped = line.strip()
+        if stripped.startswith(("```", "~~~")):
+            fenced = not fenced
+        match = None if fenced else _M3_HEADING.fullmatch(line)
+        if match:
+            finish_section()
+            heading = match.group(2).strip()
+            if heading in sections:
+                raise ValueError(f"{path}: duplicate section heading {heading!r}")
+            body = []
+        elif stripped:
+            if heading is None:
+                raise ValueError(f"{path}: body text must follow a Markdown heading")
+            body.append(stripped)
+    finish_section()
+    if not sections:
+        raise ValueError(f"{path}: no Markdown sections found")
+    return sections
+
+
+def evaluate_m3(dataset_path: Path, corpus_dir: Path = ROOT / "knowledge_base",
+                policy_dir: Path = ROOT / "policy_sources") -> dict:
+    """Compare every turn with each complete section explicitly in its gold.
+
+    Empty gold is valid for a turn requiring no policy answer. No dataset other
+    than dataset_path is discovered or opened, including any holdout file.
+    """
+    dataset_path, corpus_dir, policy_dir = map(Path, (dataset_path, corpus_dir, policy_dir))
+    cases = json.loads(dataset_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(cases, list):
+        raise ValueError(f"{dataset_path}: expected a JSON array of cases")
+    sources = {"knowledge_base": corpus_dir, "policy_sources": policy_dir}
+    documents: dict[tuple[str, str, str], dict[str, str]] = {}
+    case_ids: set[str] = set()
+    pairs: list[dict] = []
+    turn_count = empty_gold_turn_count = empty_gold_case_count = 0
+
+    for case_index, case in enumerate(cases):
+        location = f"{dataset_path}: cases[{case_index}]"
+        if not isinstance(case, dict):
+            raise ValueError(f"{location}: expected an object")
+        case_id = case.get("id")
+        if not isinstance(case_id, str) or not case_id.strip():
+            raise ValueError(f"{location}: id must be a non-empty string")
+        if case_id in case_ids:
+            raise ValueError(f"{location}: duplicate case id {case_id!r}")
+        case_ids.add(case_id)
+        turns = case.get("turns")
+        if not isinstance(turns, list) or not turns:
+            raise ValueError(f"{location}: turns must be a non-empty array")
+        case_has_gold = False
+        for turn_index, turn in enumerate(turns, start=1):
+            turn_location = f"{location} ({case_id}), turn {turn_index}"
+            if not isinstance(turn, dict):
+                raise ValueError(f"{turn_location}: expected an object")
+            question = turn.get("question")
+            if not isinstance(question, str) or not normalize(question):
+                raise ValueError(f"{turn_location}: question must contain non-empty text")
+            gold = turn.get("gold")
+            if not isinstance(gold, list):
+                raise ValueError(f"{turn_location}: gold must be an array (empty is allowed)")
+            turn_count += 1
+            if not gold:
+                empty_gold_turn_count += 1
+            else:
+                case_has_gold = True
+            question_normalized = normalize(question)
+            question_bigrams = bigrams(question_normalized)
+            for gold_index, reference in enumerate(gold, start=1):
+                gold_location = f"{turn_location}, gold {gold_index}"
+                if not isinstance(reference, dict):
+                    raise ValueError(f"{gold_location}: expected an object")
+                source, doc_id, version = (reference.get(key) for key in ("source", "doc_id", "version"))
+                if not isinstance(source, str) or source not in sources:
+                    raise ValueError(f"{gold_location}: source must be knowledge_base or policy_sources")
+                for key, value in (("doc_id", doc_id), ("version", version)):
+                    if not isinstance(value, str) or not _M3_SAFE_ID.fullmatch(value):
+                        raise ValueError(f"{gold_location}: {key} must be a safe non-empty string")
+                headings = reference.get("sections")
+                if (not isinstance(headings, list) or not headings
+                        or any(not isinstance(item, str) or not item.strip() for item in headings)
+                        or len(set(headings)) != len(headings)):
+                    raise ValueError(f"{gold_location}: sections must be a non-empty array of unique exact headings")
+                key = source, doc_id, version
+                if key not in documents:
+                    documents[key] = _m3_document(sources[source] / (doc_id + ".md"), source, doc_id, version)
+                sections = documents[key]
+                for heading in headings:
+                    if heading not in sections:
+                        raise ValueError(f"{gold_location}: section {heading!r} is missing from {source}/{doc_id}@{version}")
+                    gold_text = sections[heading]
+                    gold_normalized = normalize(gold_text)
+                    sequence_ratio = ratio(question_normalized, gold_normalized)
+                    bigram_jaccard = jaccard(question_bigrams, bigrams(gold_normalized))
+                    similarity = max(sequence_ratio, bigram_jaccard)
+                    pairs.append({
+                        "case_id": case_id, "turn_index": turn_index, "gold_index": gold_index,
+                        "source": source, "doc_id": doc_id, "version": version, "section": heading,
+                        "question": question, "gold_text": gold_text,
+                        "sequence_ratio": sequence_ratio, "bigram_jaccard": bigram_jaccard,
+                        "similarity": similarity,
+                        "band": ("blocking" if similarity >= THRESHOLD_BLOCKING else
+                                 "elevated" if similarity >= THRESHOLD_ELEVATED else "below_elevated"),
+                    })
+        if not case_has_gold:
+            empty_gold_case_count += 1
+
+    pairs.sort(key=lambda pair: -pair["similarity"])
+    blocking = [pair for pair in pairs if pair["similarity"] >= THRESHOLD_BLOCKING]
+    elevated = [pair for pair in pairs if pair["similarity"] >= THRESHOLD_ELEVATED]
+    blocking_turns = {(pair["case_id"], pair["turn_index"]) for pair in blocking}
+    elevated_turns = {(pair["case_id"], pair["turn_index"]) for pair in elevated}
+    summary = {
+        "case_count": len(cases), "turn_count": turn_count, "pair_count": len(pairs),
+        "empty_gold_case_count": empty_gold_case_count,
+        "empty_gold_turn_count": empty_gold_turn_count,
+        "max_similarity": pairs[0]["similarity"] if pairs else 0.0,
+        "blocking_pair_count": len(blocking), "blocking_turn_count": len(blocking_turns),
+        # Counts >= 0.80 include blocking pairs, matching the legacy band convention.
+        "elevated_pair_count": len(elevated), "elevated_turn_count": len(elevated_turns),
+        "elevated_only_pair_count": len(elevated) - len(blocking),
+        "passed": not blocking,
+    }
+    return {
+        "mode": "m3_question_gold_sections", "dataset": str(dataset_path),
+        "corpus_dir": str(corpus_dir), "policy_dir": str(policy_dir),
+        "thresholds": {"blocking": THRESHOLD_BLOCKING, "elevated": THRESHOLD_ELEVATED,
+                       "elevated_is_failure": False},
+        "algorithm": "max(SequenceMatcher(normalize(question), normalize(section)), character-bigram Jaccard)",
+        "summary": summary, "all_pairs": pairs,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -547,12 +731,35 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Where to write the full pair-level report",
     )
-    parser.add_argument(
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
         "--v2",
         action="store_true",
         help="Check Blind Holdout V2 against every previously seen question set",
     )
+    modes.add_argument("--m3-dataset", type=Path,
+                       help="Compare only this M3 dataset with its explicitly referenced gold sections")
+    parser.add_argument("--corpus-dir", type=Path, default=ROOT / "knowledge_base",
+                        help="M3 knowledge_base source directory")
+    parser.add_argument("--policy-dir", type=Path, default=ROOT / "policy_sources",
+                        help="M3 policy_sources source directory")
     args = parser.parse_args(argv)
+
+    if args.m3_dataset is not None:
+        try:
+            report = evaluate_m3(args.m3_dataset, args.corpus_dir, args.policy_dir)
+            if args.report:
+                report_path = Path(args.report)
+                report_path.parent.mkdir(parents=True, exist_ok=True)
+                report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"M3 overlap error: {error}", file=sys.stderr)
+            return 2
+        print("M3 question / complete gold-section overlap")
+        print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
+        if args.report:
+            print(f"Wrote {report_path}")
+        return 0 if report["summary"]["passed"] else 1
 
     if args.v2:
         outcome = evaluate_v2()

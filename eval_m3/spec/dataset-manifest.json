@@ -1,0 +1,69 @@
+{
+  "schema_version": "m3-evaluation-dataset-manifest/1",
+  "corpus_commit": "4e1c3a5fd36247b3c4ae1f862dd7ef7ddd9ae259",
+  "prepared_at": "2026-10-09T14:34:28+08:00",
+  "status": "User reviewed; Phase 2 commit and merge authorized",
+  "datasets": [
+    {
+      "name": "KB-DEV",
+      "path": "eval_m3/datasets/kb-dev.json",
+      "raw_sha256": "1486e9f227fe84dfd8ec7f62a889a4ef6d09e959e3ad06d05f4784dd14a4a655",
+      "normalized_utf8_lf_sha256": "1486e9f227fe84dfd8ec7f62a889a4ef6d09e959e3ad06d05f4784dd14a4a655",
+      "case_count": 40,
+      "turn_count": 50,
+      "distribution": {
+        "policy_single": 6,
+        "policy_multi": 4,
+        "expired_version": 2,
+        "promotion": 2,
+        "unanswerable": 2,
+        "action": 4,
+        "mixed": 4,
+        "followup": 6,
+        "smalltalk": 4,
+        "off_topic": 2,
+        "injection": 4
+      }
+    },
+    {
+      "name": "KB-HOLDOUT",
+      "path": "eval_m3/sealed/kb-holdout.zip",
+      "raw_sha256": "4e6a705d86bf381825ad63bc347be6a15b792bd4e2d4831df971ea1a32ab3f63",
+      "normalized_utf8_lf_sha256": null,
+      "case_count": 20,
+      "turn_count": 25,
+      "distribution": {
+        "policy_single": 3,
+        "policy_multi": 2,
+        "expired_version": 1,
+        "promotion": 1,
+        "unanswerable": 1,
+        "action": 2,
+        "mixed": 2,
+        "followup": 3,
+        "smalltalk": 2,
+        "off_topic": 1,
+        "injection": 2
+      }
+    }
+  ],
+  "stage6_dev_subset": {
+    "path": "eval_m3/spec/stage6-dev-subset.json",
+    "count": 24,
+    "raw_sha256": "73185fee471037f15eba5c3acb621dfdbb59709d029a87e788237bcd5ce4fe8e",
+    "normalized_utf8_lf_sha256": "73185fee471037f15eba5c3acb621dfdbb59709d029a87e788237bcd5ce4fe8e"
+  },
+  "history_reuse_counting_unit": "followup_turn",
+  "constraints": [
+    "HOLDOUT remains sealed until Phase 5",
+    "Any reviewed DEV change must regenerate hashes before tuning",
+    "No corpus modification without user permission"
+  ],
+  "history_reuse_metric": {
+    "user_confirmed": true,
+    "denominator": "followup turns reusing verifiable historical facts",
+    "numerator": "such turns with at least one reused fact lacking current-run read support",
+    "zero_denominator": "N/A",
+    "count_each_turn_once": true
+  }
+}

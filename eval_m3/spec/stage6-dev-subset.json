@@ -1,0 +1,166 @@
+{
+  "schema_version": "m3-stage6-dev-subset/1",
+  "corpus_freeze_commit": "4e1c3a5fd36247b3c4ae1f862dd7ef7ddd9ae259",
+  "source": {
+    "path": "eval/v2/stage6-dev.json",
+    "git_blob": "10b585e99921684acf463ab7d503792e298a9c5a",
+    "normalized_utf8_lf_sha256": "80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3",
+    "normalization": "Decode UTF-8 (optional BOM removed), replace CRLF and CR with LF, encode UTF-8 without BOM. Preserve all other characters, whitespace and final newline."
+  },
+  "initial_state_hash_rule": "UTF-8 bytes of json.dumps(initial_state, sort_keys=True, ensure_ascii=False, separators=(',', ':')); no trailing newline.",
+  "selection_count": 24,
+  "case_ids": [
+    "s6-dev-001",
+    "s6-dev-004",
+    "s6-dev-005",
+    "s6-dev-006",
+    "s6-dev-007",
+    "s6-dev-008",
+    "s6-dev-009",
+    "s6-dev-010",
+    "s6-dev-011",
+    "s6-dev-012",
+    "s6-dev-013",
+    "s6-dev-014",
+    "s6-dev-015",
+    "s6-dev-016",
+    "s6-dev-017",
+    "s6-dev-019",
+    "s6-dev-020",
+    "s6-dev-021",
+    "s6-dev-022",
+    "s6-dev-023",
+    "s6-dev-024",
+    "s6-dev-025",
+    "s6-dev-039",
+    "s6-dev-040"
+  ],
+  "constraints": [
+    "This manifest contains ids, clocks and hashes only; it does not copy questions, gold labels or initial_state contents.",
+    "Future runs load only the referenced case initial_state from the frozen source and verify its canonical JSON SHA256 before applying it.",
+    "Each case gets its own temporary product database, its own initial_state, and its own virtual_now; states must not be mixed across cases.",
+    "The source remains frozen. No Stage 6 HOLDOUT is read or included."
+  ],
+  "cases": [
+    {
+      "case_id": "s6-dev-001",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "0b0f20138be3d88074463807058562f3e616cadca76ab6e180bc9e96e46169c9"
+    },
+    {
+      "case_id": "s6-dev-004",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "ffeabf928e58a79e38309c488b9b2e79056d50e135e95f0d3377d9d1acd5c08a"
+    },
+    {
+      "case_id": "s6-dev-005",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "6e11bee7f08bfa66946f85466589ef621ad581a38b27829d8d2d5e46585740b1"
+    },
+    {
+      "case_id": "s6-dev-006",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "0a07cabf8b4ba55fd87b01350bc08a637f1c14a1539024689178ab9f12c2d2c8"
+    },
+    {
+      "case_id": "s6-dev-007",
+      "virtual_now": "2026-12-10T15:00:00+08:00",
+      "initial_state_canonical_json_sha256": "1874407d492bcec9a97b14166036406e4a74998f45d3d32f98b55811672bb207"
+    },
+    {
+      "case_id": "s6-dev-008",
+      "virtual_now": "2026-12-10T15:00:00+08:00",
+      "initial_state_canonical_json_sha256": "c2563424ce5c7303a4019a5dd4f5d0465025ee0ea12650f73c131559245ff853"
+    },
+    {
+      "case_id": "s6-dev-009",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "c9142c2f36daf11a28c347dd5039ff1256e14b2c80c8d1b43c71f0e6fdccbd1c"
+    },
+    {
+      "case_id": "s6-dev-010",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "ffeabf928e58a79e38309c488b9b2e79056d50e135e95f0d3377d9d1acd5c08a"
+    },
+    {
+      "case_id": "s6-dev-011",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "2c8d2d4818113ba389eee0db2c59218dc7e6f066b944015108a66a0a38fbc47a"
+    },
+    {
+      "case_id": "s6-dev-012",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "7512225195d1ebda19cd72515b14a1720ecd1346be83f1ae1da42ab27baa6225"
+    },
+    {
+      "case_id": "s6-dev-013",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "ffeabf928e58a79e38309c488b9b2e79056d50e135e95f0d3377d9d1acd5c08a"
+    },
+    {
+      "case_id": "s6-dev-014",
+      "virtual_now": "2026-11-16T09:00:00+08:00",
+      "initial_state_canonical_json_sha256": "1af235fb611846d8f8480dcfc2e2a42ee61824be562ff7f93b3b97de3463b0f5"
+    },
+    {
+      "case_id": "s6-dev-015",
+      "virtual_now": "2026-11-16T09:00:00+08:00",
+      "initial_state_canonical_json_sha256": "f1d36b0ec1503f309b30e414f077a04b87d28fdbf6194ac7497a76050864c56b"
+    },
+    {
+      "case_id": "s6-dev-016",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "565330d7dee79930252f5cec96a2351deaf815094960fc27d78ba57ed389673a"
+    },
+    {
+      "case_id": "s6-dev-017",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "8fe2d7fb2c924a99f2c1bc750740122cadede8b3b1a27783c954145333a917e8"
+    },
+    {
+      "case_id": "s6-dev-019",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "98c24479671978b5f4a89910d7124c7bf64004b5772a1c7c6c10094f0216deca"
+    },
+    {
+      "case_id": "s6-dev-020",
+      "virtual_now": "2026-12-10T15:00:00+08:00",
+      "initial_state_canonical_json_sha256": "2c8d2d4818113ba389eee0db2c59218dc7e6f066b944015108a66a0a38fbc47a"
+    },
+    {
+      "case_id": "s6-dev-021",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "b2a4e4cd272aaa76db1df98f735d7b4992e716e662580f47199104470924da2f"
+    },
+    {
+      "case_id": "s6-dev-022",
+      "virtual_now": "2026-11-16T09:00:00+08:00",
+      "initial_state_canonical_json_sha256": "301428fd3e33fda490882466bb0c0ecf9d9b24b18711ecb3eca2a19f608127f8"
+    },
+    {
+      "case_id": "s6-dev-023",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "ffeabf928e58a79e38309c488b9b2e79056d50e135e95f0d3377d9d1acd5c08a"
+    },
+    {
+      "case_id": "s6-dev-024",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "2c8d2d4818113ba389eee0db2c59218dc7e6f066b944015108a66a0a38fbc47a"
+    },
+    {
+      "case_id": "s6-dev-025",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "ffeabf928e58a79e38309c488b9b2e79056d50e135e95f0d3377d9d1acd5c08a"
+    },
+    {
+      "case_id": "s6-dev-039",
+      "virtual_now": "2026-11-15T10:00:00+08:00",
+      "initial_state_canonical_json_sha256": "ffeabf928e58a79e38309c488b9b2e79056d50e135e95f0d3377d9d1acd5c08a"
+    },
+    {
+      "case_id": "s6-dev-040",
+      "virtual_now": "2026-11-16T09:00:00+08:00",
+      "initial_state_canonical_json_sha256": "2c8d2d4818113ba389eee0db2c59218dc7e6f066b944015108a66a0a38fbc47a"
+    }
+  ]
+}

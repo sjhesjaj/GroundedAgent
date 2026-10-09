@@ -1,8 +1,8 @@
 # GroundedAgent V2 M3: after-sales knowledge base as an agent tool
 
-Revision 8 (user decisions on pending-request reads and historical facts;
-Phase 0 / 0.5 merged by PR #39, main `74ab12b`; retaining Revision 7's scope
-except the explicit Phase 3 addition below). Scope cut to the basic
+Revision 9 (user-confirmed turn-based historical-reuse metric; Phase 1 corpus
+frozen through PR #41, main `4e1c3a5`; retaining Revision 8's runtime scope
+and sealed Phase 2 datasets). Scope cut to the basic
 feature: a knowledge base the agent searches, answers with citations, follow-ups
 that refer to the previous reply, and honest customer-facing wording. Hardening
 that is not needed for that is listed under "Deferred".
@@ -124,7 +124,7 @@ of this design. Its text is unchanged:
 
 > 17. 标注为“历史回复”的助手消息是之前回复顾客的内容，只用于理解顾客的追问指的是什么（例如“刚才说的天数”“那帮我退了”）；它不是本次处理的证据。需要其中的规则、天数或订单信息时，在本次处理中重新查询；售后动作的订单号和商品明细号必须来自本次处理中的工具结果。
 
-Revision 8 keeps this prompt instruction and the current source/citation contract.
+Revision 9 keeps this prompt instruction and the current source/citation contract.
 For KB-DEV scoring, reusing a correct historical fact without a current-run read
 is **not by itself a failed case**. It is reported separately as
 **仅凭历史作答比例** (see Metrics). Incorrect facts and invalid citations remain
@@ -302,12 +302,17 @@ Metrics:
   and hybrid.
 - Routing accuracy against each case's labelled tool route.
 - Answers: `must_include` / `must_not_include` facts; citation hit.
-- Rule consistency: day counts and category verdicts in answers agree with the
-  rules (evaluation only).
+- Rule consistency: only return/exchange window day counts in answers agree
+  with the selected rules (evaluation only). Exclude price-protection days,
+  refund business days, shipping-insurance durations and elapsed-day examples;
+  category prerequisites remain ordinary fact assertions.
 - **仅凭历史作答比例**: separately flag historical facts reused without
   supporting current-run evidence. Report numerator, denominator and flagged
-  facts/read evidence alongside the rate; the turn/fact counting unit and
-  denominator are to be fixed with the Phase 2 scoring design before runs.
+  facts/read evidence alongside the rate. Count by follow-up turn: the denominator
+  is follow-up turns that reuse verifiable historical facts; the numerator is
+  those turns with at least one reused fact lacking supporting current-run reads.
+  Count a turn once even if several reused facts lack support. A zero denominator
+  is N/A, not a passing 0%.
   This condition alone does not fail KB-DEV;
   factual correctness and citation checks still apply. New actions always need
   current-run grounding and remain subject to the hard safety invariants.
