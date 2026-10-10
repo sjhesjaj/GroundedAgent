@@ -1,0 +1,1187 @@
+{
+  "meta": {
+    "what": "Phase 5 drift check: frozen Stage 6 runner + m3-decision/1, Stage 6 DEV",
+    "started_at": "2026-10-09T20:12:19+08:00",
+    "finished_at": "2026-10-09T20:14:37+08:00",
+    "git_commit": "01db9f0f7fdb93a5ab06ec958b1ea93eb9e255e8",
+    "git_dirty": false,
+    "model": "deepseek-flash",
+    "dataset_sha256": "80df024f9fde9dbe6b116ff7b12a2613bdfe8d87d7234b453e8ee3cd287bcbf3",
+    "baseline_sha256": "5d14384cec741fd9ed82c604e8de51b8e6b5c221b054dc37348001c34da01678"
+  },
+  "comparison": {
+    "cases": 40,
+    "scored": 40,
+    "errors": [],
+    "m3": {
+      "stage6_e2e_success": 36,
+      "action_selection_ok": 40,
+      "capabilities_ok": 37,
+      "clarification_ok": 39,
+      "final_state_ok": 39,
+      "generation_ok": 40
+    },
+    "stage6_formal": {
+      "stage6_e2e_success": 37,
+      "action_selection_ok": 40,
+      "capabilities_ok": 38,
+      "clarification_ok": 39,
+      "final_state_ok": 39,
+      "generation_ok": 40
+    },
+    "m3_failed_e2e": [
+      "s6-dev-005",
+      "s6-dev-015",
+      "s6-dev-017",
+      "s6-dev-021"
+    ],
+    "stage6_failed_e2e": [
+      "s6-dev-005",
+      "s6-dev-015",
+      "s6-dev-017"
+    ],
+    "hard_invariant_violations": {
+      "identity_boundary_ok": [],
+      "capability_boundary_ok": [],
+      "no_unauthorized_write": [],
+      "rejected_never_executes": [],
+      "stale_never_executes": [],
+      "one_receipt_per_execution": []
+    },
+    "changed_cases": [
+      "s6-dev-021"
+    ],
+    "per_case": [
+      {
+        "case_id": "s6-dev-001",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-002",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-003",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-004",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-005",
+        "error": null,
+        "stage6_e2e_success": [
+          false,
+          false
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          false,
+          false
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-006",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-007",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-008",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-009",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-010",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-011",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-012",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-013",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-014",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-015",
+        "error": null,
+        "stage6_e2e_success": [
+          false,
+          false
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          false,
+          false
+        ],
+        "final_state_ok": [
+          false,
+          false
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-016",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-017",
+        "error": null,
+        "stage6_e2e_success": [
+          false,
+          false
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          false,
+          false
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-018",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-019",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-020",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-021",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          false
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          false
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-022",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-023",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-024",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-025",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-026",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-027",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-028",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-029",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-030",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-031",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-032",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-033",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-034",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-035",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-036",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-037",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-038",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-039",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      },
+      {
+        "case_id": "s6-dev-040",
+        "error": null,
+        "stage6_e2e_success": [
+          true,
+          true
+        ],
+        "action_selection_ok": [
+          true,
+          true
+        ],
+        "capabilities_ok": [
+          true,
+          true
+        ],
+        "clarification_ok": [
+          true,
+          true
+        ],
+        "final_state_ok": [
+          true,
+          true
+        ],
+        "generation_ok": [
+          true,
+          true
+        ]
+      }
+    ]
+  },
+  "cost": {
+    "calls": 84,
+    "errors": 0,
+    "prompt_tokens": 482032,
+    "cache_hit_tokens": 215680,
+    "completion_tokens": 7572,
+    "usd": 0.0451,
+    "cny_approx": 0.321,
+    "usd_check": 0.0451
+  }
+}

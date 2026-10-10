@@ -83,11 +83,19 @@ class FrozenInputTests(RunnerTestCase):
             with self.assertRaises(runner.DatasetIntegrityError):
                 runner.load_stage6_subset()
 
-    def test_the_sealed_holdout_is_never_read(self):
+    def test_the_sealed_holdout_is_read_only_by_its_own_hash_checked_loader(self):
         with self.assertRaises(runner.DatasetIntegrityError):
             runner.load_kb_dev(runner.SEALED_DIRECTORY / "kb-holdout.zip")
-        with self.assertRaises(ValueError):
-            runner.load_suite("kb-holdout")
+        # A zip that is not the sealed one is refused before anything is unpacked
+        # (the real holdout is never opened by the tests).
+        with tempfile.TemporaryDirectory() as directory:
+            other = Path(directory) / "kb-holdout.zip"
+            other.write_bytes(b"not the sealed archive")
+            with mock.patch.object(runner, "KB_HOLDOUT_ZIP", other), \
+                    mock.patch.object(runner.zipfile, "ZipFile", side_effect=AssertionError("unpacked")):
+                with self.assertRaises(runner.DatasetIntegrityError):
+                    runner.load_suite(runner.SUITE_KB_HOLDOUT)
+        self.assertEqual(runner.KB_SUITES, ("kb-dev", "kb-holdout"))
 
 
 class HarnessTests(RunnerTestCase):
@@ -336,6 +344,28 @@ class CommandLineTests(unittest.TestCase):
             for suite in ("kb-dev", "stage6-subset"):
                 original, again = summary["suites"][suite], rescored["suites"][suite]
                 self.assertEqual({key: again[key] for key in original}, original)
+
+
+class DriftCheckTest(unittest.TestCase):
+    def test_a_case_runs_through_the_frozen_stage6_runner_and_is_compared(self):
+        from eval_m3 import drift
+
+        class FormalNamedMock(MockAgent):   # SharedGenerator(formal=True) runs on "deepseek" only
+            name = "deepseek"
+
+        case = json.loads(runner.STAGE6_DEV_PATH.read_text(encoding="utf-8"))[0]
+        provider = runner.RecordingProvider(FormalNamedMock(), role="agent")
+        row = drift.run_one(case, provider)
+        self.assertIsNone(row["error"])
+        self.assertEqual(row["score"]["case_id"], "s6-dev-001")
+        self.assertGreaterEqual(len(row["calls"]), 2)
+        baseline = [{"case_id": "s6-dev-001", "score": copy.deepcopy(row["score"])}]
+        baseline[0]["score"]["stage6_e2e_success"] = not row["score"]["stage6_e2e_success"]
+        result = drift.compare([row], baseline)
+        self.assertEqual(result["changed_cases"], ["s6-dev-001"])
+        self.assertEqual(result["scored"], 1)
+        failed = dict(row, score=None, error={"phase": "run", "error_type": "Timeout"})
+        self.assertEqual(drift.compare([failed], baseline)["errors"][0]["error"]["error_type"], "Timeout")
 
 
 if __name__ == "__main__":

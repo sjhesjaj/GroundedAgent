@@ -393,7 +393,7 @@ class MarkerTests(PersistentTestCase):
                 mock.patch.object(ActionGateway, "start_action", side_effect=ValueError("broken")), \
                 self.assertLogs("aftersales_service.service", level="WARNING"):
             failed = self.say(session_id, RETURN_TEXT, GET_ORDER, CREATE_RETURN, expected=500)
-        self.assertEqual(failed["detail"], {"code": "agent_internal_error"})
+        self.assertEqual(failed["detail"]["code"], "agent_internal_error")   # m3 adds the trace
         markers = [item.kwargs["inflight"] for item in writes.call_args_list]
         self.assertEqual([marker is not None for marker in markers], [True, False])
         self.assertEqual(self.session_file(session_id)["head"], head)
@@ -478,7 +478,7 @@ class MarkerTests(PersistentTestCase):
         with mock.patch.object(SessionFiles, "write", side_effect=PermissionError("held")), \
                 self.assertLogs("aftersales_service.service", level="WARNING"):
             failed = self.say(session_id, "我要退货", CLARIFY, expected=500)
-        self.assertEqual(failed["detail"], {"code": "agent_internal_error"})
+        self.assertEqual(failed["detail"]["code"], "agent_internal_error")   # m3 adds the trace
         self.assertEqual(self.session_file(session_id)["head"], head)
         self.assertEqual(self.view(session_id)["messages"], [])
         self.restart()

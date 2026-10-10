@@ -1,0 +1,883 @@
+{
+  "turns": 17,
+  "gold_sections": 35,
+  "summary": {
+    "bm25": {
+      "recall@1": {
+        "macro": 0.1765,
+        "micro": 0.1429
+      },
+      "recall@3": {
+        "macro": 0.4922,
+        "micro": 0.4286
+      },
+      "recall@5": {
+        "macro": 0.651,
+        "micro": 0.6286
+      }
+    },
+    "vector": {
+      "recall@1": {
+        "macro": 0.1863,
+        "micro": 0.2
+      },
+      "recall@3": {
+        "macro": 0.5392,
+        "micro": 0.4857
+      },
+      "recall@5": {
+        "macro": 0.6471,
+        "micro": 0.6
+      }
+    },
+    "hybrid": {
+      "recall@1": {
+        "macro": 0.2157,
+        "micro": 0.2286
+      },
+      "recall@3": {
+        "macro": 0.4824,
+        "micro": 0.4571
+      },
+      "recall@5": {
+        "macro": 0.7392,
+        "micro": 0.7143
+      }
+    }
+  },
+  "rows": [
+    {
+      "case_id": "kb-dev-001",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-002",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-003",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-004",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-007",
+      "turn": 1,
+      "gold_sections": 3,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "5": {
+            "found": 3,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "5": {
+            "found": 2,
+            "recall": 0.6667
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "3": {
+            "found": 2,
+            "recall": 0.6667
+          },
+          "5": {
+            "found": 3,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-008",
+      "turn": 1,
+      "gold_sections": 3,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "5": {
+            "found": 2,
+            "recall": 0.6667
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.3333
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.3333
+          },
+          "5": {
+            "found": 2,
+            "recall": 0.6667
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-009",
+      "turn": 1,
+      "gold_sections": 5,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.2
+          },
+          "5": {
+            "found": 2,
+            "recall": 0.4
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.2
+          },
+          "5": {
+            "found": 2,
+            "recall": 0.4
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-011",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-012",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-021",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-024",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-026",
+      "turn": 1,
+      "gold_sections": 1,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-026",
+      "turn": 2,
+      "gold_sections": 1,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-027",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 1,
+            "recall": 0.5
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 2,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-027",
+      "turn": 2,
+      "gold_sections": 1,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 0,
+            "recall": 0.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-028",
+      "turn": 1,
+      "gold_sections": 2,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "3": {
+            "found": 1,
+            "recall": 0.5
+          },
+          "5": {
+            "found": 2,
+            "recall": 1.0
+          }
+        }
+      }
+    },
+    {
+      "case_id": "kb-dev-028",
+      "turn": 2,
+      "gold_sections": 1,
+      "recall": {
+        "bm25": {
+          "1": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        },
+        "vector": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        },
+        "hybrid": {
+          "1": {
+            "found": 0,
+            "recall": 0.0
+          },
+          "3": {
+            "found": 1,
+            "recall": 1.0
+          },
+          "5": {
+            "found": 1,
+            "recall": 1.0
+          }
+        }
+      }
+    }
+  ]
+}

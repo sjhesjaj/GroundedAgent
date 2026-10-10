@@ -192,20 +192,26 @@ class KnowledgeBaseTests(unittest.TestCase):
 
 
 class DecisionPolicyTests(unittest.TestCase):
-    def test_the_switch_defaults_to_stage6(self):
-        self.assertEqual(dp.configured_policy({}), dp.POLICY_STAGE6)
+    def test_the_switch_defaults_to_m3(self):
+        # M3 Phase 5 part 2: the default moved from stage6 to m3; stage6 stays selectable.
+        self.assertEqual(dp.configured_policy({}), dp.POLICY_M3)
+        self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: ""}), dp.POLICY_M3)
+        self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: "stage6"}), dp.POLICY_STAGE6)
         self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: "m3"}), dp.POLICY_M3)
-        self.assertEqual(dp.configured_policy({dp.DECISION_POLICY_ENV: ""}), dp.POLICY_STAGE6)
         with self.assertRaises(ValueError):
             dp.configured_policy({dp.DECISION_POLICY_ENV: "m4"})
 
-    def test_the_prompt_replaces_rules_1_and_12_and_adds_17(self):
+    def test_the_prompt_replaces_rules_1_and_12_and_adds_17_and_18(self):
         stage6 = core.STAGE6_SYSTEM_PROMPT.split("\n")
         m3 = dp.M3_SYSTEM_PROMPT.split("\n")
-        self.assertEqual(len(m3), len(stage6) + 1)
+        self.assertEqual(len(m3), len(stage6) + 2)
         changed = [index for index, line in enumerate(stage6) if m3[index] != line]
         self.assertEqual([stage6[index].split(".", 1)[0] for index in changed], ["1", "12"])
-        self.assertTrue(m3[-1].startswith("17. "))
+        self.assertEqual(m3[-2:], [dp.M3_RULE_17, dp.M3_RULE_18])
+        self.assertTrue(m3[-2].startswith("17. ") and m3[-1].startswith("18. "))
+        # Only the off-topic class moves to refuse; refunds and permission requests keep rules 4 and 5.
+        self.assertIn("disposition 为 refuse", dp.M3_RULE_18)
+        self.assertIn("仍按规则 4、5 处理", dp.M3_RULE_18)
         for name in ("search_knowledge_base", "search_after_sales_policy"):
             self.assertIn(name, dp.M3_RULE_1)
         self.assertIn("历史回复", dp.M3_RULE_12)
@@ -475,10 +481,9 @@ class KnowledgeNeverGroundsTests(M3ProductTestCase):
         self.assertEqual((entry.tool_name, entry.records), (kb.KNOWLEDGE_TOOL_NAME, ()))
 
 
-class Stage6DefaultTests(ProductTestCase):
-    def test_without_the_switch_the_product_offers_no_knowledge_tool(self):
-        with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(dp.DECISION_POLICY_ENV, None)
+class Stage6SwitchTests(ProductTestCase):
+    def test_with_the_stage6_switch_the_product_offers_no_knowledge_tool(self):
+        with mock.patch.dict(os.environ, {dp.DECISION_POLICY_ENV: dp.POLICY_STAGE6}):
             session_id = self.session()
             payload = self.say(session_id, "ORD-1001 发货了吗",
                                decision(call("get_order", {"order_id": "ORD-1001"})),

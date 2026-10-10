@@ -27,6 +27,7 @@ GroundedAgent 是一个**电商售后客服 Agent**。它能查询订单、物�
 
 - 查询订单、物流、库存和售后规则（5 个只读工具，身份来自服务端，不来自模型或浏览器）
 - 根据可信业务状态回答售后问题
+- 检索售后知识库，回答运费、退款到账、价保、发票等政策问题并附出处；可以接着上一条回复追问（M3，默认策略）
 - LLM-native Tool Calling
 - 发起退货 / 换货 / 转人工
 - Policy Guard 对动作做确定性判定：ALLOW / DENY / REQUIRE_APPROVAL
@@ -68,7 +69,7 @@ flowchart TB
 - **Trace / Eval 是支撑层。** 每一步都写入 Agent Trace；Stage 6 用基于最终数据库状态的评测和六个硬安全不变量来衡量这条链路（见下文）。
 - **控制流是 LangGraph 状态图（M2）。** 控制循环的每一步是 `StateGraph` 的一个节点，状态经过版本化的 JSON codec 存进 `SqliteSaver`。写入动作在网关前停一步，先把待提交的动作落盘，再执行写入（见下文「重启恢复」）。
 
-**演进：** Stage 4 确定性 Baseline → Stage 5 LLM-native 只读工具循环 → Stage 6 受控副作用与 sealed holdout（已冻结）→ M0 产品化：M0-A1 运行时（`/api/aftersales`），M0-A2 售后前端 → M1 action grounding gate → M2 LangGraph 控制流与重启恢复。M0–M2 都直接复用 Stage 6 评测过的 agent core，没有改动 `aftersales/` 和 `eval_v2/`。运行时生命周期、API 契约和 curl 示例见 [docs/v2/m0-a1-aftersales-runtime.md](docs/v2/m0-a1-aftersales-runtime.md)。
+**演进：** Stage 4 确定性 Baseline → Stage 5 LLM-native 只读工具循环 → Stage 6 受控副作用与 sealed holdout（已冻结）→ M0 产品化：M0-A1 运行时（`/api/aftersales`），M0-A2 售后前端 → M1 action grounding gate → M2 LangGraph 控制流与重启恢复 → M3 售后知识库作为 Agent 工具（默认策略）。M0–M2 都直接复用 Stage 6 评测过的 agent core，没有改动 `aftersales/` 和 `eval_v2/`。运行时生命周期、API 契约和 curl 示例见 [docs/v2/m0-a1-aftersales-runtime.md](docs/v2/m0-a1-aftersales-runtime.md)。
 
 ## Verified results
 
@@ -80,7 +81,8 @@ flowchart TB
 | M0 前端构建 | 通过（`pnpm run build`） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
 | M2 重启恢复测试 | **62/62** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
-| 后端全量离线套件 | **2747/2747**，只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
+| 后端全量离线套件 | **2477/2477**（`.un_tests.ps1 -Full`，M3 默认策略切换后），只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
+| M3 KB-HOLDOUT（20 条，开封一次） | **12/20**；六个硬安全不变量 0 违反（见下文 M3） |
 | Stage 6 DEV（40 条） | E2E **37/40** |
 | Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
 
@@ -93,25 +95,34 @@ Stage 6 的数字来自冻结的评测栈，M0 没有重跑评测，也没有新
 - **DEV, 3 rounds × 2 groups (gate off / gate on):** ungrounded actions admitted **3.33 → 0** per round, false rejections **0**, six hard invariants **40/40**; cost: e2e **37 → 36**, `final_state_ok` **39 → 38**.
 - **Scope:** diagnostic comparison on DEV, sealed holdout not re-run. Details: [docs/v2/m1-a2-grounding-eval.md](docs/v2/m1-a2-grounding-eval.md).
 
-## M3 Phase 3：知识库运行时（待审阅）
+## M3：售后知识库（默认策略）
 
-Phase 2 评测集已通过 [PR #43](https://github.com/sjhesjaj/GroundedAgent/pull/43) 合并；Phase 3 从合并后的 `main`（`94961f2`）开发。方案为 [第 9 版](docs/v2/m3-policy-rag.md)。默认策略仍为 `stage6`，完整评测和切换默认值留到 Phase 4/5。
+M3 给 Agent 增加了一个售后知识库（运费、退款到账、价保、发票、质量争议等说明文档，共 35 篇，均为**演示口径（自拟）**）。Agent 把它当作一个工具来检索，回答时在「依据」里附上文档标题、版本和段落；顾客可以接着上一条回复追问。退换货资格仍由结构化售后规则判定，知识库不能决定资格，也不能作为提交动作的依据：动作仍然要求本轮读过订单，再经 Policy Guard、审批和 ActionGateway。方案见 [docs/v2/m3-policy-rag.md](docs/v2/m3-policy-rag.md)，最终结果见 [M3 最终报告](eval_m3/phase5/final-report.md)；各阶段记录：[Phase 3 运行时](eval_m3/phase3/phase3-report.md)、[Phase 4 评测 runner](eval_m3/phase4/phase4-report.md)。
 
-```powershell
-# 启动 API 前设置；每个会话绑定创建时的策略
-$env:AFTERSALES_DECISION_POLICY = 'm3'
-.\start_api.ps1
-```
+**功能范围**
 
-- 知识库按演示业务时间过滤生效期。hybrid 逐段要求 cosine ≥ 0.45 后沿用 RRF；Ollama / `bge-m3` 不可用时退回 BM25，整次最高分 ≥ 2 才放行。阈值只用 KB-DEV 选择，trace 记录模式、退回原因、阈值和过滤数量。
-- `get_my_pending_requests` 只读本会话 gateway 仍待审批的申请；结果用于回答进度，不能作为新动作的 grounding。它只返回待审批申请；空列表不能据此证明某申请已执行。
-- m3 使用方案中的固定拒答、转人工和能力边界话术；完整的问候、致谢和告别在创建模型 provider 前回复，暂停追问和混合业务问题仍进入控制循环。
-- 前端「依据」显示知识库标题、版本、段落和 doc_id；「Agent Trace」显示每次决策和回复生成的 token 用量。
-- 会话 manifest schema 2 显式保存策略。缓存和重启加载时不一致返回 409 `policy_version_mismatch`，前端提示新建会话。旧 manifest 缺少明确策略也返回 409，不自动猜测或迁移。
+- 新增两个只读工具：`search_knowledge_base`（按演示业务时间过滤生效期，BM25 + `bge-m3` 向量，RRF 融合，带相关性下限）和 `get_my_pending_requests`（只读本会话仍在待审批的申请，用于回答进度，不能作为新动作的依据）。
+- 默认策略为 `m3`（`m3-decision/1` + `m3-answer/1`）：Stage 6 prompt 替换规则 1、12，追加规则 17（上一条回复只是对话上下文）和规则 18（与售后无关的请求用 refuse）。设置 `AFTERSALES_DECISION_POLICY=stage6` 可切回冻结的 Stage 6 策略。每个会话绑定创建时的策略，切换后旧会话返回 409 `policy_version_mismatch`，前端提示新建会话。
+- 问候、致谢、告别直接用固定话术回复，不调用模型；拒答、转人工、能力边界使用固定话术。
+- Ollama / `bge-m3` 不可用时自动退回 BM25，trace 会记录退回原因。
+- 「Agent Trace」显示每次决策和回复生成的 token 用量。
 
-决策调用 `max_tokens=512`，回复生成 `max_tokens=1024`，每次调用使用 provider 的正数超时（默认 180 秒）。控制循环仍限制为最多 6 步；未知 token 用量记为 null。真实 DeepSeek 手工抽查 4 段 / 10 回合：19 次调用，共输入 75,729、输出 1,309 tokens；两次进度追问均读取本会话待审批状态，其中一次在重启后；三轮寒暄为 0 次调用。这是基本功能抽查，未做 DEV / HOLDOUT 成绩评测或账单费用测量。建议 DeepSeek 账户仅保留小额余额并关闭自动充值。
+**怎么运行**：按下面的 Quick start 启动即可，默认就是 m3。想用向量检索，需要先启动本地 Ollama 并拉取 `bge-m3`（`ollama pull bge-m3`）；不启动也能用，检索会退回 BM25。
 
-本阶段不实现评测 runner，不打开 HOLDOUT。知识库及 Phase 2 数据集保持冻结。完整证据与限制见 [Phase 3 记录](eval_m3/phase3/phase3-report.md)。
+**评测结果**（deepseek-flash；数字是人工复核更正后的，详见[最终报告](eval_m3/phase5/final-report.md)）
+
+| 评测 | 结果 |
+|---|---|
+| KB-HOLDOUT（20 条，隔离编写并封存，开封后只跑一次） | **12 / 20**；回合 16 / 25 |
+| KB-DEV（40 条 × 3 轮，三轮都通过才算） | **25 / 40**（评审原始分 27 / 40） |
+| Stage 6 子集（24 条 × 3 轮，产品路径） | **19 / 24** |
+| Drift check（冻结 Stage 6 runner，40 条；规则 18 之前的 prompt） | 36 / 40（Stage 6 正式 37 / 40） |
+| 检索 Recall@5（KB-DEV，BM25 / 向量 / 混合） | 0.63 / 0.60 / **0.71** |
+| 六条硬性安全不变量 | 全部运行 **0 违反**；注入 case 全部无未授权状态变化 |
+
+HOLDOUT 主要的失分在工具路由（多读一次政策工具、拒答前不检索、换货前不查库存）和答复漏附带条件；没有编造事实，也没有越权写入。样本小（20 + 40 条，单一模型），不代表生产可用。
+
+**实测花费**：按记录的 token 用量和 DeepSeek 官方单价计算（非高峰），每条顾客消息约 **¥0.006–0.01**，高峰时段翻倍；M3 全部评测（试跑、两次 pass^3、drift、HOLDOUT）合计约 **$0.51（约 ¥3.7）**。以 DeepSeek 实际账单为准。**建议 DeepSeek 账户只充少量余额（例如 ¥10），并关闭自动充值。**
 
 ## 重启恢复（M2）
 
@@ -181,10 +192,13 @@ py -m venv .venv
 # 2. 配置：售后 Agent 依赖原生 function calling，M0 只在 DeepSeek（deepseek-flash）上验证过
 copy .env.example .env   # 设置 LLM_PROVIDER=deepseek，并在 .env 中填入 DEEPSEEK_API_KEY
 
-# 3. 启动 API（http://127.0.0.1:8000）
+# 3. 可选：本地 Ollama + bge-m3，供 M3 知识库做向量检索（不启动会退回 BM25）
+ollama pull bge-m3
+
+# 4. 启动 API（http://127.0.0.1:8000），默认策略 m3
 .\start_api.ps1
 
-# 4. 启动前端（http://127.0.0.1:5173，/api 代理到 8000）
+# 5. 启动前端（http://127.0.0.1:5173，/api 代理到 8000）
 cd frontend
 pnpm install --frozen-lockfile   # 没有全局 pnpm 时可以用 corepack pnpm
 pnpm dev
@@ -205,13 +219,16 @@ cd frontend; node --test tests/api.test.js                               # 前�
 - **M0 产品运行时与正式评测的差异**：产品以 `formal=False` 运行同一个被评测过的策略。跨暂停时，早先的观察会用合成 call id 重放；之后的 run 能看到顾客之前的消息，但看不到 agent 之前的回复。这些都不在 Stage 6 正式评测（单轮、脚本化用户）的覆盖范围内。
 - **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
 - **存储与恢复（M2）**：只覆盖单进程的异常退出，断电、操作系统崩溃、磁盘损坏和多进程 / 多实例都不在承诺范围内。`checkpoints.db` 增长很快：每个 checkpoint 都保存完整状态，实测一个 40 条消息的会话约 161 MB（281 个 checkpoint），M2 没有压缩。前端把会话 ID 存在浏览器里（每个标签页一份，新标签页用最近的会话）；浏览器禁止存储时，刷新页面会新建会话，旧会话仍在服务端，可以通过 API 读取。
-- **文案**：冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"。
+- **文案**：`stage6` 策略下冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"；`m3` 使用新的固定话术。
+- **M3 知识库**：文档是演示口径（自拟），不是真实店铺规则；模型在政策工具能回答时很少再查知识库，答复常漏附带条件；仍会出现不先读订单就提交动作的情况（由 grounding gate 拦下）。KB-HOLDOUT 已经用掉，之后的调整需要新的封存集。
 
 ## Repo structure
 
 ```text
 knowledge-agent/           # 仓库名沿用 V1
 ├── aftersales_service/    # M0 产品运行时：会话、控制循环、审批决定、/api/aftersales 路由；M1 观察来源与 grounding gate；M2 LangGraph 状态图、状态 codec、持久化与恢复
+├── knowledge_base/        # M3 售后知识库：35 篇演示口径（自拟）的说明文档
+├── eval_m3/               # M3 评测：KB-DEV、封存的 KB-HOLDOUT、eval_m3 runner、Phase 3–5 记录
 ├── aftersales/            # V2 售后领域：只读业务工具、Stage 6 动作契约、Policy Guard、ActionGateway、审批
 ├── eval_v2/               # V2 评测：Stage 5 工具循环，Stage 6 动作循环、runner、scorer、oracle
 ├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
@@ -219,7 +236,7 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
 ├── api.py                 # FastAPI：/api/aftersales 路由 + V1 问答接口 / SSE
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── tests/                 # 2747 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
+├── tests/                 # 2477 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
 │
 │                          # —— V1 / 工程基础 ——

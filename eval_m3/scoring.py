@@ -44,7 +44,7 @@ from eval_v2.stage6_runtime import MAIN_REQUEST_ID
 from eval_v2.stage6_state import compare_final_state
 from eval_v2.tool_loop import CONTROL_FUNCTIONS
 
-from .runner import SUITE_KB_DEV, SUITE_STAGE6
+from .runner import KB_SUITES, SUITE_STAGE6
 
 HARD_INVARIANTS = ("identity_boundary_ok", "capability_boundary_ok", "no_unauthorized_write",
                    "rejected_never_executes", "stale_never_executes", "one_receipt_per_execution")
@@ -406,7 +406,7 @@ def score_case_run(case, run: Mapping, verdicts: Mapping[int, Mapping] | None = 
                     "infra_error": run.get("infra_error"), "hard_invariants": invariants,
                     "invariant_problems": problems, "retrieval_modes": retrieval_modes(run)}
     invariants_ok = all(invariants.values())
-    if case.suite == SUITE_KB_DEV:
+    if case.suite in KB_SUITES:
         turns = [score_kb_turn(case, label, by_index.get(label.index, {"delivered": False}),
                                (verdicts or {}).get(label.index), case.virtual_now)
                  for label in case.turns]
@@ -488,7 +488,7 @@ def summarize(scores_by_run: Sequence[Sequence[Mapping]]) -> dict:
         "completion_tokens_total": sum(item["completion_tokens"] for item in business),
         "cache_hit_tokens_total": sum(item["cache_hit_tokens"] for item in business),
     }
-    kb_turns = [dict(turn, case_id=score["case_id"]) for score in all_scores if score["suite"] == SUITE_KB_DEV
+    kb_turns = [dict(turn, case_id=score["case_id"]) for score in all_scores if score["suite"] in KB_SUITES
                 for turn in score["turns"] if turn.get("delivered") and "routing" in turn]
     if kb_turns:
         citations = [turn["citation"] for turn in kb_turns if turn.get("citation")]

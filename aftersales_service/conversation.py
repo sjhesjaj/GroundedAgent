@@ -44,8 +44,8 @@ Control runs
     every action anyway.
 
     The decision policy is bound when the session is created (M3):
-    AFTERSALES_DECISION_POLICY=stage6 (default) is the evaluated policy over
-    the five read tools; m3 is m3-decision/1 with knowledge and current pending-request reads added
+    AFTERSALES_DECISION_POLICY=stage6 is the evaluated policy over
+    the five read tools; m3 (default) is m3-decision/1 with knowledge and current pending-request reads added
     to the read side and the last earlier replies shown to the decision and
     m3-answer/1 as labelled history. A different configured policy refuses to
     load the session. Earlier replies are never observations,

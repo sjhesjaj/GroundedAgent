@@ -1,0 +1,21 @@
+{
+  "location": "C:/Users/h000_/Documents/m3-phase5-results (outside the repository; per-case records are not committed)",
+  "commit_run": "01db9f0f7fdb93a5ab06ec958b1ea93eb9e255e8",
+  "files_sha256": {
+    "pass3/run-1/kb-dev.jsonl": "bc0af2f1eb5c1967b115446b55c96f3bb8c07e3f51bf10f6b10cac53206d4f3b",
+    "pass3/run-1/stage6-subset.jsonl": "8ed5eb05823849569524b2fffc2a013a68487c617a5c2eff49a5dbe03274efd6",
+    "pass3/run-2/kb-dev.jsonl": "6e2e1637c32e51ecb48cccfc3adaaacd30734b78de74fedd607414cbb03ccdf7",
+    "pass3/run-2/stage6-subset.jsonl": "69c5a6931f847e49622b9106c3ad217291cc7062af7f1aadaa6e99b996901bc0",
+    "pass3/run-3/kb-dev.jsonl": "5a1a29e14b442ef39e02d8d32d4c3379f02b08dd7f13b6e5e9f7ed93e3ce701f",
+    "pass3/run-3/stage6-subset.jsonl": "efab7881889022cb18f7d202357fcf49a4795aed029e2539b37ed19ed6d1c261",
+    "pass3/summary.json": "539cf2a776336894c1543d4b313298c85b3a34aa3a8d0c3350fda3b188b52f1b",
+    "drift/cases.jsonl": "40a00d660dc8c66baf26bcb126b468550b2bdf98d7c3acb24e59c1069825c630",
+    "drift/summary.json": "01d2a67d1f5dc2108596ddfe5b0a092df5bb2cb6c07d90b0a6c2d3462bb1da06",
+    "pass3.log": "68a75ebd92ead567f3f9cf5d546cf5a394a96183e8b60d9b893361fe38632da4",
+    "drift.log": "4c7e7bda0184ccc9ace2fc3fd540ce590193378525c487876a8babb612086c43"
+  },
+  "stage6_formal_baseline": {
+    "path": "C:/Users/h000_/Documents/stage6-formal-results/stage6-dev-r1.cases.jsonl",
+    "sha256": "5d14384cec741fd9ed82c604e8de51b8e6b5c221b054dc37348001c34da01678"
+  }
+}

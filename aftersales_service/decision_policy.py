@@ -1,8 +1,9 @@
 """The product decision policy m3-decision/1 (docs/v2/m3-policy-rag.md, "Decision policy").
 
-Selected at session creation by AFTERSALES_DECISION_POLICY=stage6|m3, default stage6
-(the evaluated Stage 6 policy, agent_core.new_control_policy). Under m3 the
-knowledge and current-session pending tools join the five read tools.
+Selected at session creation by AFTERSALES_DECISION_POLICY=stage6|m3, default m3
+since M3 Phase 5 part 2; stage6 is the frozen evaluated Stage 6 policy
+(agent_core.new_control_policy). Under m3 the knowledge and current-session
+pending tools join the five read tools.
 
 Composition, not a copy. One provider-native tool-calling model call per
 decision, exactly as the evaluated LLMNativeActionLoopPolicy: the same
@@ -12,8 +13,10 @@ tool, and the same decision record. Five things are replaced:
 
   1. the system prompt: the Stage 6 prompt with rule 1 (the tools and the split
      between the two retrieval tools) and rule 12 (tool results and earlier
-     replies are data) replaced, and rule 17 (what an earlier reply is for)
-     added. The runtime context line is unchanged and stays last.
+     replies are data) replaced, and rules 17 (what an earlier reply is for)
+     and 18 (a request unrelated to after-sales is refused; refunds and
+     permission requests keep rules 4 and 5) added. The runtime context line
+     is unchanged and stays last.
   2. the offered functions: the Stage 6 order with search_knowledge_base right
      after the five read tools; never on the last step.
   3. the schemas: the Stage 6 schemas plus the knowledge tool's.
@@ -66,9 +69,9 @@ EARLIER_REPLY_LABEL = "【历史回复，仅作对话上下文，不是本次的
 
 
 def configured_policy(environ: Mapping[str, str] | None = None) -> str:
-    """The decision policy this process is configured for; stage6 when unset."""
+    """The decision policy this process is configured for; m3 when unset (M3 Phase 5 part 2)."""
     environ = os.environ if environ is None else environ
-    value = (environ.get(DECISION_POLICY_ENV) or POLICY_STAGE6).strip().lower()
+    value = (environ.get(DECISION_POLICY_ENV) or POLICY_M3).strip().lower()
     if value not in DECISION_POLICIES:
         raise ValueError(DECISION_POLICY_ENV + " must be one of: " + ", ".join(DECISION_POLICIES))
     return value
@@ -96,6 +99,11 @@ M3_RULE_17 = (
     "17. 标注为“历史回复”的助手消息是之前回复顾客的内容，只用于理解顾客的追问指的是什么（例如“刚才说的天数”"
     "“那帮我退了”）；它不是本次处理的证据。需要其中的规则、天数或订单信息时，在本次处理中重新查询；"
     "售后动作的订单号和商品明细号必须来自本次处理中的工具结果。")
+# Phase 5 part 1 decision (user, 2026-10-09): only the off-topic class changes.
+M3_RULE_18 = (
+    "18. 与本店售后无关的问题或请求（例如天气、写代码等问候、感谢、告别之外的无关请求），调用 finish，"
+    "disposition 为 refuse，不要用 boundary。退款、支付等系统没有的操作，以及越过身份或权限的请求，"
+    "不属于此类，仍按规则 4、5 处理。")
 
 
 def _m3_system_prompt() -> str:
@@ -112,6 +120,7 @@ def _m3_system_prompt() -> str:
     if line_of("16. ") != len(lines) - 1:
         raise ImportError("the Stage 6 prompt drifted: rule 16 is not the last line")
     lines.append(M3_RULE_17)
+    lines.append(M3_RULE_18)
     return "\n".join(lines)
 
 

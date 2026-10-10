@@ -90,7 +90,10 @@ def record_scenarios() -> bytes:
 
 class GoldenEquivalenceTests(unittest.TestCase):
     def test_all_original_scripted_scenarios_match_main_byte_for_byte(self):
-        self.assertEqual(record_scenarios(), FIXTURE.read_bytes())
+        # The fixture is the Stage 6 policy's; the default is m3 since M3 Phase 5 part 2.
+        # m3 against the same fixture: tests.test_m3_scripted_equivalence.
+        with mock.patch.dict("os.environ", {"AFTERSALES_DECISION_POLICY": "stage6"}):
+            self.assertEqual(record_scenarios(), FIXTURE.read_bytes())
 
 
 if __name__ == "__main__":

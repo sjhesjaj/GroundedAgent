@@ -1,0 +1,11 @@
+{
+  "location": "C:/Users/h000_/Documents/m3-phase5-results (outside the repository; per-case records are not committed)",
+  "commit_run": "51b1c8897b54aa7e18df52ac30b23ef26000a5f4",
+  "sealed_zip_sha256": "4e6a705d86bf381825ad63bc347be6a15b792bd4e2d4831df971ea1a32ab3f63",
+  "files_sha256": {
+    "holdout/report.md": "a05e5d73959f023807cb1c405321a2365d652fe73b7129dacf621bae8af58cbe",
+    "holdout/run-1/kb-holdout.jsonl": "4dc82763503a7cd66bc3e390e70428c8c233ea6585c815a159ce7fb97c790b76",
+    "holdout/summary.json": "217230b292a237fa38f5a129e39bf0f3e128a8a7b97ab0435ece72d15e3cba78",
+    "holdout.log": "09fc5d48d59ef41e5cfba444fcbf9688d5b4e5719993ec006326c699c782f92f"
+  }
+}
