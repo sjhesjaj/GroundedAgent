@@ -1124,213 +1124,277 @@
         "summary": {
           "rounds": 20,
           "error_rounds": 20,
-          "max_exchanges_accepted": 20,
-          "max_units_over_stock": 15,
+          "min_exchanges_accepted": 1,
+          "max_exchanges_accepted": 1,
+          "max_units_over_stock": 0,
           "final_stock_values": [
-            5
+            4
           ],
+          "max_unsold_while_requested": 4,
+          "callers_failed": 0,
           "outcomes_all_rounds": {
-            "EXECUTED": 400
+            "DENIED: inventory_unavailable": 380,
+            "EXECUTED": 20
           }
         },
         "per_round": [
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "EXECUTED": 1,
+              "DENIED: inventory_unavailable": 19
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 1,
+            "final_stock": 4,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 4,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 19,
+              "EXECUTED": 1
             },
             "error": true
           }
@@ -1339,222 +1403,318 @@
       "locked": {
         "summary": {
           "rounds": 20,
-          "error_rounds": 20,
-          "max_exchanges_accepted": 20,
-          "max_units_over_stock": 15,
+          "error_rounds": 0,
+          "min_exchanges_accepted": 5,
+          "max_exchanges_accepted": 5,
+          "max_units_over_stock": 0,
           "final_stock_values": [
-            5
+            0
           ],
+          "max_unsold_while_requested": 0,
+          "callers_failed": 0,
           "outcomes_all_rounds": {
-            "EXECUTED": 400
+            "DENIED: inventory_unavailable": 300,
+            "EXECUTED": 100
           }
         },
         "per_round": [
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "EXECUTED": 5,
+              "DENIED: inventory_unavailable": 15
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "EXECUTED": 5,
+              "DENIED: inventory_unavailable": 15
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "EXECUTED": 5,
+              "DENIED: inventory_unavailable": 15
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "EXECUTED": 5,
+              "DENIED: inventory_unavailable": 15
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "EXECUTED": 5,
+              "DENIED: inventory_unavailable": 15
             },
-            "error": true
+            "error": false
           },
           {
             "stock_before": 5,
-            "exchanges_accepted": 20,
-            "final_stock": 5,
-            "units_over_stock": 15,
+            "exchanges_accepted": 5,
+            "final_stock": 0,
+            "units_over_stock": 0,
+            "callers_failed": 0,
+            "unsold_while_requested": 0,
             "outcomes": {
-              "EXECUTED": 20
+              "DENIED: inventory_unavailable": 15,
+              "EXECUTED": 5
             },
-            "error": true
+            "error": false
           }
         ]
       }
     }
   },
+  "kept_from_previous_run": [
+    "approve",
+    "same_key"
+  ],
+  "superseded": {
+    "same_sku": {
+      "unlocked": {
+        "rounds": 20,
+        "error_rounds": 20,
+        "max_exchanges_accepted": 20,
+        "max_units_over_stock": 15,
+        "final_stock_values": [
+          5
+        ],
+        "outcomes_all_rounds": {
+          "EXECUTED": 400
+        }
+      },
+      "locked": {
+        "rounds": 20,
+        "error_rounds": 20,
+        "max_exchanges_accepted": 20,
+        "max_units_over_stock": 15,
+        "final_stock_values": [
+          5
+        ],
+        "outcomes_all_rounds": {
+          "EXECUTED": 400
+        }
+      }
+    }
+  },
   "server": "16.15 (Debian 16.15-1.pgdg13+2)",
-  "seconds": 106.8,
-  "table_markdown": "| 场景 | 去锁：出错轮数 | 去锁：结果 | 加锁：出错轮数 | 加锁：结果 |\n|---|---|---|---|---|\n| 同一个待审批退货，20 个线程同时批准 | 20/20 | 执行最多 1 次、receipt 最多 1 条；20/20 轮恰好执行 1 次；最多 19/20 个调用方被告知未执行（实际已执行），审计最多 0 条 FAILED | 0/20 | 执行最多 1 次、receipt 最多 1 条；20/20 轮恰好执行 1 次；最多 0/20 个调用方被告知未执行（实际已执行），审计最多 0 条 FAILED |\n| 同一个幂等键的动作，20 个线程同时提交 | 20/20 | 工单最多 1 条、receipt 最多 1 条；20/20 轮恰好落库 1 条；最多 19/20 个调用方被告知未执行（实际已执行），审计最多 19 条 FAILED | 0/20 | 工单最多 1 条、receipt 最多 1 条；20/20 轮恰好落库 1 条；最多 0/20 个调用方被告知未执行（实际已执行），审计最多 0 条 FAILED |\n| 同一 SKU（库存 5）被 20 个换货同时申请 | 20/20 | 最多接受 20 个换货，超出库存 15 件；最终库存 5（换货从不扣减库存） | 20/20 | 最多接受 20 个换货，超出库存 15 件；最终库存 5（换货从不扣减库存） |\n"
+  "seconds": 77.2,
+  "table_markdown": "| 场景 | 去锁：出错轮数 | 去锁：结果 | 加锁：出错轮数 | 加锁：结果 |\n|---|---|---|---|---|\n| 同一个待审批退货，20 个线程同时批准 | 20/20 | 执行最多 1 次、receipt 最多 1 条；20/20 轮恰好执行 1 次；最多 19/20 个调用方被告知未执行（实际已执行），审计最多 0 条 FAILED | 0/20 | 执行最多 1 次、receipt 最多 1 条；20/20 轮恰好执行 1 次；最多 0/20 个调用方被告知未执行（实际已执行），审计最多 0 条 FAILED |\n| 同一个幂等键的动作，20 个线程同时提交 | 20/20 | 工单最多 1 条、receipt 最多 1 条；20/20 轮恰好落库 1 条；最多 19/20 个调用方被告知未执行（实际已执行），审计最多 19 条 FAILED | 0/20 | 工单最多 1 条、receipt 最多 1 条；20/20 轮恰好落库 1 条；最多 0/20 个调用方被告知未执行（实际已执行），审计最多 0 条 FAILED |\n| 同一 SKU（库存 5）被 20 个换货同时申请 | 20/20 | 每轮接受 1 个换货，超卖最多 0 件；最终库存 4；有库存却拒绝最多 4 件；共 0 个调用方收到 FAILED | 0/20 | 每轮接受 5 个换货，超卖最多 0 件；最终库存 0；有库存却拒绝最多 0 件；共 0 个调用方收到 FAILED |\n"
 }

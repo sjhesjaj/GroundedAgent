@@ -419,6 +419,43 @@ class RaceTests(PostgresCase):
         self.assertIs(other.status, ActionStatus.EXECUTED)
         self.assertIs(first_box["result"].status, ActionStatus.WAITING_APPROVAL)
 
+    def test_concurrent_exchanges_take_no_more_than_the_stock(self):
+        # C-D1, product switch on: 6 exchanges, each of its own order, into a SKU holding 3 units.
+        workers, units = 6, 3
+        for i in range(1, workers + 1):
+            order, item = "ORD-9%03d" % i, "OI-9%03d-1" % i
+            self.db.execute("INSERT INTO orders SELECT ?, customer_id, status, paid_at, total_amount,"
+                            " updated_at, version FROM orders WHERE order_id = 'ORD-1001'", (order,))
+            self.db.execute("INSERT INTO order_items SELECT ?, ?, sku, product_name, category, 1,"
+                            " unit_price, updated_at, version FROM order_items"
+                            " WHERE order_item_id = 'OI-1001-1'", (item, order))
+            self.db.execute("INSERT INTO logistics SELECT ?, ?, carrier, status, shipped_at, delivered_at,"
+                            " last_event_at, updated_at, version FROM logistics WHERE tracking_no = 'SF1001'",
+                            ("SF9%03d" % i, order))
+        self.db.execute("UPDATE inventory SET available_qty = ?, version = version + 1"
+                        " WHERE sku = 'SKU-TSHIRT-L'", (units,))
+        actions = [validate("create_exchange", {
+            "order_id": "ORD-9%03d" % i, "order_item_id": "OI-9%03d-1" % i,
+            "target_sku": "SKU-TSHIRT-L", "reason_code": "size_or_spec_mismatch"})
+            for i in range(1, workers + 1)]
+        barrier = threading.Barrier(workers)
+
+        def exchange(index: int):
+            barrier.wait()
+            return self.db.gateway(deduct_exchange_stock=True).start_action(
+                identity("req-x%d" % index), actions[index])
+        boxes = [run_in_thread(lambda index=index: exchange(index)) for index in range(workers)]
+        for thread, _ in boxes:
+            thread.join(WAIT_SECONDS)
+        outcomes = [box["result"] for _, box in boxes]
+        self.assertEqual(sorted((o.status.value, o.code) for o in outcomes),
+                         [("DENIED", "inventory_unavailable")] * (workers - units)
+                         + [("EXECUTED", None)] * units)
+        self.assertEqual(self.db.rows("SELECT available_qty FROM inventory WHERE sku = 'SKU-TSHIRT-L'"),
+                         [(0,)])
+        self.assertEqual(self.db.rows("SELECT count(*) FROM after_sales_cases WHERE type = 'exchange'"
+                                      " AND order_item_id LIKE 'OI-9%'"), [(units,)])
+
 
 class ServiceTests(PostgresCase):
     """The demo store and the data-directory generations with AFTERSALES_DB_URL set."""

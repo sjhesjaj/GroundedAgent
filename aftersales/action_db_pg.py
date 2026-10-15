@@ -128,13 +128,17 @@ def connect(target: PgDatabase, *, lock_timeout_ms: int, read_only: bool = False
 # lock_guard_reads - in action_gateway._capture, just before the Guard's own
 # reads, as the first of them (a failure is a failed Guard read):
 #   every other row the Guard reads FOR SHARE   packages, the item's cases and tickets, its other
-#   (R3-R8)                                     open pendings, the target SKU's inventory and
-#                                               variant rows: no writer can update them meanwhile
+#   (R3-R8)                                     open pendings, the variant rows: no writer can
+#                                               update them meanwhile
+#   the target SKU's inventory     FOR UPDATE   an executed exchange may take units from it
+#                                               (C-D1); two FOR SHARE holders upgrading to write
+#                                               would deadlock, so exchanges into one SKU queue
 #
-# Order is always: order, order item, pending row, then the shared rows. The
-# only gateway transactions that lock a row exclusively without first holding
-# its order (T1, P6: the pending row alone) wait for nothing else, so the locks
-# cannot form a cycle. The Guard's SELECTs are unchanged and run after the
+# Order is always: order, order item, pending row, then the Guard's other rows.
+# The only gateway transactions that lock a row exclusively without first
+# holding its order (T1, P6: the pending row alone) wait for nothing else, and a
+# transaction holding an inventory row waits only for shared or T1-held rows,
+# so the locks cannot form a cycle. The Guard's SELECTs are unchanged and run after the
 # locks; under READ COMMITTED each one sees everything committed before it.
 
 LOCK_ORDER = "SELECT order_id FROM orders WHERE order_id = ? FOR UPDATE"
@@ -146,7 +150,7 @@ LOCK_OTHER_PENDINGS = (
     "SELECT pending_action_id FROM pending_actions WHERE target_order_item_id = ?"
     " AND status IN ('PENDING_APPROVAL', 'APPROVED')"
     " AND (? IS NULL OR pending_action_id <> ?) FOR SHARE")
-LOCK_TARGET_INVENTORY = "SELECT sku FROM inventory WHERE sku = ? FOR SHARE"
+LOCK_TARGET_INVENTORY = "SELECT sku FROM inventory WHERE sku = ? FOR UPDATE"
 LOCK_VARIANTS = (
     "SELECT sku FROM sku_variants"
     " WHERE sku IN ((SELECT sku FROM order_items WHERE order_item_id = ?), ?) FOR SHARE")

@@ -564,14 +564,20 @@ class StaticBoundaryTests(unittest.TestCase):
         store_sql = self.sql_statements(REPO_ROOT / "aftersales" / "action_store.py")
         verbs = sorted(statement.split(" ", 1)[0] for statement in store_sql)
         self.assertEqual(verbs.count("DELETE"), 0)
+        # C-D1 (product runtime only, supersedes S6-D10 there; docs/v2/exchange-stock-deduction.md):
+        # exactly one statement touches inventory - the exchange's deduction, guarded by
+        # stock AND version. Nothing else may name the table.
+        stock_sql = [statement for statement in store_sql if "INVENTORY" in statement]
+        self.assertEqual(stock_sql, [
+            "UPDATE INVENTORY SET AVAILABLE_QTY = AVAILABLE_QTY - ?, UPDATED_AT = ?,"
+            " VERSION = VERSION + 1 WHERE SKU = ? AND AVAILABLE_QTY >= ? AND VERSION = ?"])
         for statement in store_sql:
-            self.assertNotIn("INVENTORY", statement)
-            if statement.startswith("UPDATE"):
-                # Only pending rows are ever updated, and only with status + version guards.
+            if statement.startswith("UPDATE") and statement not in stock_sql:
+                # Otherwise only pending rows are ever updated, and only with status + version guards.
                 self.assertTrue(statement.startswith("UPDATE PENDING_ACTIONS SET"))
                 self.assertIn("WHERE PENDING_ACTION_ID = ? AND STATUS = '", statement)
                 self.assertTrue(statement.endswith("AND VERSION = ?"))
-        self.assertEqual(verbs.count("UPDATE"), 3)
+        self.assertEqual(verbs.count("UPDATE"), 4)
 
     def test_stage61_temporary_approval_branch_is_gone(self):
         import aftersales.action_gateway as gateway_module

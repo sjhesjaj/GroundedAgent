@@ -11,9 +11,14 @@ trusted operator decision or the transaction's txn_now.
 Every pending UPDATE names its expected status AND expected version, and must
 hit exactly one row; there is no unconditional pending UPDATE. Each method
 allows only the transitions of §11.2, and the table's CHECK constraints
-enforce the same correspondences in the database. It never updates or deletes
-a business row, and it never touches inventory, orders, logistics, payments or
-refunds.
+enforce the same correspondences in the database. It never deletes a row, and
+it never touches orders, logistics, payments or refunds.
+
+One business UPDATE exists, for the product runtime only (decision C-D1,
+docs/v2/exchange-stock-deduction.md, superseding S6-D10 there): an executed
+exchange takes its units from the target SKU's inventory, guarded by stock AND
+version. The gateway calls it only with deduct_exchange_stock=True, which no
+evaluation runtime sets, so Stage 6 keeps S6-D10 (stock is a precondition only).
 """
 
 from __future__ import annotations
@@ -163,6 +168,11 @@ _UPDATE_EXECUTED = (
 _INSERT_AUDIT = (
     "INSERT INTO action_audit_events (" + ", ".join(AUDIT_COLUMNS) + ")"
     " VALUES (" + ", ".join("?" for _ in AUDIT_COLUMNS) + ")"
+)
+# C-D1 (product runtime only): the exchange's stock deduction.
+_DEDUCT_EXCHANGE_STOCK = (
+    "UPDATE inventory SET available_qty = available_qty - ?, updated_at = ?,"
+    " version = version + 1 WHERE sku = ? AND available_qty >= ? AND version = ?"
 )
 
 
@@ -370,6 +380,22 @@ class ActionStore:
             _require_id(receipt_id), at, _require_id(pending_action_id),
             _require_version(expected_version),
         ))
+
+    # -- exchange stock (C-D1, product runtime only) ---------------------------------
+
+    def deduct_exchange_stock(self, *, sku: str, quantity: int, expected_version: int,
+                              at: str) -> bool:
+        """Take `quantity` units of `sku` if they are all still there at `expected_version`.
+
+        False when no row matched (the stock or its version moved since the
+        Guard read it): the caller must not write the exchange.
+        """
+        if not isinstance(sku, str) or not sku.strip():
+            raise ValueError("sku must be a non-empty string")
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 1:
+            raise ValueError("quantity must be a positive integer")
+        return self._execute(_DEDUCT_EXCHANGE_STOCK, (
+            quantity, at, sku, quantity, _require_version(expected_version))) == 1
 
     # -- audit (§17) ------------------------------------------------------------
 

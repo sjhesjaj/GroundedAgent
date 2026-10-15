@@ -48,6 +48,12 @@ receipt committed.
 The Guard is handed a TrustedExecutionContext whose clock is FixedClock(txn_now),
 so the injected Clock is unreachable from the Guard by construction.
 
+Product runtime only (C-D1, docs/v2/exchange-stock-deduction.md): with
+deduct_exchange_stock=True an executed exchange also takes its units from the
+target SKU, in the same transaction, guarded by stock and version; if that
+matches no row the attempt rolls back and ends DENIED inventory_unavailable.
+Every evaluation leaves the switch off and keeps S6-D10.
+
 On PostgreSQL (a PgDatabase target) there is no database-wide write lock:
 every BEGIN IMMEDIATE above is BEGIN plus row locks taken before the Clock
 read - the action's order and item, then the pending row - and the rest of the
@@ -144,7 +150,15 @@ from .capabilities import EffectiveCapabilities
 from .clock import Clock, FixedClock, require_aware
 from .context import Persona, TrustedExecutionContext
 from .demo import resolve_persona
-from .guard import Guard, GuardCapture, GuardDecision, GuardDecisionKind, snapshot_document, snapshot_sha256
+from .guard import (
+    REASON_INVENTORY_UNAVAILABLE,
+    Guard,
+    GuardCapture,
+    GuardDecision,
+    GuardDecisionKind,
+    snapshot_document,
+    snapshot_sha256,
+)
 from .guard_snapshot import STALE_GUARD_DECISION_CHANGED, parse_snapshot_document, stale_reason
 from .guard_state import GuardReadHook, GuardStateReader
 from .ids import DeterministicIdProvider, IdKind, IdProvider, RequestIdentity, idempotency_key
@@ -182,6 +196,12 @@ class _AttemptFailed(Exception):
         self.from_guard = from_guard
 
 
+class _StockShortfall(Exception):
+    """Internal (C-D1): the exchange's stock deduction matched no row - the units
+    the Guard saw are gone. The attempt rolls back and ends DENIED
+    inventory_unavailable; nothing of the exchange is written."""
+
+
 @dataclasses.dataclass
 class _Resume:
     """What T2 has confirmed so far; drives compensation after a rollback."""
@@ -207,7 +227,8 @@ class ActionGateway:
                  formal: bool = False, fault_hooks: ActionFaultHooks | None = None,
                  guard_read_hook: GuardReadHook | None = None,
                  decision_observer: GuardDecisionObserver | None = None,
-                 busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS) -> None:
+                 busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
+                 deduct_exchange_stock: bool = False) -> None:
         if not isinstance(clock, Clock):
             raise ValueError("clock must implement Clock")
         if not isinstance(id_provider, IdProvider):
@@ -245,6 +266,11 @@ class ActionGateway:
         self._operators = operators
         self._hooks = fault_hooks
         self._busy_timeout_ms = busy_timeout_ms
+        if not isinstance(deduct_exchange_stock, bool):
+            raise ValueError("deduct_exchange_stock must be a bool")
+        # C-D1: the product runtime takes an executed exchange's units from the
+        # target SKU. Off by default, so every evaluation keeps S6-D10.
+        self._deduct_exchange_stock = deduct_exchange_stock
 
     # ======================================================================
     # start_action (§10.2)
@@ -286,6 +312,10 @@ class ActionGateway:
                 # S7
                 self._commit(connection)
                 return outcome
+            except _StockShortfall:
+                self._rollback(connection)
+                self._record_shortfall_start(connection, identity, action, key, txn_now)
+                return self._shortfall(action.action_name, identity.request_id)
             except _AttemptFailed as failure:
                 self._rollback(connection)
                 self._compensate_start(connection, identity, action, key, failure, txn_now)
@@ -506,6 +536,16 @@ class ActionGateway:
             except (UnknownPendingAction, NotApproved):
                 self._rollback(connection)
                 raise
+            except _StockShortfall:
+                self._rollback(connection)
+                pending = resume.pending
+                if self._deny_shortfall_resume(connection, resume, txn_now):
+                    return self._pending_outcome(dataclasses.replace(
+                        pending, status=DENIED, outcome_code=REASON_INVENTORY_UNAVAILABLE,
+                        version=pending.version + 1), None)
+                # The pending stays APPROVED; a later execute_approved repeats every check.
+                return self._failed(pending.action_name, pending.request_id, FAILURE_TRANSACTION,
+                                    pending_action_id=pending_action_id)
             except (_AttemptFailed, *database_errors()) as error:
                 self._rollback(connection)
                 failure = error if isinstance(error, _AttemptFailed) else _AttemptFailed(FAILURE_TRANSACTION)
@@ -731,6 +771,14 @@ class ActionGateway:
         document = snapshot_document(capture.candidate_snapshot, decision)
 
         self._fault(FAULT_BUSINESS_WRITE)
+        if name == CREATE_EXCHANGE and self._deduct_exchange_stock:
+            # C-D1: the units leave the target SKU in this same transaction, and
+            # only if the stock and its version are still what the Guard read.
+            state = capture.state
+            if state.item is None or state.target_inventory is None or not store.deduct_exchange_stock(
+                    sku=action.args["target_sku"], quantity=state.item.quantity,
+                    expected_version=state.target_inventory.version, at=at):
+                raise _StockShortfall()
         if name == ESCALATE_TO_HUMAN:
             store.insert_handoff_ticket(ticket_id=resource_id, action=action, at=at)
         else:
@@ -937,6 +985,57 @@ class ActionGateway:
         except Exception:
             self._rollback(connection)
 
+    # -- C-D1 stock shortfall --------------------------------------------------------
+
+    def _record_shortfall_start(self, connection: sqlite3.Connection, identity: RequestIdentity,
+                                action: ValidatedAction, key: str, txn_now: datetime) -> None:
+        """Best-effort audit of a start_action shortfall. Reuses txn_now; never reads the Clock."""
+        try:
+            self._fault(FAULT_COMPENSATION)
+            self._begin(connection)
+            ActionStore(connection).append_audit(
+                event_name=AUDIT_ACTION_NOT_EXECUTED, identity=identity,
+                action_name=action.action_name, at=txn_now.isoformat(), idempotency_key=key,
+                decision=ActionStatus.DENIED.value, code=REASON_INVENTORY_UNAVAILABLE)
+            connection.execute("COMMIT")
+        except Exception:
+            self._rollback(connection)
+
+    def _deny_shortfall_resume(self, connection: sqlite3.Connection, resume: _Resume,
+                               txn_now: datetime) -> bool:
+        """T2 shortfall: APPROVED -> DENIED inventory_unavailable (P5) plus its audit.
+
+        False if this fails too: the pending then stays APPROVED, and a later
+        execute_approved repeats every check (the Guard now sees the stock).
+        """
+        pending = resume.pending
+        common = dict(identity=resume.identity, action_name=pending.action_name,
+                      at=txn_now.isoformat(), idempotency_key=pending.idempotency_key,
+                      pending_action_id=pending.pending_action_id, phase=PHASE_RESUME)
+        try:
+            self._fault(FAULT_COMPENSATION)
+            self._begin(connection, pending_action_id=pending.pending_action_id)
+            store = ActionStore(connection)
+            store.transition_terminal(pending_action_id=pending.pending_action_id,
+                                      expected_version=pending.version, status=DENIED,
+                                      outcome_code=REASON_INVENTORY_UNAVAILABLE, at=common["at"])
+            store.append_audit(event_name=AUDIT_ACTION_NOT_EXECUTED,
+                               decision=ActionStatus.DENIED.value,
+                               code=REASON_INVENTORY_UNAVAILABLE, **common)
+            connection.execute("COMMIT")
+            return True
+        except Exception:
+            self._rollback(connection)
+            return False
+
+    @staticmethod
+    def _shortfall(action_name: str, request_id: str) -> ActionOutcome:
+        return ActionOutcome(
+            status=ActionStatus.DENIED, action_name=action_name, request_id=request_id,
+            guard=GuardView(decision=GuardDecisionKind.DENY.value,
+                            reason_code=REASON_INVENTORY_UNAVAILABLE),
+            code=REASON_INVENTORY_UNAVAILABLE)
+
     @staticmethod
     def _failed(action_name: str | None, request_id: str | None, code: str, *,
                 pending_action_id: str | None = None) -> ActionOutcome:
@@ -951,7 +1050,7 @@ class _writes:
         return None
 
     def __exit__(self, exc_type, exc, tb) -> bool:
-        if exc is None or isinstance(exc, _AttemptFailed):
+        if exc is None or isinstance(exc, (_AttemptFailed, _StockShortfall)):
             return False
         if isinstance(exc, (PendingTransitionConflict, *integrity_errors())):
             # A guarded update or a constraint the Guard should have kept: an invariant broke.
