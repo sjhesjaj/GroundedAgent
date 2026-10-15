@@ -13,6 +13,10 @@ barrier, on a fresh PostgreSQL schema per round:
             stock is smaller than the number of requests: how many exchanges are
             accepted against that stock, and the final stock
 
+Gateways are built as the product builds them: deduct_exchange_stock=True
+(decision C-D1, docs/v2/exchange-stock-deduction.md), so an executed exchange
+takes its units from stock. Before stage C there was no deduction at all.
+
 Modes: "locked" is the code as merged. "unlocked" replaces the three row-lock
 functions of aftersales.action_db_pg with no-ops inside this process only (the
 same switch as the stage A mutation check); nothing on disk changes.
@@ -20,6 +24,7 @@ same switch as the stage A mutation check); nothing on disk changes.
     python -X utf8 scripts/pg_concurrency_compare.py \
         --url postgresql://aftersales:aftersales-dev@127.0.0.1:55432/aftersales \
         --out docs/v2/pg-concurrency-results.json     (also writes the table as .md)
+        [--scenarios same_sku]   a subset; the other scenarios are kept from --out
 
 Not a test: it is not collected by unittest discover and asserts nothing.
 """
@@ -89,7 +94,7 @@ class Round:
         return ActionGateway(self.target, clock=FixedClock(DEMO_VIRTUAL_NOW),
                              id_provider=DeterministicIdProvider("pg-compare"),
                              catalog=PublishedPolicyCatalog(), capabilities=self.capabilities,
-                             risk_policy=S6_RISK_POLICY)
+                             risk_policy=S6_RISK_POLICY, deduct_exchange_stock=True)
 
     def validate(self, name: str, args: dict):
         return self.validator.validate(name, args)
@@ -209,9 +214,15 @@ def scenario_same_sku(round_: Round, workers: int) -> dict:
     return {
         "stock_before": TARGET_STOCK, "exchanges_accepted": accepted, "final_stock": final_stock,
         "units_over_stock": max(0, accepted - TARGET_STOCK),
+        "callers_failed": sum(label.startswith("FAILED") for label in outcomes),
+        # Units still in stock that a refused request was waiting for.
+        "unsold_while_requested": min(workers - accepted, final_stock),
         "outcomes": dict(Counter(outcomes)),
-        # Oversold: more exchange units accepted than the stock they were checked against.
-        "error": accepted > TARGET_STOCK,
+        # Oversold (more units accepted than there were), stock that does not add up
+        # (each accepted exchange takes one unit), or a request refused while its unit
+        # was still there.
+        "error": (accepted > TARGET_STOCK or final_stock != TARGET_STOCK - accepted
+                  or min(workers - accepted, final_stock) > 0),
     }
 
 
@@ -238,9 +249,12 @@ def summarise(name: str, rounds: list[dict]) -> dict:
                        rounds_with_exactly_one_row=sum(r["tickets"] == 1 and r["receipts"] == 1
                                                        for r in rounds))
     else:
-        summary.update(max_exchanges_accepted=max(r["exchanges_accepted"] for r in rounds),
+        summary.update(min_exchanges_accepted=min(r["exchanges_accepted"] for r in rounds),
+                       max_exchanges_accepted=max(r["exchanges_accepted"] for r in rounds),
                        max_units_over_stock=max(r["units_over_stock"] for r in rounds),
-                       final_stock_values=sorted({r["final_stock"] for r in rounds}))
+                       final_stock_values=sorted({r["final_stock"] for r in rounds}),
+                       max_unsold_while_requested=max(r["unsold_while_requested"] for r in rounds),
+                       callers_failed=sum(r["callers_failed"] for r in rounds))
     outcomes: Counter = Counter()
     for r in rounds:
         outcomes.update(r["outcomes"])
@@ -269,9 +283,12 @@ def describe(name: str, summary: dict, workers: int) -> str:
             k=summary["max_tickets"], r=summary["max_receipts"],
             one=summary["rounds_with_exactly_one_row"], n=rounds,
             t=summary["max_callers_told_otherwise"], w=workers, a=summary["max_failed_audit_events"])
-    return ("最多接受 {x} 个换货，超出库存 {o} 件；最终库存 {f}（换货从不扣减库存）").format(
-        x=summary["max_exchanges_accepted"], o=summary["max_units_over_stock"],
-        f="/".join(str(v) for v in summary["final_stock_values"]))
+    accepted = summary["min_exchanges_accepted"], summary["max_exchanges_accepted"]
+    return ("每轮接受 {a} 个换货，超卖最多 {o} 件；最终库存 {f}；"
+            "有库存却拒绝最多 {u} 件；共 {k} 个调用方收到 FAILED").format(
+        a=str(accepted[0]) if accepted[0] == accepted[1] else "%d–%d" % accepted,
+        o=summary["max_units_over_stock"], u=summary["max_unsold_while_requested"],
+        k=summary["callers_failed"], f="/".join(str(v) for v in summary["final_stock_values"]))
 
 
 def table(results: dict) -> str:
@@ -293,16 +310,37 @@ def main() -> int:
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--workers", type=int, default=20)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--scenarios", default=",".join(SCENARIOS),
+                        help="comma-separated subset; the other scenarios are kept from --out")
     arguments = parser.parse_args()
+    chosen = [name.strip() for name in arguments.scenarios.split(",") if name.strip()]
+    if not chosen or set(chosen) - set(SCENARIOS):
+        parser.error("--scenarios must name some of: " + ", ".join(SCENARIOS))
 
     results: dict = {
         "rounds": arguments.rounds, "workers": arguments.workers,
         "python": platform.python_version(), "scenarios": {},
     }
+    kept = [name for name in SCENARIOS if name not in chosen]
+    if kept:
+        # A partial rerun completes the earlier file: its other scenarios stay as they were,
+        # and what this run replaces is kept as a summary under "superseded".
+        if not arguments.out.is_file():
+            parser.error("a --scenarios subset needs an existing --out to complete")
+        previous = json.loads(arguments.out.read_text(encoding="utf-8"))
+        if (previous["rounds"], previous["workers"]) != (arguments.rounds, arguments.workers):
+            parser.error("rounds and workers must match the existing --out")
+        results["scenarios"] = {name: previous["scenarios"][name] for name in kept}
+        results["kept_from_previous_run"] = kept
+        results["superseded"] = {**previous.get("superseded", {}), **{
+            name: {mode: previous["scenarios"][name][mode]["summary"] for mode in ("unlocked", "locked")}
+            for name in chosen}}
     with contextlib.closing(connect_writer(PgDatabase(arguments.url, "public"))) as probe:
         results["server"] = probe.execute("SHOW server_version").fetchone()[0]
     started = time.monotonic()
     for name, scenario in SCENARIOS.items():
+        if name not in chosen:
+            continue
         results["scenarios"][name] = {}
         for mode, locked in (("unlocked", False), ("locked", True)):
             rounds = []
@@ -317,6 +355,7 @@ def main() -> int:
             print(name, mode, json.dumps(results["scenarios"][name][mode]["summary"], ensure_ascii=False),
                   flush=True)
     results["seconds"] = round(time.monotonic() - started, 1)
+    results["scenarios"] = {name: results["scenarios"][name] for name in SCENARIOS}
     # The switch never outlives the run.
     assert all(getattr(action_db_pg, name).__module__ == action_db_pg.__name__ for name in LOCK_FUNCTIONS)
     results["table_markdown"] = table(results)

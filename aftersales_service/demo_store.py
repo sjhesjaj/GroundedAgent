@@ -203,6 +203,9 @@ class DemoStore:
             capabilities=self.capabilities,
             risk_policy=S6_RISK_POLICY,
             operators=STAGE6_TRUSTED_OPERATORS,
+            # C-D1 (docs/v2/exchange-stock-deduction.md): the product takes an
+            # executed exchange's units from stock; evaluations keep S6-D10.
+            deduct_exchange_stock=True,
         )
         self._closed = False
 

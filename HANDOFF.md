@@ -2677,3 +2677,13 @@ review 发现两个缺口：回执工具把 bundle 自带的 `bundle-manifest.js
 - 只覆盖单进程的异常退出；断电、操作系统崩溃、磁盘损坏、多进程或多实例、外部不可幂等的 API 都不在范围内。
 - T1（决定已记录）和 T2（执行）之间崩溃的待审批单，需要操作员再点一次批准。
 - 前端把会话 ID 存在 sessionStorage（每个标签页一份）和 localStorage（新标签页用最近的会话），刷新页面后恢复；服务端已没有这个会话（404）时清掉记录并新建；浏览器禁止存储时退回到每次新建会话。
+
+## 34. 阶段 C：产品运行时执行换货时扣减库存（决策 C-D1）
+
+**C-D1（只在产品运行时生效，在产品里取代 S6-D10）**：产品运行时执行换货时，在同一个事务里扣减目标 SKU 的库存。扣减用一条条件 UPDATE，同时校验库存数量和版本号；如果一行都没更新到，整个动作回滚，返回 DENIED `inventory_unavailable`，这是复用的现有结果码。Stage 6 的设计文档、领域规格、标签、评分规则、oracle，以及 M3 评测中的 Stage 6 部分，都继续使用 S6-D10（换货不扣减库存），本节不修改其中任何一项。
+
+- 开关：`ActionGateway(deduct_exchange_stock=False)` 默认关闭，只有 `aftersales_service/demo_store.py` 把它打开。`tests/test_aftersales_exchange_stock.py` 固定了两点：评测代码中不出现这个开关；eval_v2 和 eval_m3 构造网关时不传这个参数。
+- 冻结测试只改了一处：`test_v2_stage6_gateway.StaticBoundaryTests.test_only_the_gateway_layer_writes` 允许、并且只允许这一条带保护条件的 inventory UPDATE（store 中的 UPDATE 从 3 条变为 4 条）。其余 Stage 6 测试保持不变，并且仍然通过。
+- PG：目标库存行改为 `FOR UPDATE`（原来是 `FOR SHARE`，两个请求都持有共享锁后再升级会死锁）。
+- 验证：DEV oracle（不用模型）仍为 40/40。PG 场景 3（20 线程 × 20 轮、库存 5）：加锁时每轮接受 5 个，超卖 0，最终库存 0；修复前为每轮接受 20 个，超卖 15 件。数据见 `docs/v2/pg-concurrency-results.json`。
+- 后续事项（未做）：换货被取消或驳回后退回库存、补货、库存预警。

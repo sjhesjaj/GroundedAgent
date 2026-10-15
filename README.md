@@ -234,7 +234,7 @@ $env:AFTERSALES_DATA_DIR = ".aftersales-demo-pg"
 docker compose exec postgres psql -U aftersales -d aftersales -c "\dn"
 ```
 
-「重置 Demo」会新建一个 schema，并删除旧的。事务语义：SQLite 靠 `BEGIN IMMEDIATE`（整库只有一个写入方）；PG 上改为 `BEGIN` 加行锁，做法是对动作涉及的订单和订单行加 `FOR UPDATE`，对 Guard 读到的其余行加 `FOR SHARE`，对待审批记录加 `FOR UPDATE`。详见 `aftersales/action_db_pg.py`。
+「重置 Demo」会新建一个 schema，并删除旧的。事务语义：SQLite 靠 `BEGIN IMMEDIATE`（整库只有一个写入方）；PG 上改为 `BEGIN` 加行锁，做法是对动作涉及的订单和订单行加 `FOR UPDATE`，对 Guard 读到的其余行加 `FOR SHARE`（换货的目标库存行要被扣减，所以加 `FOR UPDATE`），对待审批记录加 `FOR UPDATE`。详见 `aftersales/action_db_pg.py`；并发对照数字见 [docs/v2/pg-concurrency.md](docs/v2/pg-concurrency.md)。
 
 在 PG 上跑 Stage 6 测试（未设置变量或连不上数据库时，这些 PG 用例会跳过）：
 
@@ -246,7 +246,7 @@ $env:AFTERSALES_TEST_PG_URL = "postgresql://aftersales:aftersales-dev@127.0.0.1:
 ## Known limitations（V2）
 
 - **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察；M1 在网关前加了 grounding gate 来拦截这类动作（见上文 M1），但它只在 DEV 上做过诊断对比，sealed holdout 没有重跑。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
-- **M0 产品运行时与正式评测的差异**：产品以 `formal=False` 运行同一个被评测过的策略。跨暂停时，早先的观察会用合成 call id 重放；之后的 run 能看到顾客之前的消息，但看不到 agent 之前的回复。这些都不在 Stage 6 正式评测（单轮、脚本化用户）的覆盖范围内。
+- **M0 产品运行时与正式评测的差异**：产品以 `formal=False` 运行同一个被评测过的策略。跨暂停时，早先的观察会用合成 call id 重放；之后的 run 能看到顾客之前的消息，但看不到 agent 之前的回复。这些都不在 Stage 6 正式评测（单轮、脚本化用户）的覆盖范围内。另外，产品执行换货时会扣减目标 SKU 的库存（决策 C-D1，见 [docs/v2/exchange-stock-deduction.md](docs/v2/exchange-stock-deduction.md)），而 Stage 6 评测仍按冻结口径 S6-D10 运行，不扣减库存；换货被取消或驳回后，库存目前不会退回。
 - **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
 - **存储与恢复（M2）**：只覆盖单进程的异常退出，断电、操作系统崩溃、磁盘损坏和多进程 / 多实例都不在承诺范围内。`checkpoints.db` 增长很快：每个 checkpoint 都保存完整状态，实测一个 40 条消息的会话约 161 MB（281 个 checkpoint），M2 没有压缩。前端把会话 ID 存在浏览器里（每个标签页一份，新标签页用最近的会话）；浏览器禁止存储时，刷新页面会新建会话，旧会话仍在服务端，可以通过 API 读取。
 - **文案**：`stage6` 策略下冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"；`m3` 使用新的固定话术。
