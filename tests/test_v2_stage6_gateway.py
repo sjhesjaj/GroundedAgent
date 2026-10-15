@@ -42,6 +42,7 @@ from tests.stage6_support import (
     insert_ticket,
     raiser,
     snapshot_without,
+    sqlite_only,
     validate,
 )
 
@@ -213,6 +214,7 @@ class TransactionTests(GatewayCase):
                 self.start(name, args, clock=clock, **options)
                 self.assertEqual(clock.calls, 1)
 
+    @sqlite_only("a second connection's BEGIN IMMEDIATE holds the database lock")
     def test_p12_begin_failure_reads_no_clock_and_writes_nothing(self):
         before = self.db.dump()
         blocker = connect_writer(self.db.path)
@@ -245,6 +247,7 @@ class TransactionTests(GatewayCase):
         self.assertEqual((outcome.status, outcome.code), (ActionStatus.FAILED, "policy_unavailable"))
         self.assertEqual(failing.calls, 1)
 
+    @sqlite_only("probes the database lock with a second BEGIN IMMEDIATE")
     def test_guard_runs_after_begin_immediate(self):
         seen = []
 
@@ -264,6 +267,7 @@ class TransactionTests(GatewayCase):
         self.start("create_exchange", EXCHANGE_ARGS, catalog=ObservingCatalog())
         self.assertEqual(seen, ["database is locked"])
 
+    @sqlite_only("the second writer is a sqlite3 connection meeting the database lock")
     def test_toctou_second_writer_is_locked_between_capture_and_write(self):
         results = []
 

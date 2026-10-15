@@ -392,7 +392,7 @@ class CaptureDecideBoundaryTests(unittest.TestCase):
         with Stage6Database() as db:
             connection = connect_writer(db.path)
             try:
-                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(db.begin_sql)
                 context = TrustedExecutionContext(persona=resolve_persona("demo-a"),
                                                   clock=RaisingClock(), connection=connection)
                 catalog = CountingCatalog()
@@ -523,11 +523,11 @@ class GuardFailureTests(unittest.TestCase):
         with Stage6Database() as db:
             connection = connect_writer(db.path)
             try:
-                connection.execute("BEGIN IMMEDIATE")
+                connection.execute(db.begin_sql)
                 context = TrustedExecutionContext(persona=resolve_persona("demo-a"),
                                                   clock=RaisingClock(), connection=connection)
                 for catalog in (CountingCatalog(error=RuntimeError("x")),
-                                PublishedPolicyCatalog(root=db.path.parent / "no-build")):
+                                PublishedPolicyCatalog(root=db.directory / "no-build")):
                     with self.subTest(catalog=type(catalog).__name__):
                         with self.assertRaises(GuardFailure) as caught:
                             Guard(S6_RISK_POLICY).capture(validate("create_return", RETURN_ARGS),

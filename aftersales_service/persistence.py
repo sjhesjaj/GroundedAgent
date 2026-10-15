@@ -4,6 +4,8 @@
       generation.json         {"generation": "<32 hex>"}                      atomically replaced
       gen-<generation>/
         aftersales-demo.db    the business database, seeded once, when the generation is created
+                              (with AFTERSALES_DB_URL set: PostgreSQL schema aftersales_gen_<generation>,
+                              dropped with the generation)
         checkpoints.db        the LangGraph SqliteSaver shared by every conversation of the generation
         sessions/<id>.json    {schema, persona_id, generation, head, inflight}  atomically replaced
 
@@ -35,8 +37,10 @@ from pathlib import Path
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 
+from aftersales.action_db import drop_stage6_database, is_postgres
+
 from .conversation_graph import build_graph, strict_serializer
-from .demo_store import DEMO_DATABASE_NAME, DemoStore, seed_demo_database
+from .demo_store import DemoStore, generation_database, seed_demo_database
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +141,7 @@ class DataDirectory:
         generation = secrets.token_hex(16)
         directory = self.directory(generation)
         (directory / SESSIONS_DIR).mkdir(parents=True)
-        seed_demo_database(directory / DEMO_DATABASE_NAME)
+        seed_demo_database(generation_database(directory, generation))
         return generation
 
     def activate(self, generation: str) -> None:
@@ -147,6 +151,13 @@ class DataDirectory:
     def remove(self, generation: str) -> None:
         """Delete an inactive generation (best effort: a leftover is removed on the next open)."""
         directory = self.directory(generation)
+        database = generation_database(directory, generation)
+        if is_postgres(database):
+            # Its business database is a PostgreSQL schema, not a file in the directory.
+            try:
+                drop_stage6_database(database)
+            except Exception:
+                logger.warning("could not drop the database schema of generation %s", generation)
         for attempt in range(1, REMOVE_ATTEMPTS + 1):
             try:
                 shutil.rmtree(directory)
@@ -247,7 +258,7 @@ class Generation:
         self.generation = generation
         directory = data.directory(generation)
         self.directory = directory
-        self.store = DemoStore(directory / DEMO_DATABASE_NAME)
+        self.store = DemoStore(generation_database(directory, generation))
         self._connection = None
         try:
             self._connection = sqlite3.connect(str(directory / CHECKPOINTS_NAME),

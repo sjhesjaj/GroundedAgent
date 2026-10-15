@@ -2,18 +2,33 @@
 
 Every Stage 6 database is a file in a fresh temporary directory outside the
 repository (tests/ must never hold a *.db file), closed and deleted afterwards.
+
+With AFTERSALES_TEST_PG_URL=postgresql://... set, every Stage6Database is a fresh
+PostgreSQL schema instead (dropped afterwards), so the same tests run against
+the PostgreSQL backend. If that server cannot be reached the tests skip. Tests
+of a SQLite-only mechanism are marked @sqlite_only; PostgreSQL counterparts
+live in tests/test_aftersales_postgres.py.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import os
+import secrets
 import sqlite3
 import tempfile
+import unittest
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
-from aftersales.action_db import create_stage6_database, connect_writer
+from aftersales.action_db import (
+    PgDatabase,
+    connect_writer,
+    create_stage6_database,
+    drop_stage6_database,
+    integrity_errors,
+)
 from aftersales.action_gateway import ActionGateway
 from aftersales.action_policy import S6_RISK_POLICY
 from aftersales.actions import ActionIntentValidator, ValidatedAction, build_action_registry
@@ -25,6 +40,38 @@ from aftersales.guard import Guard
 from aftersales.ids import DeterministicIdProvider, RequestIdentity
 from aftersales.policy import PolicyRecord, PolicyRuleType
 from aftersales.policy_catalog import CatalogSnapshot, PublishedPolicyCatalog
+
+TEST_PG_URL_ENV = "AFTERSALES_TEST_PG_URL"
+TEST_PG_URL = os.environ.get(TEST_PG_URL_ENV, "").strip() or None
+ON_POSTGRES = TEST_PG_URL is not None
+
+
+def sqlite_only(reason: str):
+    """Skip on the PostgreSQL run: the test exercises a SQLite-only mechanism."""
+    return unittest.skipIf(ON_POSTGRES, "SQLite-only mechanism: " + reason)
+
+
+@lru_cache(maxsize=1)
+def postgres_unavailable() -> str | None:
+    """Why the PostgreSQL tests cannot run (checked once per process), None if they can."""
+    if TEST_PG_URL is None:
+        return TEST_PG_URL_ENV + " is not set"
+    try:
+        import psycopg
+    except ImportError:
+        return "psycopg is not installed"
+    try:
+        psycopg.connect(TEST_PG_URL, connect_timeout=3).close()
+    except psycopg.Error as error:
+        return "PostgreSQL is not reachable: " + type(error).__name__
+    return None
+
+
+def require_postgres() -> None:
+    reason = postgres_unavailable()
+    if reason is not None:
+        raise unittest.SkipTest(reason)
+
 
 VIRTUAL_NOW = datetime(2026, 11, 15, 10, 0, tzinfo=BUSINESS_TIMEZONE)
 LATE_NOW = datetime(2026, 12, 20, 10, 0, tzinfo=BUSINESS_TIMEZONE)
@@ -137,14 +184,43 @@ def raiser(exception: Exception):
 
 
 class Stage6Database:
-    """One fresh file-backed Stage 6 database in its own temporary directory."""
+    """One fresh Stage 6 database: a file in its own temporary directory, or
+    (AFTERSALES_TEST_PG_URL set) a fresh PostgreSQL schema."""
+
+    follows_test_backend = True
 
     def __init__(self) -> None:
         self._dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        self.path = Path(self._dir.name) / "stage6.db"
-        create_stage6_database(self.path)
+        self.directory = Path(self._dir.name)  # scratch space on either backend
+        self.postgres = ON_POSTGRES and self.follows_test_backend
+        if self.postgres:
+            reason = postgres_unavailable()
+            if reason is not None:
+                self._dir.cleanup()
+                raise unittest.SkipTest(reason)
+            self.path = PgDatabase(TEST_PG_URL, "s6test_" + secrets.token_hex(8))
+        else:
+            self.path = self.directory / "stage6.db"
+        try:
+            create_stage6_database(self.path)
+        except BaseException:
+            self._dir.cleanup()
+            raise
+
+    @property
+    def begin_sql(self) -> str:
+        """What the Guard tests open their read transaction with (see action_gateway._begin)."""
+        return "BEGIN" if self.postgres else "BEGIN IMMEDIATE"
+
+    def connect(self):
+        """An autocommit connection to this database (sqlite3, or the PostgreSQL wrapper)."""
+        if self.postgres:
+            return connect_writer(self.path)
+        return sqlite3.connect(str(self.path), isolation_level=None)
 
     def close(self) -> None:
+        if self.postgres:
+            drop_stage6_database(self.path)
         self._dir.cleanup()
 
     def __enter__(self) -> "Stage6Database":
@@ -154,6 +230,9 @@ class Stage6Database:
         self.close()
 
     def execute(self, sql: str, params: tuple = (), *, ignore_checks: bool = False) -> None:
+        if self.postgres:
+            self._execute_postgres(sql, params, ignore_checks=ignore_checks)
+            return
         connection = sqlite3.connect(str(self.path), isolation_level=None)
         try:
             connection.execute("PRAGMA foreign_keys = ON")
@@ -165,8 +244,27 @@ class Stage6Database:
         finally:
             connection.close()
 
+    def _execute_postgres(self, sql: str, params: tuple, *, ignore_checks: bool) -> None:
+        import psycopg
+        connection = connect_writer(self.path)
+        try:
+            connection.execute("BEGIN")
+            try:
+                connection.execute(sql, params)
+            except psycopg.errors.CheckViolation:
+                if ignore_checks:
+                    # PostgreSQL cannot switch CHECK constraints off for one write,
+                    # so a row only a CHECK-less SQLite write can plant is not plantable.
+                    raise unittest.SkipTest("PostgreSQL cannot plant a CHECK-violating row") from None
+                raise
+            connection.execute("COMMIT")
+        finally:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
+            connection.close()
+
     def rows(self, sql: str, params: tuple = ()) -> list[tuple]:
-        connection = sqlite3.connect(str(self.path))
+        connection = connect_writer(self.path) if self.postgres else sqlite3.connect(str(self.path))
         try:
             return connection.execute(sql, params).fetchall()
         finally:
@@ -196,7 +294,7 @@ class Stage6Database:
         """Guard.capture + Guard.decide inside a BEGIN IMMEDIATE that is rolled back."""
         connection = connect_writer(self.path)
         try:
-            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(self.begin_sql)
             context = TrustedExecutionContext(persona=resolve_persona(persona_id),
                                               clock=FixedClock(now), connection=connection)
             capture = Guard(S6_RISK_POLICY).capture(
@@ -208,6 +306,13 @@ class Stage6Database:
             if connection.in_transaction:
                 connection.execute("ROLLBACK")
             connection.close()
+
+
+class SqliteStage6Database(Stage6Database):
+    """Always a SQLite file, whatever AFTERSALES_TEST_PG_URL says: for the eval_v2
+    tests, whose runtime is not migrated and opens the database by file path."""
+
+    follows_test_backend = False
 
 
 def insert_case(db: Stage6Database, case_id: str, order_item_id: str, *, case_type: str,

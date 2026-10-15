@@ -1,7 +1,9 @@
 """The Guard's own fresh reads: GuardStateReader -> GuardState (docs/v2/stage6-design.md §6.2).
 
 Called only by `Guard.capture`, inside the transaction the ActionGateway has
-already opened with BEGIN IMMEDIATE, on the gateway's writer connection.
+already opened with BEGIN IMMEDIATE (on PostgreSQL: BEGIN plus row locks on
+everything read here, see aftersales.action_db_pg), on the gateway's writer
+connection.
 
 - Fixed single-statement templates R1-R8; every value is bound through a
   placeholder; rows are read positionally on the reader's own cursor, so a
@@ -31,7 +33,6 @@ Eval read hook (docs/v2/stage6-design.md §19.2 `action_faults: guard_read`)
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Protocol, Sequence
@@ -42,6 +43,7 @@ from orchestration.contracts import (
     SourceType,
 )
 
+from .action_db import database_errors
 from .action_errors import (
     FAILURE_STATE_MALFORMED,
     FAILURE_STATE_READ,
@@ -362,7 +364,7 @@ class GuardStateReader:
             return self._read(action, context, observed_at, exclude_pending_id)
         except GuardFailure:
             raise
-        except sqlite3.Error:
+        except database_errors():
             # Never "empty": a failed read is an infrastructure failure.
             raise GuardFailure(FAILURE_STATE_READ) from None
 

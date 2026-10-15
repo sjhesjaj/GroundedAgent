@@ -53,8 +53,10 @@ from tests.stage6_support import (
     frozen_snapshot,
     identity,
     insert_case,
+    integrity_errors,
     pending_row,
     raiser,
+    sqlite_only,
     validate,
 )
 
@@ -205,7 +207,7 @@ class ApprovalBoundaryTests(ApprovalCase):
         store_source = (REPO_ROOT / "aftersales" / "action_store.py").read_text(encoding="utf-8")
         self.assertEqual(store_source.count("status, outcome = (APPROVED, None)"), 1)
         # transition_terminal can never reach APPROVED (or EXECUTED).
-        connection = sqlite3.connect(str(self.db.path))
+        connection = self.db.connect()
         try:
             for status in ("APPROVED", "EXECUTED", "PENDING_APPROVAL", "REJECTED"):
                 with self.subTest(status=status):
@@ -487,6 +489,7 @@ class FailureSemanticsTests(ApprovalCase):
         self.assertEqual(pending_row(self.db, pending_id)["status"], "FAILED")
         self.assert_not_executed()
 
+    @sqlite_only("a second connection's BEGIN IMMEDIATE holds the database lock")
     def test_t2_begin_failure_reads_no_clock_and_keeps_approved(self):
         pending_id = self.approved()
         before = self.db.dump()
@@ -554,7 +557,7 @@ class LegalTransitionTests(ApprovalCase):
 
     def test_illegal_transitions_are_refused(self):
         pending_id = self.start_return()
-        connection = sqlite3.connect(str(self.db.path), isolation_level=None)
+        connection = self.db.connect()
         try:
             store = ActionStore(connection)
             at = VIRTUAL_NOW.isoformat()
@@ -619,14 +622,14 @@ class DatabaseConstraintTests(ApprovalCase):
         for label, kwargs in violations.items():
             with self.subTest(violation=label):
                 with Stage6Database() as db:
-                    with self.assertRaises(sqlite3.IntegrityError):
+                    with self.assertRaises(integrity_errors()):
                         self.insert(db, **kwargs)
 
     def test_unique_constraints(self):
         self.insert(self.db)
-        with self.assertRaises(sqlite3.IntegrityError):  # one idempotency key
+        with self.assertRaises(integrity_errors()):  # one idempotency key
             self.insert(self.db, pid="PA-2", item="OI-1001-1")
-        with self.assertRaises(sqlite3.IntegrityError):  # one open pending per item
+        with self.assertRaises(integrity_errors()):  # one open pending per item
             self.insert(self.db, pid="PA-2", key="k2")
         self.insert(self.db, pid="PA-3", key="k3", status="REJECTED", decision="REJECT", approver="op",
                     decided="t", outcome="approval_rejected")  # terminal rows do not count
@@ -637,12 +640,12 @@ class DatabaseConstraintTests(ApprovalCase):
                    " (?, ?, 'r', 'p', 'create_return', '{}', 'h', 'EXECUTED', 'after_sales_case', ?, 'PA-1',"
                    " 'REQUIRE_APPROVAL', 'risk_policy_requires_approval', '{}', 'h', 'v', 'v', 'b', 't')")
         self.db.execute(receipt, ("RC-1", "rk1", "AS6-1"))
-        with self.assertRaises(sqlite3.IntegrityError):  # one receipt per pending
+        with self.assertRaises(integrity_errors()):  # one receipt per pending
             self.db.execute(receipt, ("RC-2", "rk2", "AS6-2"))
-        with self.assertRaises(sqlite3.IntegrityError):  # one receipt per key
+        with self.assertRaises(integrity_errors()):  # one receipt per key
             self.db.execute(receipt.replace("'PA-1'", "NULL").replace("'REQUIRE_APPROVAL'", "'ALLOW'"),
                             ("RC-3", "rk1", "AS6-3"))
-        with self.assertRaises(sqlite3.IntegrityError):  # a receipt's pending must exist
+        with self.assertRaises(integrity_errors()):  # a receipt's pending must exist
             self.db.execute(receipt.replace("'PA-1'", "'PA-404'"), ("RC-4", "rk4", "AS6-4"))
 
 
@@ -871,6 +874,7 @@ class CaptureConsistencyTests(ApprovalCase):
         self.assertIs(policy, catalog.snapshot())  # the one CatalogSnapshot acquired
         self.assertEqual(txn_now, captured.txn_now)
 
+    @sqlite_only("traces statements through sqlite3.Connection.set_trace_callback")
     def test_p17_nothing_is_read_after_the_comparison(self):
         pending_id = self.approved()
         events = []
@@ -947,6 +951,7 @@ class ResumeIndependenceTests(unittest.TestCase):
                     with self.subTest(module=name, imports=module):
                         self.assertFalse(any(module == b or module.startswith(b + ".") for b in banned))
 
+    @sqlite_only("the two processes share a SQLite file path")
     def test_restart_across_processes(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             base = Path(tmp)

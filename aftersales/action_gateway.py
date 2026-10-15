@@ -47,6 +47,11 @@ receipt committed.
 
 The Guard is handed a TrustedExecutionContext whose clock is FixedClock(txn_now),
 so the injected Clock is unreachable from the Guard by construction.
+
+On PostgreSQL (a PgDatabase target) there is no database-wide write lock:
+every BEGIN IMMEDIATE above is BEGIN plus row locks taken before the Clock
+read - the action's order and item, then the pending row - and the rest of the
+Guard's read set is locked FOR SHARE just before the capture. See _begin.
 """
 
 from __future__ import annotations
@@ -58,7 +63,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Protocol
 
-from .action_db import DEFAULT_BUSY_TIMEOUT_MS, connect_writer
+from .action_db import (
+    DEFAULT_BUSY_TIMEOUT_MS,
+    PgDatabase,
+    connect_writer,
+    database_errors,
+    integrity_errors,
+    is_postgres,
+)
 from .action_errors import (
     FAILURE_ID_GENERATION,
     FAILURE_IDENTITY_UNRESOLVABLE,
@@ -186,7 +198,7 @@ _CASE_TYPES = {CREATE_RETURN: CaseType.RETURN.value, CREATE_EXCHANGE: CaseType.E
 class ActionGateway:
     """The single side-effect entry point. Holds configuration only, no state."""
 
-    def __init__(self, db_path: str | Path, *, clock: Clock, id_provider: IdProvider,
+    def __init__(self, db_path: str | Path | PgDatabase, *, clock: Clock, id_provider: IdProvider,
                  catalog: object, capabilities: EffectiveCapabilities,
                  risk_policy: ActionRiskPolicy = S6_RISK_POLICY,
                  action_registry: ActionRegistry | None = None,
@@ -217,7 +229,8 @@ class ActionGateway:
         if decision_observer is not None and not callable(decision_observer):
             raise ValueError("decision_observer must be callable")
         registry = build_action_registry() if action_registry is None else action_registry
-        self._db_path = Path(db_path)
+        self._postgres = is_postgres(db_path)
+        self._db_path = db_path if self._postgres else Path(db_path)
         self._clock = clock
         self._ids = id_provider
         self._catalog = catalog
@@ -263,8 +276,8 @@ class ActionGateway:
         try:
             # S1
             try:
-                connection.execute("BEGIN IMMEDIATE")
-            except sqlite3.Error:
+                self._begin(connection, action=action)
+            except database_errors():
                 return self._failed(action.action_name, identity.request_id, FAILURE_TRANSACTION)
             # S2 - the only Clock read of this transaction.
             txn_now = require_aware("clock.now()", self._clock.now())
@@ -277,7 +290,7 @@ class ActionGateway:
                 self._rollback(connection)
                 self._compensate_start(connection, identity, action, key, failure, txn_now)
                 return self._failed(action.action_name, identity.request_id, failure.code)
-            except sqlite3.Error:
+            except database_errors():
                 # A database error outside the mapped phases: nothing was committed.
                 self._rollback(connection)
                 failure = _AttemptFailed(FAILURE_TRANSACTION)
@@ -301,7 +314,7 @@ class ActionGateway:
         try:
             receipt = store.find_receipt(key)
             pending = None if receipt is not None else store.find_pending(key)
-        except sqlite3.Error:
+        except database_errors():
             raise _AttemptFailed(FAILURE_STATE_READ) from None
         if receipt is not None or pending is not None:
             with _writes():
@@ -389,8 +402,8 @@ class ActionGateway:
         connection = connect_writer(self._db_path, busy_timeout_ms=self._busy_timeout_ms)
         try:
             try:
-                connection.execute("BEGIN IMMEDIATE")
-            except sqlite3.Error:
+                self._begin(connection, pending_action_id=decision.pending_action_id)
+            except database_errors():
                 return self._failed(None, None, FAILURE_TRANSACTION,
                                     pending_action_id=decision.pending_action_id)
             txn_now = require_aware("clock.now()", self._clock.now())
@@ -402,7 +415,7 @@ class ActionGateway:
             except (UnknownPendingAction, ApprovalInputError):
                 self._rollback(connection)
                 raise
-            except (_AttemptFailed, sqlite3.Error) as error:
+            except (_AttemptFailed, *database_errors()) as error:
                 # T1 changed nothing that survives: the pending row is untouched.
                 self._rollback(connection)
                 code = error.code if isinstance(error, _AttemptFailed) else FAILURE_TRANSACTION
@@ -422,7 +435,7 @@ class ActionGateway:
         at = txn_now.isoformat()
         try:
             pending = store.load_pending(decision.pending_action_id)
-        except sqlite3.Error:
+        except database_errors():
             raise _AttemptFailed(FAILURE_STATE_READ) from None
         if pending is None:
             raise UnknownPendingAction("no pending action has this id")
@@ -478,8 +491,9 @@ class ActionGateway:
         try:
             # U1
             try:
-                connection.execute("BEGIN IMMEDIATE")
-            except sqlite3.Error:
+                self._begin(connection, pending_action_id=pending_action_id,
+                            lock_pending_target=True)
+            except database_errors():
                 return self._failed(None, None, FAILURE_TRANSACTION,
                                     pending_action_id=pending_action_id)
             # U2 - the only Clock read of this transaction.
@@ -492,7 +506,7 @@ class ActionGateway:
             except (UnknownPendingAction, NotApproved):
                 self._rollback(connection)
                 raise
-            except (_AttemptFailed, sqlite3.Error) as error:
+            except (_AttemptFailed, *database_errors()) as error:
                 self._rollback(connection)
                 failure = error if isinstance(error, _AttemptFailed) else _AttemptFailed(FAILURE_TRANSACTION)
                 if resume.approved:
@@ -514,7 +528,7 @@ class ActionGateway:
         # U3 - load the pending row; nothing has changed yet if this fails.
         try:
             pending = store.load_pending(resume.pending_action_id)
-        except sqlite3.Error:
+        except database_errors():
             raise _AttemptFailed(FAILURE_STATE_READ) from None
         if pending is None:
             raise UnknownPendingAction("no pending action has this id")
@@ -534,7 +548,7 @@ class ActionGateway:
             raise _AttemptFailed(FAILURE_INVARIANT)
         try:
             existing = store.find_receipt(pending.idempotency_key)
-        except sqlite3.Error:
+        except database_errors():
             raise _AttemptFailed(FAILURE_STATE_READ) from None
         # APPROVED is confirmed: from here on a failure ends in P6 (APPROVED -> FAILED).
         resume.identity = identity
@@ -637,7 +651,10 @@ class ActionGateway:
         pending_action_id = require_pending_action_id(pending_action_id)
         connection = connect_writer(self._db_path, busy_timeout_ms=self._busy_timeout_ms)
         try:
-            connection.execute("BEGIN")
+            # A read-only transaction: both reads see one snapshot. SQLite's
+            # deferred BEGIN gives that; PostgreSQL READ COMMITTED would not.
+            connection.execute("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY"
+                               if self._postgres else "BEGIN")
             try:
                 store = ActionStore(connection)
                 pending = store.load_pending(pending_action_id)
@@ -660,6 +677,17 @@ class ActionGateway:
                  txn_now: datetime, *, exclude_pending_id: str | None) -> GuardCapture:
         context = TrustedExecutionContext(persona=persona, clock=FixedClock(txn_now),
                                           connection=connection)
+        if self._postgres:
+            # The rest of the Guard's read set, FOR SHARE: nothing it reads can
+            # change before COMMIT. A failure here is a failed Guard read.
+            from .action_db_pg import lock_guard_reads
+            try:
+                lock_guard_reads(connection, order_id=action.target_order_id,
+                                 order_item_id=action.target_order_item_id,
+                                 target_sku=action.args.get("target_sku"),
+                                 exclude_pending_id=exclude_pending_id)
+            except database_errors():
+                raise _AttemptFailed(FAILURE_STATE_READ, from_guard=True) from None
         try:
             return self._guard.capture(action, context, self._catalog, txn_now=txn_now,
                                        exclude_pending_id=exclude_pending_id)
@@ -765,7 +793,7 @@ class ActionGateway:
             return None
         try:
             return store.find_receipt_for_pending(pending.pending_action_id)
-        except sqlite3.Error:
+        except database_errors():
             raise _AttemptFailed(FAILURE_STATE_READ) from None
 
     @staticmethod
@@ -808,6 +836,41 @@ class ActionGateway:
         if self._hooks is not None:
             self._hooks.before(point)
 
+    def _begin(self, connection, *, action: ValidatedAction | None = None,
+               pending_action_id: str | None = None, lock_pending_target: bool = False) -> None:
+        """Open a write transaction; a database error means none is open.
+
+        SQLite: BEGIN IMMEDIATE takes the database-wide write lock up front, so
+        the transaction is the only writer until it ends.
+
+        PostgreSQL: BEGIN (READ COMMITTED), then row locks FOR UPDATE, before
+        the Clock read and before any other read (aftersales.action_db_pg, "Row
+        locks"): start_action locks its target order and order item; T2 locks
+        the stored action's order and order item, then the pending row; T1 and
+        the P6 compensation lock only the pending row. Two transactions on one
+        order, or on one pending action, run one after the other. A lock not
+        granted within busy_timeout_ms fails like a busy SQLite database. The
+        remaining rows the Guard reads are locked FOR SHARE by _capture.
+        """
+        if not self._postgres:
+            connection.execute("BEGIN IMMEDIATE")
+            return
+        from .action_db_pg import lock_anchor, lock_pending, pending_target
+        connection.execute("BEGIN")
+        try:
+            target = None
+            if action is not None:
+                target = (action.target_order_id, action.target_order_item_id)
+            elif lock_pending_target:
+                target = pending_target(connection, pending_action_id)
+            if target is not None:
+                lock_anchor(connection, *target)
+            if pending_action_id is not None:
+                lock_pending(connection, pending_action_id)
+        except BaseException:
+            self._rollback(connection)
+            raise
+
     def _commit(self, connection: sqlite3.Connection) -> None:
         """COMMIT; any failure here means nothing was committed."""
         try:
@@ -821,7 +884,7 @@ class ActionGateway:
         try:
             if connection.in_transaction:
                 connection.execute("ROLLBACK")
-        except sqlite3.Error:
+        except database_errors():
             pass
 
     def _compensate_start(self, connection: sqlite3.Connection, identity: RequestIdentity,
@@ -831,7 +894,8 @@ class ActionGateway:
         at = txn_now.isoformat()
         try:
             self._fault(FAULT_COMPENSATION)
-            connection.execute("BEGIN IMMEDIATE")
+            # Audit appends only, nothing read: no row lock is needed on PostgreSQL.
+            self._begin(connection)
             store = ActionStore(connection)
             store.append_audit(
                 event_name=AUDIT_GUARD_FAILED if failure.from_guard else AUDIT_TRANSACTION_ROLLED_BACK,
@@ -859,7 +923,7 @@ class ActionGateway:
                       pending_action_id=pending.pending_action_id, phase=PHASE_RESUME)
         try:
             self._fault(FAULT_COMPENSATION)
-            connection.execute("BEGIN IMMEDIATE")
+            self._begin(connection, pending_action_id=pending.pending_action_id)
             store = ActionStore(connection)
             store.transition_terminal(pending_action_id=pending.pending_action_id,
                                       expected_version=pending.version, status=FAILED,
@@ -889,7 +953,7 @@ class _writes:
     def __exit__(self, exc_type, exc, tb) -> bool:
         if exc is None or isinstance(exc, _AttemptFailed):
             return False
-        if isinstance(exc, (PendingTransitionConflict, sqlite3.IntegrityError)):
+        if isinstance(exc, (PendingTransitionConflict, *integrity_errors())):
             # A guarded update or a constraint the Guard should have kept: an invariant broke.
             raise _AttemptFailed(FAILURE_INVARIANT) from None
         if isinstance(exc, Exception):

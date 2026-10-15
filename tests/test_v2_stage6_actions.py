@@ -6,7 +6,12 @@ import sqlite3
 import unittest
 from pathlib import Path
 
-from aftersales.action_db import ACTION_SCHEMA_PATH, STAGE6_ACTION_TABLES, STAGE6_SEED_PATH
+from aftersales.action_db import (
+    ACTION_SCHEMA_PATH,
+    STAGE6_ACTION_TABLES,
+    STAGE6_SEED_PATH,
+    integrity_errors,
+)
 from aftersales.action_errors import (
     ActionContractError,
     ActionValidationError,
@@ -54,6 +59,7 @@ from tests.stage6_support import (
     RETURN_ARGS,
     Stage6Database,
     identity,
+    sqlite_only,
     validate,
 )
 from tests.test_v2_clock import clock_violations, sql_clock_violations
@@ -358,6 +364,7 @@ class SchemaTests(unittest.TestCase):
                 source = (REPO_ROOT / "aftersales" / name).read_text(encoding="utf-8")
                 self.assertEqual(clock_violations(source), [])
 
+    @sqlite_only("reads sqlite_master and PRAGMA journal_mode")
     def test_stage6_database_has_the_frozen_tables_and_seed(self):
         with Stage6Database() as db:
             tables = {row[0] for row in db.rows(
@@ -385,7 +392,7 @@ class SchemaTests(unittest.TestCase):
                    " (?, 'ORD-1001', 'OI-1001-2', 'CUST-001', 'return', ?, 'r',"
                    " '2026-11-10T10:00:00+08:00', '2026-11-10T10:00:00+08:00', 1)")
             db.execute(sql, ("AS-T1", "待处理"))
-            with self.assertRaises(sqlite3.IntegrityError):
+            with self.assertRaises(integrity_errors()):
                 db.execute(sql, ("AS-T2", "处理中"))
             db.execute(sql, ("AS-T3", "已完成"))  # terminal cases do not count
             ticket = ("INSERT INTO human_handoff_tickets (ticket_id, order_id, order_item_id,"
@@ -393,7 +400,7 @@ class SchemaTests(unittest.TestCase):
                       " (?, 'ORD-1001', 'OI-1001-1', 'quality_dispute', ?,"
                       " '2026-11-10T10:00:00+08:00', '2026-11-10T10:00:00+08:00', 1)")
             db.execute(ticket, ("HT-T1", "待处理"))
-            with self.assertRaises(sqlite3.IntegrityError):
+            with self.assertRaises(integrity_errors()):
                 db.execute(ticket, ("HT-T2", "处理中"))
             db.execute(ticket, ("HT-T3", "已关闭"))
 
@@ -410,7 +417,7 @@ class SchemaTests(unittest.TestCase):
                            ("create_return", "EXECUTED", "after_sales_case", "REQUIRE_APPROVAL"),
                            ("refund_money", "EXECUTED", "after_sales_case", "ALLOW")):
                 with self.subTest(params=params):
-                    with self.assertRaises(sqlite3.IntegrityError):
+                    with self.assertRaises(integrity_errors()):
                         db.execute(base, params)
 
 

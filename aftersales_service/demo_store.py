@@ -23,10 +23,19 @@ oracle or dataset:
 
 Reset is deterministic: a new generation is seeded from the same seed files;
 the old one is deleted.
+
+Backend: with AFTERSALES_DB_URL unset (the default) the database is the SQLite
+file above. With AFTERSALES_DB_URL=postgresql://... it is a PostgreSQL schema
+instead (aftersales.action_db.PgDatabase): aftersales_gen_<generation> for a
+data-directory generation, a temporary aftersales_demo_<random> schema
+(dropped on close) otherwise. Only the business and action tables move;
+sessions, checkpoints and traces stay where they are.
 """
 
 from __future__ import annotations
 
+import os
+import secrets
 import sqlite3
 import tempfile
 from contextlib import contextmanager
@@ -34,7 +43,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
 
-from aftersales.action_db import create_stage6_database
+from aftersales.action_db import (
+    DEFAULT_BUSY_TIMEOUT_MS,
+    PgDatabase,
+    create_stage6_database,
+    drop_stage6_database,
+    is_postgres,
+)
 from aftersales.action_gateway import ActionGateway
 from aftersales.action_policy import S6_RISK_POLICY
 from aftersales.approval import STAGE6_TRUSTED_OPERATORS
@@ -54,6 +69,9 @@ from .pending_requests import PENDING_TOOL_NAME, pending_tool_result
 DEMO_ID_NAMESPACE = "m0-demo"
 DEMO_OPERATOR_REF = "op-demo-1"
 DEMO_DATABASE_NAME = "aftersales-demo.db"
+DATABASE_URL_ENV = "AFTERSALES_DB_URL"
+GENERATION_SCHEMA_PREFIX = "aftersales_gen_"
+TEMPORARY_SCHEMA_PREFIX = "aftersales_demo_"
 
 if DEMO_OPERATOR_REF not in STAGE6_TRUSTED_OPERATORS:
     raise ImportError("the demo operator must be a registered Stage 6 trusted operator")
@@ -116,8 +134,24 @@ class KnowledgeReadSide:
         return self._reader.execute(tool_name, arguments, observation_id=observation_id)
 
 
-def seed_demo_database(db_path: Path) -> None:
+def configured_database_url() -> str | None:
+    """AFTERSALES_DB_URL, None when unset or empty (= SQLite)."""
+    return os.environ.get(DATABASE_URL_ENV, "").strip() or None
+
+
+def generation_database(directory: Path, generation: str) -> Path | PgDatabase:
+    """Where one generation's business database lives on the configured backend."""
+    url = configured_database_url()
+    if url is None:
+        return Path(directory) / DEMO_DATABASE_NAME
+    return PgDatabase(url, GENERATION_SCHEMA_PREFIX + generation)
+
+
+def seed_demo_database(db_path: Path | PgDatabase) -> None:
     """Build a new demo database from the seed files. Refuses an existing file."""
+    if is_postgres(db_path):
+        create_stage6_database(db_path)  # refuses an existing schema
+        return
     if Path(db_path).exists():
         raise FileExistsError("a demo database is seeded exactly once")
     create_stage6_database(db_path)
@@ -126,9 +160,15 @@ def seed_demo_database(db_path: Path) -> None:
 class DemoStore:
     """One mutable demo database plus the server-side configuration around it."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(self, db_path: Path | PgDatabase | None = None) -> None:
         self._directory = None
-        if db_path is None:
+        self._temporary_schema = False
+        url = configured_database_url() if db_path is None else None
+        if db_path is None and url is not None:
+            self.db_path = PgDatabase(url, TEMPORARY_SCHEMA_PREFIX + secrets.token_hex(8))
+            seed_demo_database(self.db_path)
+            self._temporary_schema = True
+        elif db_path is None:
             self._directory = tempfile.TemporaryDirectory(prefix="aftersales-demo-",
                                                           ignore_cleanup_errors=True)
             try:
@@ -137,6 +177,13 @@ class DemoStore:
             except BaseException:
                 self._directory.cleanup()
                 raise
+        elif is_postgres(db_path):
+            from aftersales.action_db_pg import database_exists
+            self.db_path = db_path
+            if not database_exists(db_path):
+                raise FileNotFoundError(
+                    "the demo database of this generation is missing on PostgreSQL; a data"
+                    " directory seeded without AFTERSALES_DB_URL needs its own AFTERSALES_DATA_DIR")
         else:
             # An existing, already seeded database: opening never seeds again.
             self.db_path = Path(db_path)
@@ -166,6 +213,18 @@ class DemoStore:
     def _read_connection(self) -> sqlite3.Connection:
         if self._closed:
             raise RuntimeError("the demo store is closed")
+        if is_postgres(self.db_path):
+            # default_transaction_read_only plays the part of PRAGMA query_only.
+            from aftersales.action_db_pg import connect
+            connection = connect(self.db_path, lock_timeout_ms=DEFAULT_BUSY_TIMEOUT_MS,
+                                 read_only=True)
+            try:
+                if connection.execute("SHOW default_transaction_read_only").fetchone()[0] != "on":
+                    raise RuntimeError("PostgreSQL refused a read-only session")
+            except BaseException:
+                connection.close()
+                raise
+            return connection
         connection = sqlite3.connect(self.db_path.resolve().as_uri() + "?mode=ro", uri=True)
         try:
             connection.execute("PRAGMA query_only = ON")
@@ -205,3 +264,5 @@ class DemoStore:
         self._closed = True
         if self._directory is not None:
             self._directory.cleanup()
+        if self._temporary_schema:
+            drop_stage6_database(self.db_path)

@@ -1,0 +1,29 @@
+# Local PostgreSQL for the after-sales business and action tables only
+# (aftersales/pg/schema.sql). Sessions, traces and evals stay on SQLite.
+#
+#   docker compose up -d
+#   $env:AFTERSALES_DB_URL = "postgresql://aftersales:aftersales-dev@127.0.0.1:55432/aftersales"
+#
+# Port and credentials are local development values; override them in .env
+# (see .env.example). Nothing here is a production setting.
+services:
+  postgres:
+    image: postgres:16
+    # Come back by itself when Docker Desktop restarts its engine.
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${AFTERSALES_PG_USER:-aftersales}
+      POSTGRES_PASSWORD: ${AFTERSALES_PG_PASSWORD:-aftersales-dev}
+      POSTGRES_DB: ${AFTERSALES_PG_DB:-aftersales}
+    ports:
+      - "127.0.0.1:${AFTERSALES_PG_PORT:-55432}:5432"
+    volumes:
+      - aftersales-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  aftersales-pg-data:

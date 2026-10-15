@@ -20,7 +20,7 @@ from eval_v2.stage6_runtime import stage6_contract
 from eval_v2.stage6_state import BUSINESS_TABLES, harness_connection, read_state
 
 from tests import stage6_eval_support as support
-from tests.stage6_support import Stage6Database
+from tests.stage6_support import SqliteStage6Database as Stage6Database  # eval: always SQLite
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = ROOT / "eval" / "v2" / "spec"
