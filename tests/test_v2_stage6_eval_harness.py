@@ -28,7 +28,7 @@ from tests.stage6_support import (
     HANDOFF_ARGS as GATEWAY_HANDOFF_ARGS,
     RETURN_ARGS as GATEWAY_RETURN_ARGS,
     STOCK_TSHIRT_L,
-    Stage6Database,
+    SqliteStage6Database as Stage6Database,  # eval_v2 is not migrated: always SQLite
     approval,
     identity,
     validate,

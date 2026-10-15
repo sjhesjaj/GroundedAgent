@@ -40,7 +40,7 @@ from tests.stage6_support import (
     RETURN_ARGS,
     STOCK_TSHIRT_L,
     VIRTUAL_NOW,
-    Stage6Database,
+    SqliteStage6Database as Stage6Database,  # eval_v2 is not migrated: always SQLite
     approval,
     pending_row,
     validate,

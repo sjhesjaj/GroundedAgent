@@ -16,6 +16,8 @@ FAST_TESTS = (
     "tests.test_aftersales_grounding",
     "tests.test_aftersales_state_codec",
     "tests.test_aftersales_graph",
+    # PostgreSQL backend: static checks always; the rest only with AFTERSALES_TEST_PG_URL.
+    "tests.test_aftersales_postgres",
     # M1-A2 grounding eval; FrozenBoundaryTests also keeps aftersales/ and eval_v2/ frozen.
     "tests.test_m1_a2_grounding_eval",
     # M3 policy RAG.

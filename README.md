@@ -215,6 +215,34 @@ cd frontend; node --test tests/api.test.js                               # 前�
 
 真实 DeepSeek 测试默认跳过；配置好 `.env` 后，在项目根目录执行 `$env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m unittest tests.test_llm_provider_live -v` 可开启。
 
+### 用 PostgreSQL 运行 demo（可选）
+
+售后业务表和动作表（orders、order_items、logistics、inventory、after_sales_cases、sku_variants、human_handoff_tickets、pending_actions、action_receipts、action_audit_events）可以放到 PostgreSQL 16。会话、checkpoint、Trace 和评测仍然用 SQLite。不设置 `AFTERSALES_DB_URL` 时，行为和上面完全一样。
+
+```powershell
+# 1. 启动 PostgreSQL（需要 Docker Desktop；端口和账号见 .env.example，默认 127.0.0.1:55432）
+docker compose up -d --wait
+
+# 2. 让后端使用它；数据目录要单独用一个（在 SQLite 下建的数据目录不能在 PG 下打开）
+$env:AFTERSALES_DB_URL = "postgresql://aftersales:aftersales-dev@127.0.0.1:55432/aftersales"
+$env:AFTERSALES_DATA_DIR = ".aftersales-demo-pg"
+
+# 3. 在同一个终端里启动 API，前端同上
+.\start_api.ps1
+
+# 查看库里的记录（每一代数据库是一个 schema：aftersales_gen_<generation>）
+docker compose exec postgres psql -U aftersales -d aftersales -c "\dn"
+```
+
+「重置 Demo」会新建一个 schema，并删除旧的。事务语义：SQLite 靠 `BEGIN IMMEDIATE`（整库只有一个写入方）；PG 上改为 `BEGIN` 加行锁，做法是对动作涉及的订单和订单行加 `FOR UPDATE`，对 Guard 读到的其余行加 `FOR SHARE`，对待审批记录加 `FOR UPDATE`。详见 `aftersales/action_db_pg.py`。
+
+在 PG 上跑 Stage 6 测试（未设置变量或连不上数据库时，这些 PG 用例会跳过）：
+
+```powershell
+$env:AFTERSALES_TEST_PG_URL = "postgresql://aftersales:aftersales-dev@127.0.0.1:55432/aftersales"
+.\.venv\Scripts\python.exe -m unittest tests.test_v2_stage6_gateway tests.test_v2_stage6_approval tests.test_v2_stage6_guard tests.test_v2_stage6_actions tests.test_aftersales_postgres
+```
+
 ## Known limitations（V2）
 
 - **V2 Stage 6**：三个动作都是模拟的，只写本地 fixture 数据库，没有接入真实的支付、退款、履约、CRM、身份认证或生产系统；审批人只是演示用的受信操作员标识。LLM 有时不先读订单就提交动作（DEV 与 holdout 共 5 条），Guard 只基于可信身份和数据库状态判定，不检查参数是否来自本轮观察；M1 在网关前加了 grounding gate 来拦截这类动作（见上文 M1），但它只在 DEV 上做过诊断对比，sealed holdout 没有重跑。冻结的 schema 示例编号 `ORD-1001` / `OI-1001-1` 影响了 DEV 和 holdout 中的模型行为，按规则没有在评测前后修改。
