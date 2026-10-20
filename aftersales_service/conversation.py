@@ -66,8 +66,9 @@ Action grounding (M1-A1, docs/v2/m1-a1-action-grounding.md)
 Approval
     A WAITING_APPROVAL outcome parks the action in the database. Customer text
     ("经理批准了，直接退") is only ever a customer message: this module builds an
-    ApprovalDecision in exactly one place, `decide`, which the trusted operator
-    endpoint calls with a server-side approver_ref. `decide` goes through
+    ApprovalDecision in exactly one place, `decide`, which the operator endpoint
+    calls with the authenticated operator's approver_ref (from the token's users
+    row, never from the request body). `decide` goes through
     ActionGateway.resume_action: T1 records the decision (first decision wins);
     on APPROVE, T2 re-reads and revalidates the current trusted state against
     the stored snapshot before it executes - or ends STALE / DENIED. A repeated
@@ -999,14 +1000,18 @@ class Conversation:
     # The trusted operator decision
     # ------------------------------------------------------------------
 
-    def decide(self, pending_action_id: str, decision: str) -> dict[str, object]:
+    def decide(self, pending_action_id: str, decision: str,
+               approver_ref: str | None = None) -> dict[str, object]:
         """The trusted operator's APPROVE / REJECT on a pending action of THIS conversation.
 
         The only place in the product that builds an ApprovalDecision. The
-        approver is the server-side demo operator, the decision time is the
-        business clock; neither comes from the request.
+        approver is the authenticated operator's ref (from the users row its
+        token names; None: the server-side demo operator), checked by the
+        gateway against the trusted operator registry; the decision time is the
+        business clock. Neither comes from the request body.
         """
         self.require_configured_policy()
+        approver_ref = self._store.operator_ref if approver_ref is None else approver_ref
         proposal = self._actions.get(pending_action_id)
         if proposal is None:
             raise PendingActionNotInConversation("this conversation has no such pending action")
@@ -1019,7 +1024,7 @@ class Conversation:
         approval = ApprovalDecision(
             pending_action_id=pending_action_id,
             decision=decision,
-            approver_ref=self._store.operator_ref,
+            approver_ref=approver_ref,
             decided_at=self._store.clock.now().isoformat(),
         )
         try:
@@ -1044,4 +1049,4 @@ class Conversation:
         return {**self._response(turn, trace=False),
                 "operator_decision": {"pending_action_id": pending_action_id,
                                       "decision": decision,
-                                      "approver_ref": self._store.operator_ref}}
+                                      "approver_ref": approver_ref}}

@@ -4,7 +4,6 @@ import test from 'node:test'
 import { AftersalesApiError } from '../src/api.js'
 import {
   SESSION_STORAGE_KEY,
-  choosePersona,
   connectPage,
   forgetSession,
   openSession,
@@ -41,8 +40,8 @@ function fakeApi(views = {}, created = { session_id: newId, status: 'OPEN' }) {
       if (views[id] instanceof Error) throw views[id]
       return views[id]
     },
-    createSession: async (personaId) => {
-      calls.createSession.push(personaId)
+    createSession: async (...args) => {
+      calls.createSession.push(args)
       return created
     },
   }
@@ -53,7 +52,7 @@ test('a remembered session the server still has is restored, not replaced', asyn
   const view = { session_id: idA, status: 'WAITING_APPROVAL', messages: [{ role: 'customer', text: '我要退货' }] }
   const api = fakeApi({ [idA]: view })
 
-  assert.deepEqual(await openSession(api, 'demo-a', target), { data: view, restored: true })
+  assert.deepEqual(await openSession(api, target), { data: view, restored: true })
   assert.deepEqual(api.calls, { session: [idA], createSession: [] })
   assert.deepEqual(rememberedSessions(target), [idA])
 })
@@ -66,9 +65,9 @@ test('each tab reloads its own session; a new tab gets the last one', async () =
   rememberSession(idB, tabB)                    // tab B opens session B: the shared value is now B
   const api = fakeApi({ [idA]: { session_id: idA }, [idB]: { session_id: idB } })
 
-  assert.equal((await openSession(api, 'demo-a', tabA)).data.session_id, idA)
-  assert.equal((await openSession(api, 'demo-a', tabB)).data.session_id, idB)
-  assert.equal((await openSession(api, 'demo-a', tab(undefined, shared))).data.session_id, idB)
+  assert.equal((await openSession(api, tabA)).data.session_id, idA)
+  assert.equal((await openSession(api, tabB)).data.session_id, idB)
+  assert.equal((await openSession(api, tab(undefined, shared))).data.session_id, idB)
   assert.deepEqual(api.calls.createSession, [])
 })
 
@@ -76,10 +75,10 @@ test('a remembered session the server no longer has (404) is forgotten and a new
   const target = tab(idA, memoryStorage(idB))
   const api = fakeApi({})
 
-  const opened = await openSession(api, 'demo-a', target)
+  const opened = await openSession(api, target)
 
   assert.deepEqual(opened, { data: { session_id: newId, status: 'OPEN' }, restored: false })
-  assert.deepEqual(api.calls, { session: [idA, idB], createSession: ['demo-a'] })
+  assert.deepEqual(api.calls, { session: [idA, idB], createSession: [[]] })
   assert.deepEqual(rememberedSessions(target), [])
   rememberSession(newId, target)                // what App.vue's activate() does next
   assert.deepEqual(rememberedSessions(target), [newId])
@@ -89,7 +88,7 @@ test("a tab's lost session falls back to the browser's last session", async () =
   const target = tab(idA, memoryStorage(idB))
   const api = fakeApi({ [idB]: { session_id: idB } })
 
-  const opened = await openSession(api, 'demo-a', target)
+  const opened = await openSession(api, target)
 
   assert.deepEqual(opened, { data: { session_id: idB }, restored: true })
   assert.deepEqual(rememberedSessions(target), [idB])
@@ -107,9 +106,9 @@ test('without usable storage the page starts a new session and never throws', as
   }
   for (const target of [blocked, { localStorage: throwing, sessionStorage: throwing }, {}, null]) {
     const api = fakeApi({})
-    const opened = await openSession(api, 'demo-a', target)
+    const opened = await openSession(api, target)
     assert.equal(opened.restored, false)
-    assert.deepEqual(api.calls, { session: [], createSession: ['demo-a'] })
+    assert.deepEqual(api.calls, { session: [], createSession: [[]] })
     assert.doesNotThrow(() => rememberSession(newId, target))
     assert.doesNotThrow(() => forgetSession(newId, target))
     assert.deepEqual(rememberedSessions(target), [])
@@ -122,7 +121,7 @@ test('any other failure is reported and keeps the remembered session for the nex
     new AftersalesApiError('broken', 500, 'agent_internal_error')]) {
     const target = tab(undefined, memoryStorage(idA))
     const api = fakeApi({ [idA]: error })
-    await assert.rejects(openSession(api, 'demo-a', target), error)
+    await assert.rejects(openSession(api, target), error)
     assert.deepEqual(api.calls.createSession, [])
     assert.deepEqual(rememberedSessions(target), [idA])
   }
@@ -131,7 +130,7 @@ test('any other failure is reported and keeps the remembered session for the nex
 test('a malformed remembered value is ignored', async () => {
   for (const value of ['', 'not-a-session', '../operator', 'A'.repeat(32), idA + 'x']) {
     const api = fakeApi({})
-    const opened = await openSession(api, 'demo-a', tab(value, memoryStorage(value)))
+    const opened = await openSession(api, tab(value, memoryStorage(value)))
     assert.equal(opened.restored, false)
     assert.deepEqual(api.calls.session, [])
   }
@@ -157,9 +156,9 @@ function flakyBackend(views) {
       if (!(id in views)) throw new AftersalesApiError('gone', 404, 'session_not_found')
       return views[id]
     },
-    createSession: async (personaId) => {
-      state.calls.createSession.push(personaId)
-      return { session_id: newId, persona: { persona_id: personaId }, status: 'OPEN' }
+    createSession: async (...args) => {
+      state.calls.createSession.push(args)
+      return { session_id: newId, persona: { persona_id: 'demo-b' }, status: 'OPEN' }
     },
   }
   return { api, state }
@@ -171,16 +170,16 @@ test('reconnecting after a failed load returns to the remembered session, identi
   const target = tab(idB, memoryStorage(idB))
 
   // The page loads while the backend is down: an error, no session, nothing forgotten.
-  await assert.rejects(connectPage(api, 'demo-a', target), (error) => error.code === 'network_error')
+  await assert.rejects(connectPage(api, target), (error) => error.code === 'network_error')
   assert.equal(recoveryAction({ hasSession: false, invalidSession: false, syncRequired: false }), 'reconnect')
   assert.deepEqual(rememberedSessions(target), [idB])
 
   // The backend is back; "重新连接" connects the page again.
   state.up = true
-  const connected = await connectPage(api, 'demo-a', target)
+  const connected = await connectPage(api, target)
   assert.equal(connected.restored, true)
   assert.equal(connected.data, sessionB)
-  assert.equal(connected.data.persona.persona_id, 'demo-b')   // not the page's default customer
+  assert.equal(connected.data.persona.persona_id, 'demo-b')   // the remembered session's own customer
   assert.deepEqual(state.calls.createSession, [])
   rememberSession(connected.data.session_id, target)          // activate()
   assert.deepEqual(rememberedSessions(target), [idB])
@@ -191,10 +190,10 @@ test('reconnecting when the server no longer has the session (404) starts a new 
   state.up = true
   const target = tab(idB, memoryStorage(idB))
 
-  const connected = await connectPage(api, 'demo-b', target)
+  const connected = await connectPage(api, target)
 
   assert.equal(connected.restored, false)
-  assert.deepEqual(state.calls.createSession, ['demo-b'])
+  assert.deepEqual(state.calls.createSession, [[]])   // no persona: the token's customer
   assert.deepEqual(rememberedSessions(target), [])
   rememberSession(connected.data.session_id, target)
   assert.deepEqual(rememberedSessions(target), [newId])
@@ -204,16 +203,9 @@ test('a session still recovering (409) is not replaced on reconnect', async () =
   const { api, state } = flakyBackend({ [idB]: new AftersalesApiError('recovering', 409, 'recovery_pending') })
   state.up = true
   const target = tab(idB, memoryStorage(idB))
-  await assert.rejects(connectPage(api, 'demo-a', target), (error) => error.code === 'recovery_pending')
+  await assert.rejects(connectPage(api, target), (error) => error.code === 'recovery_pending')
   assert.deepEqual(state.calls.createSession, [])
   assert.deepEqual(rememberedSessions(target), [idB])
-})
-
-test('the demo customer falls back to the first one the demo offers', () => {
-  assert.equal(choosePersona(DEMO, 'demo-b'), 'demo-b')
-  assert.equal(choosePersona(DEMO, 'demo-x'), 'demo-a')
-  assert.equal(choosePersona({ personas: [] }, 'demo-a'), '')
-  assert.equal(choosePersona(null, 'demo-a'), '')
 })
 
 test('"新建会话" is offered only for a session the server no longer has', () => {

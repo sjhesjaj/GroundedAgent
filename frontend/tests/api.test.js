@@ -16,7 +16,7 @@ const untrustedExtras = {
 const requests = [
   ['demo', () => aftersalesApi.demo(untrustedExtras), 'GET', '/demo'],
   ['resetDemo', () => aftersalesApi.resetDemo(untrustedExtras), 'POST', '/demo/reset'],
-  ['createSession', () => aftersalesApi.createSession('demo-a', untrustedExtras), 'POST', '/sessions', { persona_id: 'demo-a' }],
+  ['createSession', () => aftersalesApi.createSession(untrustedExtras), 'POST', '/sessions'],
   ['session', () => aftersalesApi.session(sessionId, untrustedExtras), 'GET', `/sessions/${sessionId}`],
   ['sendMessage', () => aftersalesApi.sendMessage(sessionId, '我要退货', untrustedExtras), 'POST', `/sessions/${sessionId}/messages`, { text: '我要退货' }],
   ['approve', () => aftersalesApi.decide(sessionId, pendingId, 'APPROVE', untrustedExtras), 'POST', `/operator/sessions/${sessionId}/decision`, { pending_action_id: pendingId, decision: 'APPROVE' }],
@@ -30,7 +30,7 @@ for (const [name, call, method, path, body] of requests) {
       assert.equal(url, `/api/aftersales${path}`)
       assert.equal((options.method || 'GET').toUpperCase(), method)
       if (body === undefined) {
-        assert.equal(options.body, undefined, 'GET and reset must not send a request body')
+        assert.equal(options.body, undefined, 'GET, reset and session creation send no request body')
       } else {
         assert.equal(new Headers(options.headers).get('content-type'), 'application/json')
         assert.deepEqual(JSON.parse(options.body), body, 'trusted identity and approval flags must never enter request bodies')

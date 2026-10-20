@@ -21,8 +21,8 @@ GroundedAgent 是一个**电商售后客服 Agent**：能查订单和物流、�
 > **这是一个本地工程演示，不是生产系统。**
 > - 订单与售后数据来自本地 fixture 数据库（SQLite）；会话和业务状态保存在本地数据目录，进程重启后保留，「重置 Demo」从同一份种子数据新建一代（generation）；
 > - 没有接入任何真实的支付、退款、履约或 CRM 系统；
-> - 演示客户（persona）只是已登录顾客的替身，**不是身份认证**；
-> - 审批操作员 `op-demo-1` 是服务端的演示常量，**不是真实的 RBAC**；
+> - 有最小可用的 JWT 登录（顾客 / 操作员两个角色，账号是本地演示账号），没有刷新令牌、注销黑名单、注册和限流，**不是生产级身份认证**；
+> - 审批操作员 `op-demo-1` 是演示账号映射到的受信操作员标识，**不是真实的 RBAC**；
 > - 不声称可以用于生产部署。
 
 ## What it can do
@@ -198,19 +198,30 @@ copy .env.example .env   # 设置 LLM_PROVIDER=deepseek，并在 .env 中填入 
 ollama pull bge-m3
 
 # 4. 启动 API（http://127.0.0.1:8000），默认策略 m3
+$env:JWT_SECRET = "<至少 32 字节的随机字符串>"   # 不设置时使用开发默认密钥，启动日志会打警告
 .\start_api.ps1
 
-# 5. 启动前端（http://127.0.0.1:5173，/api 代理到 8000）
+# 5. 启动前端（http://127.0.0.1:5173，/api 和 /auth 代理到 8000）
 cd frontend
 pnpm install --frozen-lockfile   # 没有全局 pnpm 时可以用 corepack pnpm
 pnpm dev
 ```
 
-页面默认使用演示客户 `demo-a`。可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`，在动作卡片上点「批准」或「拒绝」，就能走完审批、恢复和执行。左侧的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
+打开页面先登录。演示账号（仅限本地演示，首次启动时写入 `users` 表，密码用 bcrypt 存储）：
+
+| 用户名 | 密码 | 角色 | 对应演示数据 |
+|---|---|---|---|
+| `customer-a` | `demo-a-2026` | 顾客 | `demo-a` / `CUST-001`（订单 ORD-1001 ~ ORD-1004） |
+| `customer-b` | `demo-b-2026` | 顾客 | `demo-b` / `CUST-002`（订单 ORD-2001、ORD-2002） |
+| `operator` | `operator-2026` | 操作员 | 审批人 `op-demo-1` |
+
+**鉴权**：`POST /auth/login` 返回 2 小时有效的 HS256 access token（载荷 `sub` = 用户 id、`role`），前端存在 localStorage，每个请求带 `Authorization: Bearer`；`/api/aftersales/*` 全部要求登录，顾客接口只给顾客、审批 / 重置等操作员接口只给操作员（无效或过期 401，角色不对 403）。顾客身份只从 token 取：会话绑定到 token 对应的顾客，别的顾客的会话一律按「不存在」处理（404）。密钥读环境变量 `JWT_SECRET`；用户表默认在数据目录下的 `users.sqlite3`（可用 `AFTERSALES_USERS_DB` 改位置），「重置 Demo」不影响账号。
+
+用顾客账号登录后，可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`；退出后用 `operator` 登录进入审批台，在会话列表里选中这个会话，点「批准」或「拒绝」，就能走完审批、恢复和执行；顾客端点「刷新状态」可看到结果。审批台的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service   # M0 产品 / API 测试（30 项，离线）
-cd frontend; node --test tests/api.test.js                               # 前端 API 测试（20 项）
+.\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service tests.test_aftersales_auth   # 产品 / API / 鉴权测试（离线）
+cd frontend; node --test tests/api.test.js tests/auth.test.js            # 前端 API 与 token 测试
 ```
 
 真实 DeepSeek 测试默认跳过；配置好 `.env` 后，在项目根目录执行 `$env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m unittest tests.test_llm_provider_live -v` 可开启。
@@ -250,6 +261,7 @@ $env:AFTERSALES_TEST_PG_URL = "postgresql://aftersales:aftersales-dev@127.0.0.1:
 - **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
 - **存储与恢复（M2）**：只覆盖单进程的异常退出，断电、操作系统崩溃、磁盘损坏和多进程 / 多实例都不在承诺范围内。`checkpoints.db` 增长很快：每个 checkpoint 都保存完整状态，实测一个 40 条消息的会话约 161 MB（281 个 checkpoint），M2 没有压缩。前端把会话 ID 存在浏览器里（每个标签页一份，新标签页用最近的会话）；浏览器禁止存储时，刷新页面会新建会话，旧会话仍在服务端，可以通过 API 读取。
 - **文案**：`stage6` 策略下冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"；`m3` 使用新的固定话术。
+- **鉴权（最小可用版）**：只有 access token，没有 refresh token、服务端注销 / 黑名单、注册、登录限流和密码找回；「退出」只清掉浏览器里的 token，token 在 2 小时内仍然有效。`GET /api/aftersales/demo` 返回的 `notice` 文案仍是登录前的「Demo boundary, not authentication」（保留是为了让 M2 golden 回放逐字节不变）。V1 知识问答接口（`/api/chat`、`/api/chat/stream`、`/api/knowledge/*` 等）不在这次鉴权范围内，仍然无需登录。
 - **M3 知识库**：文档是演示口径（自拟），不是真实店铺规则；模型在政策工具能回答时很少再查知识库，答复常漏附带条件；仍会出现不先读订单就提交动作的情况（由 grounding gate 拦下）。KB-HOLDOUT 已经用掉，之后的调整需要新的封存集。
 
 ## Repo structure

@@ -74,7 +74,7 @@ class PersistentTestCase(ProductTestCase):
         self.addCleanup(self.service.close)
         self.app = FastAPI()
         self.app.include_router(create_router(self.service))
-        self.client = TestClient(self.app)
+        self.client = self.tokens.client(self.app)
 
     def generation(self) -> str:
         return json.loads((self.data_dir / "generation.json").read_text(encoding="utf-8"))["generation"]
@@ -611,8 +611,8 @@ class HeadInvariantTests(unittest.TestCase):
             checked.append(session_id)
 
         @contextmanager
-        def checked_locked(service, session_id):
-            with locked(service, session_id) as conversation:
+        def checked_locked(service, session_id, *owner):
+            with locked(service, session_id, *owner) as conversation:
                 try:
                     yield conversation
                 finally:

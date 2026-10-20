@@ -31,6 +31,7 @@ from rag import (
 from storage import SQLiteStorage
 from wiki_maintenance import derive_document_id
 from aftersales_service.routes import router as aftersales_router
+from auth import router as auth_router
 
 
 app = FastAPI(title="GroundedAgent After-Sales API", version="2.0.0")
@@ -41,7 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# GroundedAgent V2 M0: the after-sales product runtime (/api/aftersales/*).
+# GroundedAgent V2 M0: the after-sales product runtime (/api/aftersales/*),
+# behind JWT login (/auth/login; JWT_SECRET, see auth.py).
+app.include_router(auth_router)
 app.include_router(aftersales_router)
 
 storage = SQLiteStorage()

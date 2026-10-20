@@ -5,6 +5,8 @@ const props = defineProps({
   action: { type: Object, required: true },
   disabled: { type: Boolean, default: false },
   deciding: { type: Boolean, default: false },
+  // Operators decide; a customer sees the pending approval without the controls.
+  canDecide: { type: Boolean, default: true },
 })
 
 defineEmits(['decide'])
@@ -89,10 +91,11 @@ function formatValue(value) {
         <span class="approval-mark" aria-hidden="true">!</span>
         <div>
           <h4>人工审批</h4>
-          <p>请核对上方操作与参数。批准后，服务端将重新校验再决定是否执行。</p>
+          <p v-if="canDecide">请核对上方操作与参数。批准后，服务端将重新校验再决定是否执行。</p>
+          <p v-else>该操作需要售后操作员审批，审批结果会出现在本会话中（可点「刷新状态」查看）。</p>
         </div>
       </div>
-      <div class="approval-controls" :aria-busy="deciding">
+      <div v-if="canDecide" class="approval-controls" :aria-busy="deciding">
         <button type="button" class="approve-button" :disabled="disabled || deciding" @click="$emit('decide', 'APPROVE')">
           批准
         </button>
