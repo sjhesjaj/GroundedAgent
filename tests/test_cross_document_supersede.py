@@ -126,7 +126,7 @@ class SupersedeFixture(unittest.TestCase):
             api.chunks.clear()
             api.conversation_locks.clear()
             api.document_upload_versions.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
 
         self.embedded: list[list[str]] = []
 

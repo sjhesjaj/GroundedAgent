@@ -20,7 +20,6 @@ from unittest import mock
 
 import requests
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from aftersales.action_gateway import ActionGateway
 from aftersales.action_outcome import COMPLETION_CLAIM_MARKERS
@@ -29,6 +28,7 @@ from aftersales_service.service import AftersalesService
 from aftersales_service import decision_policy
 from llm_provider import LLMResponse
 from llm_provider import ToolCall as NativeCall
+from tests.auth_support import TokenFixture
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = REPO_ROOT / "aftersales_service"
@@ -115,9 +115,11 @@ class ProductTestCase(unittest.TestCase):
         self.data_dir = temporary_data_dir(self)
         self.service = AftersalesService(lambda: self.provider, data_dir=self.data_dir)
         self.addCleanup(self.service.close)
+        # Real tokens, minted directly: the client acts as each route's legitimate caller.
+        self.tokens = TokenFixture.for_test(self)
         app = FastAPI()
         app.include_router(create_router(self.service))
-        self.client = TestClient(app)
+        self.client = self.tokens.client(app)
         self.responses: list[dict] = []
 
     # -- HTTP --------------------------------------------------------------
@@ -686,7 +688,7 @@ class RuntimeLifecycleTests(ProductTestCase):
         self.addCleanup(service.close)
         app = FastAPI()
         app.include_router(create_router(service))
-        client = TestClient(app)
+        client = self.tokens.client(app)
         session_id = client.post("/api/aftersales/sessions", json={"persona_id": "demo-a"}).json()["session_id"]
         # M3 pure greetings are intentionally handled before provider creation.
         # Keep this outage scenario about a message that requires the provider.

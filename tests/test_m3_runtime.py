@@ -8,7 +8,6 @@ from unittest import mock
 
 import requests
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from aftersales.action_gateway import ActionGateway
 from aftersales_service import agent_core as core
@@ -42,7 +41,7 @@ class M3RuntimeTests(ProductTestCase):
         self.addCleanup(self.service.close)
         app = FastAPI()
         app.include_router(create_router(self.service))
-        self.client = TestClient(app)
+        self.client = self.tokens.client(app)
 
     def test_all_smalltalk_templates_precede_provider_creation_and_start_no_run(self):
         session = self.session()

@@ -42,7 +42,7 @@ class OrchestratedChatTests(unittest.TestCase):
             api.chunks.clear()
             api.chunks.append(LEAVE_CHUNK)
             api.conversation_locks.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
         # These V1 transport/provenance checks explicitly own their old sample;
         # production fallback now uses after-sales pages. Assertions unchanged.
         patch.object(chat_orchestration, "WIKI_PAGES", chat_orchestration.load_wiki_pages()).start()

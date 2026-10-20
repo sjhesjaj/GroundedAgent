@@ -13,12 +13,14 @@
         the first request that names it. The session id is server-generated
         and unguessable; it is the only handle a browser holds.
 
-The browser chooses a persona id from the server-side list - a demo stand-in
-for a login, not authentication - and never supplies a customer id, an
-approver, a role or an approval. Whoever holds a session id may act as that
-session's persona and, through the operator endpoint, as the demo operator
-op-demo-1 for that session's pending actions: a demo boundary, to be replaced
-by real authentication before any non-local deployment.
+Identity comes from the bearer token (auth.py), checked by routes.py: a
+customer account names its server-side persona, so a session is created for
+the caller's own persona and only that persona may read or continue it (a
+session of another persona answers session_not_found, exactly like an unknown
+one). Operators decide on any session's pending actions, as the approver ref
+their account names. The browser never supplies a customer id, an approver,
+a role or an approval. The methods below take the caller's identity as keyword
+arguments; omitting it is the trusted in-process caller (tests, recovery).
 
 Concurrency: a single process. One lock per conversation serializes its turns,
 decisions, recovery and session-file writes; a registry lock guards the
@@ -237,12 +239,16 @@ class AftersalesService:
         return conversation
 
     @contextmanager
-    def _locked(self, session_id: str) -> Iterator[Conversation]:
+    def _locked(self, session_id: str, persona_id: str | None = None) -> Iterator[Conversation]:
+        """The session, locked and loaded; with `persona_id`, only if it is that persona's."""
         if not isinstance(session_id, str) or not HEX_ID.fullmatch(session_id):
             raise SessionNotFound("no such session")
         with self._lock:
             conversation = self._cached(session_id)
         if conversation is None:
+            raise SessionNotFound("no such session")
+        if persona_id is not None and conversation.persona.persona_id != persona_id:
+            # Another customer's session: not found, so its existence is not revealed.
             raise SessionNotFound("no such session")
         with conversation.lock:
             if conversation.closed:
@@ -251,12 +257,31 @@ class AftersalesService:
             conversation.ensure_loaded()
             yield conversation
 
-    def session_view(self, session_id: str) -> dict[str, object]:
-        with self._locked(session_id) as conversation:
+    def session_view(self, session_id: str, *, persona_id: str | None = None) -> dict[str, object]:
+        with self._locked(session_id, persona_id) as conversation:
             return conversation.view()
 
-    def submit(self, session_id: str, text: str) -> dict[str, object]:
-        with self._locked(session_id) as conversation:
+    def operator_sessions(self) -> list[dict[str, object]]:
+        """Every session of the active generation, summarized for the operator's list."""
+        with self._lock:
+            session_ids = self._require_runtime().sessions.session_ids()
+        summaries = []
+        for session_id in session_ids:
+            try:
+                with self._locked(session_id) as conversation:
+                    view = conversation.view()
+            except ConversationError as error:
+                summaries.append({"session_id": session_id, "error": error.code})
+                continue
+            waiting = [action["pending_action_id"] for action in view["pending_actions"]
+                       if action["status"] == "WAITING_APPROVAL"]
+            summaries.append({"session_id": session_id, "persona": view["persona"],
+                              "status": view["status"], "waiting_approval": waiting,
+                              "message_count": len(view["messages"])})
+        return summaries
+
+    def submit(self, session_id: str, text: str, *, persona_id: str | None = None) -> dict[str, object]:
+        with self._locked(session_id, persona_id) as conversation:
             filtered = conversation.submit_smalltalk(text)
             if filtered is not None:
                 return filtered
@@ -272,11 +297,15 @@ class AftersalesService:
                                exc_info=error.__cause__)
                 raise
 
-    def decide(self, session_id: str, pending_action_id: str, decision: str) -> dict[str, object]:
-        """The trusted operator decision, for a pending action of this session only."""
+    def decide(self, session_id: str, pending_action_id: str, decision: str, *,
+               approver_ref: str | None = None) -> dict[str, object]:
+        """The trusted operator decision, for a pending action of this session only.
+
+        `approver_ref`: the authenticated operator's; None is the demo operator.
+        """
         with self._locked(session_id) as conversation:
             try:
-                return conversation.decide(pending_action_id, decision)
+                return conversation.decide(pending_action_id, decision, approver_ref)
             except UnknownPendingAction:
                 raise PendingActionNotInConversation("no such pending action") from None
             except ApprovalInputError:

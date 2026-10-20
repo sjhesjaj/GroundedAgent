@@ -142,3 +142,23 @@ button:hover:not(:disabled) { filter: brightness(1.1); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+/* Login and the operator desk (JWT auth). */
+.login-shell { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.login-card { width: min(380px, 100%); display: flex; flex-direction: column; gap: 10px; padding: 28px 24px; }
+.login-card .brand { padding-bottom: 8px; }
+.login-card h1 { margin: 0; font-size: 22px; letter-spacing: -.4px; }
+.login-card .helper { margin: 0 0 6px; }
+.login-card label { color: #8da195; font-size: 12px; margin-top: 4px; }
+.login-card input { min-height: 42px; padding: 9px 12px; border-radius: 9px; border: 1px solid #ffffff1a; background: #13211a; color: #e4eee9; font: inherit; }
+.login-card input:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+.login-card button { margin-top: 12px; }
+.login-error { margin: 0; padding: 9px 12px; border-radius: 9px; border: 1px solid #efa99540; background: #efa99512; color: #f2c3b5; font-size: 12px; }
+.account-name { display: block; font-size: 14px; }
+.persona-panel .logout { width: 100%; margin-top: 14px; }
+.session-list { display: flex; flex-direction: column; gap: 8px; }
+.session-list .section-title { margin-bottom: 6px; }
+.session-item { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); background: transparent; text-align: left; }
+.session-item small { color: var(--muted); font-size: 11px; }
+.session-item.waiting { border-color: #e8c28155; }
+.session-item.waiting small { color: #e8c281; }
+.session-item.active { border-color: var(--mint); background: #7ee2b80d; }

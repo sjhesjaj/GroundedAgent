@@ -68,7 +68,7 @@ test('a remembered policy mismatch does not create or migrate a session automati
   let creates = 0
   const api = { session: async () => { throw new AftersalesApiError('请新建会话', 409, 'policy_version_mismatch') },
     createSession: async () => { creates += 1 } }
-  await assert.rejects(openSession(api, 'demo-a', target), (error) => error.code === 'policy_version_mismatch')
+  await assert.rejects(openSession(api, target), (error) => error.code === 'policy_version_mismatch')
   assert.equal(creates, 0)
   assert.deepEqual(rememberedSessions(target), [sessionId])
 })

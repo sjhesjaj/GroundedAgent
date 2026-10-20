@@ -93,7 +93,7 @@ class ApiStreamTests(unittest.TestCase):
                 Chunk(text="## Test section\nPolicy content", source="rules.md", index=1)
             )
             api.conversation_locks.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
 
     def tearDown(self):
         with api.state_lock:

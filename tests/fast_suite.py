@@ -13,6 +13,8 @@ equivalence, and the synthetic unseal sandboxes of the seal tests.
 FAST_TESTS = (
     # M0 product runtime and routes, M1 grounding gate, M2 state codec / graph.
     "tests.test_aftersales_service",
+    # JWT login, roles and identity from the token (auth.py, routes.py).
+    "tests.test_aftersales_auth",
     "tests.test_aftersales_grounding",
     "tests.test_aftersales_state_codec",
     "tests.test_aftersales_graph",

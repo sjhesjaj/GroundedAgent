@@ -1,20 +1,24 @@
 <script setup>
+// The customer view. Who the customer is comes from the login token (the
+// server binds every new session to the token's customer); this page never
+// names a customer and has no approval controls - operators decide.
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { aftersalesApi } from './api'
-import { choosePersona, connectPage, recoveryAction, rememberSession } from './sessionMemory'
+import { connectPage, recoveryAction, rememberSession } from './sessionMemory'
 import ActionCard from './components/ActionCard.vue'
 import AgentDetails from './components/AgentDetails.vue'
 import AuditTimeline from './components/AuditTimeline.vue'
 
+defineProps({ user: { type: Object, required: true } })
+defineEmits(['logout'])
+
 const demo = ref(null)
-const selectedPersonaId = ref('')
 const session = ref(null)
 const messages = ref([])
 const actions = ref({})
 const audit = ref([])
 const question = ref('')
 const busy = ref('startup')
-const decidingId = ref('')
 const notice = ref('')
 const invalidSession = ref(false)
 const policyVersionMismatch = ref(false)
@@ -52,7 +56,6 @@ function updateHeader(data) {
     session_id: data.session_id, persona: data.persona, business_time: data.business_time,
     status: data.status, pending_action_id: data.pending_action_id,
   }
-  selectedPersonaId.value = data.persona.persona_id
 }
 
 // GET /sessions owns the transcript; rich metadata survives only when the
@@ -113,19 +116,13 @@ function showError(error) {
   }
 }
 
-async function loadDemo() {
-  demo.value = await aftersalesApi.demo()
-  selectedPersonaId.value = choosePersona(demo.value, selectedPersonaId.value)
-  if (!selectedPersonaId.value) throw new Error('Demo 暂无可用客户，请检查后端服务。')
-}
-
 // Page start-up and "重新连接": back to the remembered session while the
 // server has it; a new session only when it is gone (404).
 async function connect() {
   busy.value = 'startup'
   notice.value = ''
   try {
-    const { demo: loaded, data } = await connectPage(aftersalesApi, selectedPersonaId.value)
+    const { demo: loaded, data } = await connectPage(aftersalesApi)
     demo.value = loaded
     activate(data)
   } catch (error) {
@@ -135,50 +132,14 @@ async function connect() {
   }
 }
 
-async function newSession(personaId = selectedPersonaId.value) {
+async function newSession() {
   if (locked.value) return
   busy.value = 'session'
   notice.value = ''
   try {
-    if (!demo.value || !personaId) {
-      await loadDemo()
-      personaId = selectedPersonaId.value
-    }
-    activate(await aftersalesApi.createSession(personaId))
+    activate(await aftersalesApi.createSession())
   } catch (error) {
     showError(error)
-  } finally {
-    busy.value = ''
-  }
-}
-
-async function changePersona(event) {
-  const personaId = event.target.value
-  // Keep the bound selection until the new session actually succeeds.
-  event.target.value = selectedPersonaId.value
-  await newSession(personaId)
-}
-
-async function resetDemo() {
-  if (locked.value) return
-  busy.value = 'reset'
-  notice.value = ''
-  try {
-    await aftersalesApi.resetDemo()
-    // Reset has invalidated the old session even if the following read fails.
-    session.value = null
-    messages.value = []
-    actions.value = {}
-    audit.value = []
-    question.value = ''
-    syncRequired.value = false
-    invalidSession.value = false
-    policyVersionMismatch.value = false
-    await loadDemo()
-    activate(await aftersalesApi.createSession(selectedPersonaId.value))
-  } catch (error) {
-    showError(error)
-    if (session.value) await recoverSession()
   } finally {
     busy.value = ''
   }
@@ -226,27 +187,6 @@ async function send() {
   }
 }
 
-async function decide(action, decision) {
-  if (!canInteract.value || action.status !== 'WAITING_APPROVAL' || !action.pending_action_id) return
-  busy.value = 'decision'
-  decidingId.value = action.pending_action_id
-  notice.value = ''
-  try {
-    const result = await aftersalesApi.decide(session.value.session_id, action.pending_action_id, decision)
-    applyResponse(result)
-    // A failed approval transaction can leave the persisted action pending.
-    // Keep the failure reply, then restore the current outcome before retrying.
-    if (result.action?.status === 'FAILED' || result.action?.decision_conflict) await recoverSession()
-  } catch (error) {
-    showError(error)
-    if (error.code !== 'session_not_found' && error.code !== 'policy_version_mismatch') await recoverSession()
-  } finally {
-    busy.value = ''
-    decidingId.value = ''
-    await scrollToEnd()
-  }
-}
-
 async function chooseSuggestion(text) {
   if (!canInteract.value) return
   question.value = text
@@ -273,14 +213,12 @@ onMounted(connect)
       </div>
       <div class="sidebar-label">DEMO WORKSPACE <span>M0</span></div>
       <section class="panel persona-panel">
-        <label class="section-title" for="persona">演示客户 <span>Demo customer</span></label>
+        <h2 class="section-title">当前顾客 <span>Signed in</span></h2>
         <div class="customer-icon" aria-hidden="true">客</div>
-        <select id="persona" :value="selectedPersonaId" :disabled="locked || !demo?.personas.length" @change="changePersona">
-          <option v-if="!demo?.personas.length" value="">正在加载客户…</option>
-          <option v-for="persona in demo?.personas" :key="persona.persona_id" :value="persona.persona_id">{{ persona.display_name }} · {{ persona.persona_id }}</option>
-        </select>
-        <small class="persona-reference">{{ selectedPersonaId }}</small>
-        <p class="helper">Persona 是演示客户的替身，不代表身份认证。切换客户会新建会话。</p>
+        <strong class="account-name">{{ user.display_name }}</strong>
+        <small class="persona-reference">{{ user.username }} · {{ user.persona_id }}</small>
+        <p class="helper">身份来自登录令牌。切换顾客请退出后用另一个账号登录。</p>
+        <button class="secondary logout" @click="$emit('logout')">退出登录</button>
       </section>
       <section class="panel demo-panel">
         <h2 class="section-title">演示状态 <span>Demo state</span></h2>
@@ -292,8 +230,7 @@ onMounted(connect)
       </section>
       <div class="sidebar-actions">
         <button class="primary new-session" :disabled="locked" @click="newSession()"><span aria-hidden="true">＋</span>新建会话</button>
-        <button class="secondary" :disabled="locked" @click="resetDemo"><span aria-hidden="true">↻</span>重置 Demo</button>
-        <small>重置将清空所有演示会话与模拟业务记录。</small>
+        <small>退货、换货等操作由售后操作员审批后执行。</small>
       </div>
       <div class="demo-warning"><span aria-hidden="true">◇</span><p>本地演示环境 · 非真实支付/退款/履约系统</p></div>
     </aside>
@@ -332,12 +269,12 @@ onMounted(connect)
             <div class="message-label">{{ message.role === 'customer' ? session?.persona.display_name : 'GroundedAgent' }}<span v-if="message.kind === 'operator_decision'">审批结果</span></div>
             <p class="message-text">{{ message.text }}</p>
             <AgentDetails v-if="message.role === 'assistant'" :citations="message.citations" :trace="message.trace" :action="message.traceAction" />
-            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :disabled="!canInteract" :deciding="decidingId === actions[message.actionKey].pending_action_id" @decide="decide(actions[message.actionKey], $event)" />
+            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
           </div>
         </article>
-        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :disabled="!canInteract" :deciding="decidingId === action.pending_action_id" @decide="decide(action, $event)" />
+        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
         <AuditTimeline :events="audit" />
-        <div v-if="busy" class="processing" role="status"><i></i>{{ busy === 'message' || busy === 'decision' ? '正在处理…' : busy === 'reset' ? '正在重置 Demo…' : busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</div>
+        <div v-if="busy" class="processing" role="status"><i></i>{{ busy === 'message' ? '正在处理…' : busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</div>
       </div>
       <footer class="chat-footer">
         <form class="composer" @submit.prevent="send">

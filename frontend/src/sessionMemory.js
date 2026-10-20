@@ -53,22 +53,12 @@ export function forgetSession(sessionId, target = globalThis) {
   }
 }
 
-// The demo customer to use: the preferred one if the demo still offers it,
-// else the first. The empty string when there is none.
-export function choosePersona(demo, preferredPersonaId) {
-  const personas = Array.isArray(demo?.personas) ? demo.personas : []
-  if (personas.some((persona) => persona.persona_id === preferredPersonaId)) return preferredPersonaId
-  return personas[0]?.persona_id || ''
-}
-
 // Page start-up and "重新连接": the demo, then the remembered session (or a
-// new one for the chosen customer). A failure leaves every remembered id as it
-// was, so the next attempt goes back to the same session.
-export async function connectPage(api, preferredPersonaId, target = globalThis) {
+// new one for the logged-in customer). A failure leaves every remembered id as
+// it was, so the next attempt goes back to the same session.
+export async function connectPage(api, target = globalThis) {
   const demo = await api.demo()
-  const personaId = choosePersona(demo, preferredPersonaId)
-  if (!personaId) throw new Error('Demo 暂无可用客户，请检查后端服务。')
-  return { demo, ...(await openSession(api, personaId, target)) }
+  return { demo, ...(await openSession(api, target)) }
 }
 
 // The recovery the notice bar offers. "新建会话" only when the server said the
@@ -82,10 +72,11 @@ export function recoveryAction({ hasSession, invalidSession, syncRequired }) {
 }
 
 // The session to show on page load: a remembered one while the server still
-// has it, otherwise a new one. Only "no such session" (404) falls through; any
-// other failure (network, 409 recovery_pending, 5xx) is the caller's to show,
-// and the remembered id is kept for the next load.
-export async function openSession(api, personaId, target = globalThis) {
+// has it, otherwise a new one. Only "no such session" (404) falls through - a
+// session of another customer (an earlier login in this browser) answers 404
+// too; any other failure (network, 409 recovery_pending, 5xx) is the caller's
+// to show, and the remembered id is kept for the next load.
+export async function openSession(api, target = globalThis) {
   for (const remembered of rememberedSessions(target)) {
     try {
       return { data: await api.session(remembered), restored: true }
@@ -94,5 +85,5 @@ export async function openSession(api, personaId, target = globalThis) {
       forgetSession(remembered, target)
     }
   }
-  return { data: await api.createSession(personaId), restored: false }
+  return { data: await api.createSession(), restored: false }
 }

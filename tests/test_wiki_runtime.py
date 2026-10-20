@@ -553,7 +553,7 @@ class UploadEndpointTests(RuntimeTestCase):
         self.addCleanup(lambda: setattr(api, "storage", self.original_storage))
         with api.state_lock:
             api.chunks.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
 
         # Indexing must not call Ollama for embeddings.
         self.build_index = patch.object(

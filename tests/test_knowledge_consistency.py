@@ -157,7 +157,7 @@ class ApiKnowledgeVersionTests(unittest.TestCase):
             ]
             api.knowledge_version = 100
             api.conversation_locks.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
 
     def tearDown(self):
         self.client.close()
