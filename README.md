@@ -217,11 +217,11 @@ pnpm dev
 
 **鉴权**：`POST /auth/login` 返回 2 小时有效的 HS256 access token（载荷 `sub` = 用户 id、`role`），前端存在 localStorage，每个请求带 `Authorization: Bearer`；`/api/aftersales/*` 全部要求登录，顾客接口只给顾客、审批 / 重置等操作员接口只给操作员（无效或过期 401，角色不对 403）。顾客身份只从 token 取：会话绑定到 token 对应的顾客，别的顾客的会话一律按「不存在」处理（404）。密钥读环境变量 `JWT_SECRET`；用户表默认在数据目录下的 `users.sqlite3`（可用 `AFTERSALES_USERS_DB` 改位置），「重置 Demo」不影响账号。
 
-用顾客账号登录后，可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`；退出后用 `operator` 登录进入审批台，在会话列表里选中这个会话，点「批准」或「拒绝」，就能走完审批、恢复和执行；顾客端点「刷新状态」可看到结果。审批台的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
+用顾客账号登录后，可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`；退出后用 `operator` 登录进入审批台，在会话列表里选中这个会话，点「批准」或「拒绝」，就能走完审批、恢复和执行；回到顾客端，点待审批动作卡片上的「刷新状态」就能看到执行结果（页面不会自动轮询）。审批台的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service tests.test_aftersales_auth   # 产品 / API / 鉴权测试（离线）
-cd frontend; node --test tests/api.test.js tests/auth.test.js            # 前端 API 与 token 测试
+cd frontend; node --test tests/api.test.js tests/auth.test.js tests/customerRefresh.test.js   # 前端 API、token 与「刷新状态」测试
 ```
 
 真实 DeepSeek 测试默认跳过；配置好 `.env` 后，在项目根目录执行 `$env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m unittest tests.test_llm_provider_live -v` 可开启。
@@ -261,7 +261,7 @@ $env:AFTERSALES_TEST_PG_URL = "postgresql://aftersales:aftersales-dev@127.0.0.1:
 - **幂等范围是整个会话**：同一会话里再次提出同一动作，会重放已保存的结果（包括 REJECTED）；同一件商品要重新申请，需要新建会话。
 - **存储与恢复（M2）**：只覆盖单进程的异常退出，断电、操作系统崩溃、磁盘损坏和多进程 / 多实例都不在承诺范围内。`checkpoints.db` 增长很快：每个 checkpoint 都保存完整状态，实测一个 40 条消息的会话约 161 MB（281 个 checkpoint），M2 没有压缩。前端把会话 ID 存在浏览器里（每个标签页一份，新标签页用最近的会话）；浏览器禁止存储时，刷新页面会新建会话，旧会话仍在服务端，可以通过 API 读取。
 - **文案**：`stage6` 策略下冻结的 `boundary` 固定文案仍然是"当前只读能力无法执行该操作"；`m3` 使用新的固定话术。
-- **鉴权（最小可用版）**：只有 access token，没有 refresh token、服务端注销 / 黑名单、注册、登录限流和密码找回；「退出」只清掉浏览器里的 token，token 在 2 小时内仍然有效。`GET /api/aftersales/demo` 返回的 `notice` 文案仍是登录前的「Demo boundary, not authentication」（保留是为了让 M2 golden 回放逐字节不变）。V1 知识问答接口（`/api/chat`、`/api/chat/stream`、`/api/knowledge/*` 等）不在这次鉴权范围内，仍然无需登录。
+- **鉴权（最小可用版）**：只有 access token，没有 refresh token、服务端注销 / 黑名单、注册、登录限流和密码找回；「退出」只清掉浏览器里的 token，token 在 2 小时内仍然有效。`GET /api/aftersales/demo` 返回的 `notice` 文案仍是登录前的「Demo boundary, not authentication」（保留是为了让 M2 golden 回放逐字节不变）。V1 知识问答接口（`/api/chat`、`/api/chat/stream`、`/api/knowledge/*` 等）没有鉴权，因此**默认不挂载**（见下文 V1 Quick start 的 `ENABLE_V1_ROUTES`）。
 - **M3 知识库**：文档是演示口径（自拟），不是真实店铺规则；模型在政策工具能回答时很少再查知识库，答复常漏附带条件；仍会出现不先读订单就提交动作的情况（由 grounding gate 拦下）。KB-HOLDOUT 已经用掉，之后的调整需要新的封存集。
 
 ## Repo structure
@@ -276,7 +276,7 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
 ├── system_fixtures/       # 演示用的业务数据（SQLite seed）
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
-├── api.py                 # FastAPI：/api/aftersales 路由 + V1 问答接口 / SSE
+├── api.py                 # FastAPI：/auth + /api/aftersales 路由；V1 问答接口 / SSE 默认不挂载
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
 ├── tests/                 # 2477 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
@@ -510,7 +510,12 @@ flowchart TB
 
 ### Quick start（V1 知识问答链路）
 
-V1 的问答接口仍在同一个 API 进程里（`/api/chat`、`/api/chat/stream`、`/api/knowledge/upload` 等，见 http://127.0.0.1:8000/docs）。M0-A2 起，默认前端换成了售后客服界面；V1 的 Vue 界面（多会话、上传文档、「三通道模式」）只保留在 git 历史中（M0-A2 之前的提交，例如 `a3a2686`）。
+V1 的问答接口仍在同一个 API 进程的代码里（`/api/chat`、`/api/chat/stream`、`/api/knowledge/upload` 等），但**默认不挂载**：访问返回 404，也不出现在 http://127.0.0.1:8000/docs 里。需要时设置环境变量 `ENABLE_V1_ROUTES=1` 再启动 API。
+
+> [!WARNING]
+> V1 接口没有任何鉴权。打开 `ENABLE_V1_ROUTES` 后，任何能访问 API 的人都可以上传文档（`POST /api/knowledge/upload`）、清空知识库（`DELETE /api/knowledge`）和读写 V1 会话。**仅限本地开发使用**，不要在可被他人访问的环境里打开。
+
+M0-A2 起，默认前端换成了售后客服界面；V1 的 Vue 界面（多会话、上传文档、「三通道模式」）只保留在 git 历史中（M0-A2 之前的提交，例如 `a3a2686`）。
 
 ```powershell
 # 1. 本地模型（V1 的 Embedding 固定使用本地 Ollama；回答默认也用 Ollama）
@@ -522,8 +527,8 @@ ollama pull nomic-embed-text
 # 3. 测试（模型调用使用测试替身；api.py 导入时会初始化 data\ 下的 SQLite，建议在隔离副本中运行）
 .\.venv\Scripts\python.exe -m unittest discover
 
-# 4. 启动 API
-.\start_api.ps1
+# 4. 启动 API（打开 V1 接口，仅限本地）
+$env:ENABLE_V1_ROUTES = "1"; .\start_api.ps1
 ```
 
 V1 的完整演示步骤（基于旧前端）见 [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)，应用层说明见 [docs/APP_DETAILS.md](docs/APP_DETAILS.md)。

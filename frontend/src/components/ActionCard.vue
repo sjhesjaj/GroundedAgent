@@ -9,7 +9,8 @@ const props = defineProps({
   canDecide: { type: Boolean, default: true },
 })
 
-defineEmits(['decide'])
+// decide: the operator's APPROVE / REJECT; refresh: a customer re-reads the session.
+defineEmits(['decide', 'refresh'])
 
 const actionNames = {
   create_return: '退货',
@@ -92,7 +93,7 @@ function formatValue(value) {
         <div>
           <h4>人工审批</h4>
           <p v-if="canDecide">请核对上方操作与参数。批准后，服务端将重新校验再决定是否执行。</p>
-          <p v-else>该操作需要售后操作员审批，审批结果会出现在本会话中（可点「刷新状态」查看）。</p>
+          <p v-else>该操作需要售后操作员审批。审批后，点下方「刷新状态」查看结果。</p>
         </div>
       </div>
       <div v-if="canDecide" class="approval-controls" :aria-busy="deciding">
@@ -103,6 +104,9 @@ function formatValue(value) {
           拒绝
         </button>
         <span v-if="deciding" class="decision-progress" role="status">正在处理…</span>
+      </div>
+      <div v-else class="approval-controls">
+        <button type="button" class="refresh-button" :disabled="disabled" @click="$emit('refresh')">刷新状态</button>
       </div>
     </section>
 
@@ -199,6 +203,7 @@ function formatValue(value) {
 .approve-button:hover:not(:disabled) { background: #a2edce; }
 .approval-controls .reject-button { border-color: #ffffff24; background: #ffffff05; color: #d0dad4; }
 .approval-controls .reject-button:hover:not(:disabled) { border-color: #efa99565; color: #efa995; background: #efa99508; }
+.approval-controls .refresh-button { border-color: #ffffff24; background: #ffffff05; color: #d0dad4; }
 .approval-controls button:focus-visible { outline: 2px solid #7ee2b8; outline-offset: 3px; }
 .approval-controls button:disabled { opacity: .45; cursor: not-allowed; }
 .decision-progress { color: #afa996; font-size: 12px; }

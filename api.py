@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from threading import Lock
 from time import perf_counter
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, FastAPI, File, HTTPException, Query, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -34,18 +35,22 @@ from aftersales_service.routes import router as aftersales_router
 from auth import router as auth_router
 
 
-app = FastAPI(title="GroundedAgent After-Sales API", version="2.0.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# GroundedAgent V2 M0: the after-sales product runtime (/api/aftersales/*),
-# behind JWT login (/auth/login; JWT_SECRET, see auth.py).
-app.include_router(auth_router)
-app.include_router(aftersales_router)
+# The V1 knowledge Q&A routes (/api/chat, /api/chat/stream, /api/conversations*,
+# /api/knowledge/*, /api/wiki/status) have no authentication - including the
+# writes POST /api/knowledge/upload and DELETE /api/knowledge - and the
+# after-sales frontend does not use them. They are mounted only when
+# ENABLE_V1_ROUTES is true (local V1 development); by default they do not
+# exist (404, not in OpenAPI). The handlers below stay importable either way.
+V1_ROUTES_ENV = "ENABLE_V1_ROUTES"
+#: Always mounted: the process health check (read-only, no login).
+public_router = APIRouter()
+#: Mounted only with ENABLE_V1_ROUTES.
+v1_router = APIRouter()
+
+
+def v1_routes_enabled() -> bool:
+    return os.environ.get(V1_ROUTES_ENV, "").strip().lower() in ("1", "true", "yes", "on")
+
 
 storage = SQLiteStorage()
 chunks: list[Chunk] = storage.load_chunks()
@@ -149,7 +154,7 @@ def acquire_conversation(conversation_id: str) -> Lock:
     return conversation_lock
 
 
-@app.get("/api/health")
+@public_router.get("/api/health")
 def health() -> dict:
     ok, detail = check_ollama()
     with state_lock:
@@ -162,19 +167,19 @@ def health() -> dict:
     }
 
 
-@app.get("/api/conversations")
+@v1_router.get("/api/conversations")
 def list_conversations(
     client_id: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
 ) -> dict:
     return {"items": storage.list_conversations(client_id)}
 
 
-@app.post("/api/conversations", status_code=201)
+@v1_router.post("/api/conversations", status_code=201)
 def create_conversation(payload: ConversationCreate) -> dict:
     return storage.create_conversation(payload.client_id, payload.title)
 
 
-@app.get("/api/conversations/{conversation_id}/messages")
+@v1_router.get("/api/conversations/{conversation_id}/messages")
 def conversation_messages(
     conversation_id: str,
     client_id: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
@@ -185,7 +190,7 @@ def conversation_messages(
         raise HTTPException(404, "会话不存在") from exc
 
 
-@app.delete("/api/conversations/{conversation_id}")
+@v1_router.delete("/api/conversations/{conversation_id}")
 def delete_conversation(
     conversation_id: str,
     client_id: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"),
@@ -277,7 +282,7 @@ def _reject_duplicate_documents(names: list[str]) -> None:
         )
 
 
-@app.post("/api/knowledge/upload")
+@v1_router.post("/api/knowledge/upload")
 async def upload_knowledge(files: list[UploadFile] = File(...)) -> dict:
     global knowledge_version
     if not knowledge_mutation_lock.acquire(blocking=False):
@@ -369,13 +374,13 @@ async def upload_knowledge(files: list[UploadFile] = File(...)) -> dict:
         knowledge_mutation_lock.release()
 
 
-@app.get("/api/wiki/status")
+@v1_router.get("/api/wiki/status")
 def wiki_status(job_id: str | None = Query(default=None)) -> dict:
     """Progress of a Wiki job; the most recent one when no id is given."""
     return wiki_runtime.RUNTIME.status(job_id)
 
 
-@app.delete("/api/knowledge")
+@v1_router.delete("/api/knowledge")
 def clear_knowledge() -> dict:
     global knowledge_version
     if not knowledge_mutation_lock.acquire(blocking=False):
@@ -419,7 +424,7 @@ def traced_commit(snapshot_version, payload, reply, sources, trace) -> None:
         commit_exchange(snapshot_version, payload, reply, sources, trace)
 
 
-@app.post("/api/chat")
+@v1_router.post("/api/chat")
 def chat(payload: ChatRequest, response: Response) -> dict:
     run = start_trace_run(payload, "/api/chat", streaming=False)
     if run.run_id:
@@ -581,7 +586,7 @@ def stream_headers(run) -> dict:
     return headers
 
 
-@app.post("/api/chat/stream")
+@v1_router.post("/api/chat/stream")
 def chat_stream(payload: ChatRequest) -> StreamingResponse:
     run = start_trace_run(payload, "/api/chat/stream", streaming=True)
     try:
@@ -684,3 +689,30 @@ def chat_stream(payload: ChatRequest) -> StreamingResponse:
         media_type="text/event-stream",
         headers=stream_headers(run),
     )
+
+
+def create_app(*, v1_routes: bool | None = None) -> FastAPI:
+    """The API: login, the after-sales product, the health check, and V1 only if enabled.
+
+    `v1_routes`: None reads ENABLE_V1_ROUTES (default off); tests of the V1
+    routes pass True explicitly.
+    """
+    application = FastAPI(title="GroundedAgent After-Sales API", version="2.0.0")
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    # GroundedAgent V2 M0: the after-sales product runtime (/api/aftersales/*),
+    # behind JWT login (/auth/login; JWT_SECRET, see auth.py).
+    application.include_router(auth_router)
+    application.include_router(aftersales_router)
+    application.include_router(public_router)
+    if v1_routes_enabled() if v1_routes is None else v1_routes:
+        application.include_router(v1_router)
+    return application
+
+
+app = create_app()

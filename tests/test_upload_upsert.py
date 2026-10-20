@@ -65,7 +65,7 @@ class UploadFixture(unittest.TestCase):
         with api.state_lock:
             api.chunks.clear()
             api.conversation_locks.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
 
         # Records exactly which documents were handed to the embedder.
         self.embedded: list[list[str]] = []

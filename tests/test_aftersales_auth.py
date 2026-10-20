@@ -8,6 +8,7 @@ the M0 ProductTestCase, whose client acts as each route's legitimate caller.
 from __future__ import annotations
 
 import os
+import re
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -338,6 +339,101 @@ class ConfigurationTests(unittest.TestCase):
         for path in ("/auth/login", "/auth/me", "/api/aftersales/operator/sessions",
                      "/api/aftersales/operator/sessions/{session_id}"):
             self.assertIn(path, paths)
+
+
+# --------------------------------------------------------------------------
+# The real application (api.app, default configuration): every route
+# --------------------------------------------------------------------------
+
+# Every route of the default application that answers without a token, and why.
+# (The API process serves no static frontend: Vite serves it in development.)
+PUBLIC_ROUTES = {
+    ("POST", "/auth/login"): "the login itself: how a token is obtained",
+    ("GET", "/api/health"): "process health check: read-only, reports Ollama reachability and the "
+                            "V1 index size, no customer or business data",
+    ("GET", "/openapi.json"): "FastAPI's schema: route shapes only, no data",
+    ("GET", "/docs"): "Swagger UI page over /openapi.json",
+    ("GET", "/docs/oauth2-redirect"): "Swagger UI's static OAuth2 helper page",
+    ("GET", "/redoc"): "ReDoc page over /openapi.json",
+}
+
+
+def flattened_routes(routes):
+    """Every route, included routers expanded (FastAPI 0.14x keeps them as _IncludedRouter)."""
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if inner is not None:
+            yield from flattened_routes(inner.routes)
+        else:
+            yield route
+
+
+def route_table(app) -> set[tuple[str, str]]:
+    table = set()
+    for route in flattened_routes(app.routes):
+        path, methods = getattr(route, "path", None), getattr(route, "methods", None)
+        if path is None or methods is None:
+            raise AssertionError("a route the walk cannot read: " + type(route).__name__)
+        table.update((method, path) for method in methods - {"HEAD"})
+    return table
+
+
+def openapi_operations(app) -> set[tuple[str, str]]:
+    return {(method.upper(), path) for path, operations in app.openapi()["paths"].items()
+            for method in operations}
+
+
+class FullApplicationRouteTests(unittest.TestCase):
+    def setUp(self) -> None:
+        import api
+
+        self.api = api
+        self.assertFalse(api.v1_routes_enabled(),
+                         "run the tests with ENABLE_V1_ROUTES unset: they check the default application")
+        tokens = TokenFixture.for_test(self)
+        api.app.dependency_overrides[auth.get_authenticator] = lambda: tokens.authenticator
+        self.addCleanup(api.app.dependency_overrides.pop, auth.get_authenticator, None)
+        self.client = TestClient(api.app)   # no start-up: nothing opens the demo data directory
+
+    def test_every_route_but_the_whitelist_answers_401_without_a_token(self):
+        table = route_table(self.api.app)
+        # The walk sees everything OpenAPI lists, plus routes kept out of the schema.
+        self.assertLessEqual(openapi_operations(self.api.app), table)
+        self.assertLessEqual(set(PUBLIC_ROUTES), table, "a stale whitelist entry")
+        protected = sorted(table - set(PUBLIC_ROUTES))
+        self.assertIn(("POST", "/api/aftersales/operator/sessions/{session_id}/decision"), protected)
+        self.assertIn(("POST", "/api/aftersales/demo/reset"), protected)
+        for method, path in protected:
+            with self.subTest(method=method, path=path):
+                response = self.client.request(method, re.sub(r"\{[^}]+\}", SESSION, path))
+                self.assertEqual((response.status_code, response.json()),
+                                 (401, {"detail": {"code": "not_authenticated"}}))
+
+    def test_v1_routes_do_not_exist_by_default(self):
+        v1 = route_table(self.api.v1_router)
+        self.assertIn(("POST", "/api/knowledge/upload"), v1)
+        self.assertIn(("DELETE", "/api/knowledge"), v1)
+        self.assertFalse(v1 & route_table(self.api.app))
+        self.assertFalse({path for _, path in v1} & set(self.api.app.openapi()["paths"]))
+        for method, path in sorted(v1):
+            with self.subTest(method=method, path=path):
+                response = self.client.request(method, re.sub(r"\{[^}]+\}", "x", path))
+                self.assertEqual(response.status_code, 404)
+        upload = self.client.post("/api/knowledge/upload",
+                                  files={"files": ("rules.md", b"# rules", "text/markdown")})
+        self.assertEqual(upload.status_code, 404)
+        self.assertEqual(self.client.delete("/api/knowledge").status_code, 404)
+
+    def test_enable_v1_routes_mounts_them_and_only_then(self):
+        v1_paths = {path for _, path in route_table(self.api.v1_router)}
+        for value, mounted in (("", False), ("0", False), ("false", False), ("1", True),
+                               ("true", True), ("ON", True)):
+            with self.subTest(value=value):
+                with mock.patch.dict(os.environ, {self.api.V1_ROUTES_ENV: value}):
+                    paths = set(self.api.create_app().openapi()["paths"])
+                self.assertEqual(v1_paths <= paths, mounted)
+                self.assertFalse(not mounted and v1_paths & paths)
+        self.assertLessEqual(v1_paths, set(self.api.create_app(v1_routes=True).openapi()["paths"]))
 
 
 if __name__ == "__main__":

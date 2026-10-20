@@ -269,10 +269,10 @@ onMounted(connect)
             <div class="message-label">{{ message.role === 'customer' ? session?.persona.display_name : 'GroundedAgent' }}<span v-if="message.kind === 'operator_decision'">审批结果</span></div>
             <p class="message-text">{{ message.text }}</p>
             <AgentDetails v-if="message.role === 'assistant'" :citations="message.citations" :trace="message.trace" :action="message.traceAction" />
-            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :can-decide="false" />
+            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
           </div>
         </article>
-        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :can-decide="false" />
+        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
         <AuditTimeline :events="audit" />
         <div v-if="busy" class="processing" role="status"><i></i>{{ busy === 'message' ? '正在处理…' : busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</div>
       </div>

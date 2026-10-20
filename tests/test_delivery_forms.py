@@ -131,7 +131,7 @@ class DeliveryFormApiTests(unittest.TestCase):
             api.chunks.clear()
             api.chunks.append(LEAVE_CHUNK)
             api.conversation_locks.clear()
-        self.client = TestClient(api.app)
+        self.client = TestClient(api.create_app(v1_routes=True))
         patch(
             "orchestration.document_adapter.retrieve_fast",
             side_effect=lambda question, chunks, top_k=4, trace=None: (

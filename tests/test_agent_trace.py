@@ -99,7 +99,7 @@ class TraceTestCase(unittest.TestCase):
         self.addCleanup(llm_provider.reset_provider)
         self.addCleanup(patch.stopall)
         self.addCleanup(self.clear_state)
-        self.client = TestClient(api.app, raise_server_exceptions=False)
+        self.client = TestClient(api.create_app(v1_routes=True), raise_server_exceptions=False)
 
     def clear_state(self):
         with api.state_lock:
