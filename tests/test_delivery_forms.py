@@ -27,6 +27,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import rag
 from rag import Chunk, extract_answer_text
 from storage import SQLiteStorage
@@ -125,12 +126,12 @@ class DeliveryFormApiTests(unittest.TestCase):
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
         patch(
             "orchestration.document_adapter.retrieve_fast",
@@ -141,10 +142,10 @@ class DeliveryFormApiTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     QUESTION = "年假有多少天"
@@ -206,10 +207,10 @@ class DeliveryFormApiTests(unittest.TestCase):
                 self.assertEqual(plain_calls, 1)
                 self.assertEqual(stream_post.call_count, 1)
                 self.assertEqual(
-                    api.storage.get_messages(plain_session, CLIENT_A)[-1]["content"], BODY
+                    v1_api.storage.get_messages(plain_session, CLIENT_A)[-1]["content"], BODY
                 )
                 self.assertEqual(
-                    api.storage.get_messages(stream_session, CLIENT_A)[-1]["content"], BODY
+                    v1_api.storage.get_messages(stream_session, CLIENT_A)[-1]["content"], BODY
                 )
 
     # -- forms that reach delivery through the plain-text fallback -----------
@@ -238,7 +239,7 @@ class DeliveryFormApiTests(unittest.TestCase):
                 # a third one.
                 self.assertEqual(calls, 2)
                 self.assertEqual(
-                    api.storage.get_messages(session, CLIENT_A)[-1]["content"], BODY
+                    v1_api.storage.get_messages(session, CLIENT_A)[-1]["content"], BODY
                 )
 
     def test_the_stream_keeps_its_format_error_contract(self):
@@ -262,7 +263,7 @@ class DeliveryFormApiTests(unittest.TestCase):
                 shown, terminal = self._sse(streamed)
                 self.assertEqual(terminal, "error")
                 self.assertNotIn('"answer"', shown)
-                self.assertEqual(api.storage.get_messages(session, CLIENT_A), [])
+                self.assertEqual(v1_api.storage.get_messages(session, CLIENT_A), [])
 
     def test_a_transport_failure_still_errors_and_stores_nothing(self):
         """Retained regression: transport errors are not delivery verdicts."""
@@ -274,7 +275,7 @@ class DeliveryFormApiTests(unittest.TestCase):
             streamed = self.client.post("/api/chat/stream", json=self.payload("fe-t"))
         _shown, terminal = self._sse(streamed)
         self.assertEqual(terminal, "error")
-        self.assertEqual(api.storage.get_messages("fe-t", CLIENT_A), [])
+        self.assertEqual(v1_api.storage.get_messages("fe-t", CLIENT_A), [])
 
 
 if __name__ == "__main__":

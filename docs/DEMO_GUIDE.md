@@ -37,11 +37,14 @@ curl http://127.0.0.1:11434/api/tags
 
 ## 3. 启动后端
 
+V1 接口默认不挂载，必须在同一个终端里先设置环境变量再启动；否则启动的是默认应用，V1 请求都会返回 404：
+
 ```powershell
+$env:ENABLE_V1_ROUTES = "1"
 .\start_api.ps1
 ```
 
-健康检查应返回 `"ollama_connected": true`：
+健康检查只说明 API 进程存活，应返回 `{"status": "ok"}`；它不再检查 Ollama，确认模型可用请运行 `ollama list`：
 
 ```powershell
 curl http://127.0.0.1:8000/api/health
@@ -281,7 +284,7 @@ System 通道每次请求只接受一个 `SystemRequest`，本版本不做批量
 | 库存问题回「请提供需要查询的 SKU。」 | 问题里没有合法 SKU。格式为字母 + 三位数字，如 `SKU-A100` |
 | 回「当前一次支持查询一个 SKU，请拆分后分别查询。」 | 问题里有两个及以上不同 SKU。拆成多轮分别提问，见第 8 节 |
 | 库存问题回「当前版本仅支持库存查询。」 | 问的是订单/审批/账户，属于未开放范围，见第 8 题 |
-| 回答一直转圈或报错 | 检查 `ollama serve` 是否在跑，`/api/health` 的 `ollama_connected` 是否为 `true` |
+| 回答一直转圈或报错 | 检查 `ollama serve` 是否在跑，`ollama list` 是否列出 `qwen3:4b` 和 `nomic-embed-text` |
 | SSE 报「回答生成失败，请稍后重试。」 | orchestrated 模式的固定错误文案，不含内部细节。查看后端终端日志定位真实原因 |
 | 路由与本文不一致 | 确认「三通道模式」已打开；关闭时走的是 legacy 链路，没有 route/steps |
 | 页面白屏 | 前端未构建或依赖未安装，执行 `npm install` 后重试 |

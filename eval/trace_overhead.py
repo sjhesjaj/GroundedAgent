@@ -39,6 +39,7 @@ import requests  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 import api  # noqa: E402
+import v1_api  # noqa: E402
 import wiki_runtime  # noqa: E402
 from rag import Chunk  # noqa: E402
 from storage import SQLiteStorage  # noqa: E402
@@ -108,8 +109,8 @@ def main() -> int:
 
     directory = tempfile.TemporaryDirectory()
     root = Path(directory.name)
-    api.storage = SQLiteStorage(root / "app.db")
-    api.chunks[:] = [CHUNK]
+    v1_api.storage = SQLiteStorage(root / "app.db")
+    v1_api.chunks[:] = [CHUNK]
     patches = [
         patch.object(wiki_runtime, "RUNTIME", wiki_runtime.WikiRuntime(root=root / "wiki")),
         patch("orchestration.document_adapter.retrieve_fast",
@@ -148,7 +149,7 @@ def main() -> int:
                 (on if first else off).append(one(url, first))
                 (off if first else on).append(one(url, not first))
             results[name] = compare(on, off)
-        connection = sqlite3.connect(api.storage.path)
+        connection = sqlite3.connect(v1_api.storage.path)
         diag = sorted(r[0] for r in connection.execute(
             "SELECT trace_overhead_ms FROM trace_runs WHERE trace_overhead_ms IS NOT NULL"))
         span_counts = sorted(r[0] for r in connection.execute("SELECT span_count FROM trace_runs"))

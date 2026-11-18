@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
+import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,6 +25,7 @@ from tests.auth_support import TEST_JWT_SECRET, TokenFixture
 from tests.test_aftersales_service import ProductTestCase, call, decision
 
 SESSION = "0" * 32
+ROOT = Path(__file__).resolve().parent.parent
 PENDING = "PA-0123456789ABCDEF"
 PASSWORDS = {user.username: user.password for user in DEMO_USERS}
 
@@ -349,8 +352,8 @@ class ConfigurationTests(unittest.TestCase):
 # (The API process serves no static frontend: Vite serves it in development.)
 PUBLIC_ROUTES = {
     ("POST", "/auth/login"): "the login itself: how a token is obtained",
-    ("GET", "/api/health"): "process health check: read-only, reports Ollama reachability and the "
-                            "V1 index size, no customer or business data",
+    ("GET", "/api/health"): "process liveness check: a constant body, no model, database, "
+                            "customer or business data",
     ("GET", "/openapi.json"): "FastAPI's schema: route shapes only, no data",
     ("GET", "/docs"): "Swagger UI page over /openapi.json",
     ("GET", "/docs/oauth2-redirect"): "Swagger UI's static OAuth2 helper page",
@@ -409,8 +412,25 @@ class FullApplicationRouteTests(unittest.TestCase):
                 self.assertEqual((response.status_code, response.json()),
                                  (401, {"detail": {"code": "not_authenticated"}}))
 
+    def test_the_default_application_never_imports_v1(self):
+        # A fresh interpreter: this process has long since imported v1_api.
+        probe = ("import sys, api; print(','.join(sorted(m for m in "
+                 "('v1_api', 'storage', 'agent', 'chat_orchestration', 'wiki_runtime') "
+                 "if m in sys.modules)))")
+        environment = {k: v for k, v in os.environ.items() if k != self.api.V1_ROUTES_ENV}
+        result = subprocess.run([sys.executable, "-X", "utf8", "-c", probe], cwd=ROOT,
+                                env=environment, capture_output=True, text=True, timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+
+    def test_health_reports_liveness_only(self):
+        response = self.client.get("/api/health")
+        self.assertEqual((response.status_code, response.json()), (200, {"status": "ok"}))
+
     def test_v1_routes_do_not_exist_by_default(self):
-        v1 = route_table(self.api.v1_router)
+        import v1_api
+
+        v1 = route_table(v1_api.v1_router)
         self.assertIn(("POST", "/api/knowledge/upload"), v1)
         self.assertIn(("DELETE", "/api/knowledge"), v1)
         self.assertFalse(v1 & route_table(self.api.app))
@@ -425,7 +445,9 @@ class FullApplicationRouteTests(unittest.TestCase):
         self.assertEqual(self.client.delete("/api/knowledge").status_code, 404)
 
     def test_enable_v1_routes_mounts_them_and_only_then(self):
-        v1_paths = {path for _, path in route_table(self.api.v1_router)}
+        import v1_api
+
+        v1_paths = {path for _, path in route_table(v1_api.v1_router)}
         for value, mounted in (("", False), ("0", False), ("false", False), ("1", True),
                                ("true", True), ("ON", True)):
             with self.subTest(value=value):

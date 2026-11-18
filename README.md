@@ -276,7 +276,8 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
 ├── system_fixtures/       # 演示用的业务数据（SQLite seed）
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
-├── api.py                 # FastAPI：/auth + /api/aftersales 路由；V1 问答接口 / SSE 默认不挂载
+├── api.py                 # FastAPI：/auth + /api/aftersales 路由 + /api/health
+├── v1_api.py              # V1 问答接口 / SSE 与其状态；只在 ENABLE_V1_ROUTES=1 时导入和挂载
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
 ├── tests/                 # 2477 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
@@ -510,7 +511,7 @@ flowchart TB
 
 ### Quick start（V1 知识问答链路）
 
-V1 的问答接口仍在同一个 API 进程的代码里（`/api/chat`、`/api/chat/stream`、`/api/knowledge/upload` 等），但**默认不挂载**：访问返回 404，也不出现在 http://127.0.0.1:8000/docs 里。需要时设置环境变量 `ENABLE_V1_ROUTES=1` 再启动 API。
+V1 的问答接口在 `v1_api.py` 里（`/api/chat`、`/api/chat/stream`、`/api/knowledge/upload` 等），**默认既不导入也不挂载**：访问返回 404，也不出现在 http://127.0.0.1:8000/docs 里，默认启动也不会创建 V1 的 SQLite。需要时设置环境变量 `ENABLE_V1_ROUTES=1` 再启动 API。`/api/health` 只报告进程存活（`{"status": "ok"}`），不再检查 Ollama。
 
 > [!WARNING]
 > V1 接口没有任何鉴权。打开 `ENABLE_V1_ROUTES` 后，任何能访问 API 的人都可以上传文档（`POST /api/knowledge/upload`）、清空知识库（`DELETE /api/knowledge`）和读写 V1 会话。**仅限本地开发使用**，不要在可被他人访问的环境里打开。
@@ -524,7 +525,7 @@ ollama pull nomic-embed-text
 
 # 2. 依赖与 .env 同上（LLM_PROVIDER=ollama 或 deepseek）
 
-# 3. 测试（模型调用使用测试替身；api.py 导入时会初始化 data\ 下的 SQLite，建议在隔离副本中运行）
+# 3. 测试（模型调用使用测试替身；v1_api.py 导入时会初始化 data\ 下的 SQLite，建议在隔离副本中运行）
 .\.venv\Scripts\python.exe -m unittest discover
 
 # 4. 启动 API（打开 V1 接口，仅限本地）

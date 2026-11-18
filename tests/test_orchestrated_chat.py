@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import chat_orchestration
 import wiki_runtime
 from chat_orchestration import (
@@ -36,12 +37,12 @@ LEAVE_CHUNK = Chunk(
 class OrchestratedChatTests(unittest.TestCase):
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
         # These V1 transport/provenance checks explicitly own their old sample;
         # production fallback now uses after-sales pages. Assertions unchanged.
@@ -49,11 +50,9 @@ class OrchestratedChatTests(unittest.TestCase):
 
         # Never reach a model or the network: generation is patched, and so is
         # retrieval, which would otherwise call Ollama for embeddings.
-        self.answer = patch.object(
-            api, "answer_structured", return_value="年假为 5 天。[来源 1]"
+        self.answer = patch.object(v1_api, "answer_structured", return_value="年假为 5 天。[来源 1]"
         ).start()
-        self.stream = patch.object(
-            api, "answer_stream", side_effect=lambda *a, **k: iter(["年假为 5 天。[来源 1]"])
+        self.stream = patch.object(v1_api, "answer_stream", side_effect=lambda *a, **k: iter(["年假为 5 天。[来源 1]"])
         ).start()
         self.retrieval = patch(
             "orchestration.document_adapter.retrieve_fast",
@@ -71,10 +70,10 @@ class OrchestratedChatTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     def payload(self, question, session_id, *, mode="orchestrated", client_id=CLIENT_A):
@@ -92,9 +91,9 @@ class OrchestratedChatTests(unittest.TestCase):
         return response
 
     def set_chunks(self, *items):
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.extend(items)
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.extend(items)
 
 
 class RouteScenarioTests(OrchestratedChatTests):
@@ -238,7 +237,7 @@ class EmptyKnowledgeBaseTests(OrchestratedChatTests):
         self.assertEqual(body["route"], "system_only")
         self.assertEqual({s["type"] for s in body["sources"]}, {"system"})
         # Persisted, so the conversation was created despite an empty index.
-        self.assertEqual(len(api.storage.get_messages("s-empty-sys", CLIENT_A)), 2)
+        self.assertEqual(len(v1_api.storage.get_messages("s-empty-sys", CLIENT_A)), 2)
 
     def test_legacy_still_returns_409_without_documents(self):
         self.set_chunks()
@@ -246,7 +245,7 @@ class EmptyKnowledgeBaseTests(OrchestratedChatTests):
         self.assertEqual(response.status_code, 409)
 
     def test_foreign_conversation_is_rejected_even_without_documents(self):
-        api.storage.create_conversation(CLIENT_A, conversation_id="owned-by-a")
+        v1_api.storage.create_conversation(CLIENT_A, conversation_id="owned-by-a")
         self.set_chunks()
         response = self.ask(
             "帮我查一下 SKU-A100 的库存", "owned-by-a", client_id=CLIENT_B
@@ -257,7 +256,7 @@ class EmptyKnowledgeBaseTests(OrchestratedChatTests):
 class LegacyCompatibilityTests(OrchestratedChatTests):
     def test_legacy_mode_is_unchanged(self):
         decision = {"type": "direct", "content": "你好", "seconds": 0.01}
-        with patch.object(api, "decide_action", return_value=decision) as decide:
+        with patch.object(v1_api, "decide_action", return_value=decision) as decide:
             response = self.client.post(
                 "/api/chat",
                 json={
@@ -272,7 +271,7 @@ class LegacyCompatibilityTests(OrchestratedChatTests):
         self.assertEqual(set(body), {"answer", "trace", "sources"})
 
     def test_orchestrated_mode_does_not_use_decide_action(self):
-        with patch.object(api, "decide_action") as decide:
+        with patch.object(v1_api, "decide_action") as decide:
             self.ask("年假最多可以休多少天", "s-nodecide")
         decide.assert_not_called()
 
@@ -315,14 +314,14 @@ class StreamTests(OrchestratedChatTests):
             raise RuntimeError(secret)
             yield  # pragma: no cover - generator marker
 
-        with patch.object(api, "answer_stream", side_effect=boom):
+        with patch.object(v1_api, "answer_stream", side_effect=boom):
             text = self.stream_text("年假最多可以休多少天", "s-boom")
 
         self.assertIn("ORCHESTRATED_STREAM_ERROR", text)
         self.assertIn("回答生成失败，请稍后重试。", text)
         self.assertNotIn(secret, text)
         self.assertNotIn("event: done", text)
-        self.assertEqual(api.storage.get_messages("s-boom", CLIENT_A), [])
+        self.assertEqual(v1_api.storage.get_messages("s-boom", CLIENT_A), [])
 
         # The lock was released, so the session is usable again.
         follow_up = self.ask("年假最多可以休多少天", "s-boom")
@@ -341,9 +340,9 @@ class StreamTests(OrchestratedChatTests):
             raise RuntimeError("legacy-secret")
 
         with (
-            patch.object(api, "decide_action", return_value=decision),
-            patch.object(api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 1.0)]),
-            patch.object(api, "answer_stream", side_effect=boom),
+            patch.object(v1_api, "decide_action", return_value=decision),
+            patch.object(v1_api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 1.0)]),
+            patch.object(v1_api, "answer_stream", side_effect=boom),
         ):
             response = self.client.post(
                 "/api/chat/stream",
@@ -358,7 +357,7 @@ class StreamTests(OrchestratedChatTests):
 
 class ConcurrencyAndVersionTests(OrchestratedChatTests):
     def test_conversation_lock_rejects_a_concurrent_request(self):
-        lock = api.acquire_conversation("s-locked")
+        lock = v1_api.acquire_conversation("s-locked")
         try:
             response = self.ask("年假最多可以休多少天", "s-locked")
             self.assertEqual(response.status_code, 409)
@@ -367,15 +366,15 @@ class ConcurrencyAndVersionTests(OrchestratedChatTests):
 
     def test_stale_knowledge_version_is_rejected_and_persists_nothing(self):
         def bump(*_args, **_kwargs):
-            with api.state_lock:
-                api.knowledge_version += 1
+            with v1_api.state_lock:
+                v1_api.knowledge_version += 1
             return "年假为 5 天。"
 
-        with patch.object(api, "answer_structured", side_effect=bump):
+        with patch.object(v1_api, "answer_structured", side_effect=bump):
             response = self.ask("年假最多可以休多少天", "s-stale")
 
         self.assertEqual(response.status_code, 409)
-        self.assertEqual(api.storage.get_messages("s-stale", CLIENT_A), [])
+        self.assertEqual(v1_api.storage.get_messages("s-stale", CLIENT_A), [])
 
 
 class SkuExtractionTests(unittest.TestCase):

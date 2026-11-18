@@ -27,6 +27,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import rag
 from orchestration.planner import Route, plan_request
 from orchestration.wiki_adapter import load_wiki_pages, page_from_json, wiki_query
@@ -361,12 +362,12 @@ class BindingApiTests(unittest.TestCase):
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
         patch(
             "orchestration.document_adapter.retrieve_fast",
@@ -377,10 +378,10 @@ class BindingApiTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     @staticmethod
@@ -411,8 +412,8 @@ class BindingApiTests(unittest.TestCase):
             streamed = self.client.post("/api/chat/stream", json=payload(f"{session}-s"))
         shown, terminal = self._sse(streamed)
         last = lambda sid: (
-            api.storage.get_messages(sid, "client-a")[-1]["content"]
-            if api.storage.get_messages(sid, "client-a") else None
+            v1_api.storage.get_messages(sid, "client-a")[-1]["content"]
+            if v1_api.storage.get_messages(sid, "client-a") else None
         )
         return {
             "plain": plain.json()["answer"], "shown": shown, "terminal": terminal,
@@ -442,9 +443,9 @@ class BindingApiTests(unittest.TestCase):
         self.assert_agreed(self.both(question, "b2", wrong, right), right, calls=2)
 
     def test_the_callers_own_figure_in_the_same_role_is_delivered(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(self.EXPENSE_CHUNK)
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(self.EXPENSE_CHUNK)
         body = "这笔2500元报销需要部门负责人审批，门槛金额是2000元。[来源1]"
         outcome = self.both("这笔报销费用为2500元，是否需要部门负责人审批？", "b3", body, body)
         self.assert_agreed(outcome, body, calls=1)

@@ -27,6 +27,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import rag
 from rag import (
     UNGROUNDED_ANSWER_MESSAGE,
@@ -225,12 +226,12 @@ class PredicateScopeApiTests(unittest.TestCase):
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
         patch(
             "orchestration.document_adapter.retrieve_fast",
@@ -241,10 +242,10 @@ class PredicateScopeApiTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     def payload(self, session_id):
@@ -293,7 +294,7 @@ class PredicateScopeApiTests(unittest.TestCase):
 
     @staticmethod
     def _last(session):
-        messages = api.storage.get_messages(session, CLIENT_A)
+        messages = v1_api.storage.get_messages(session, CLIENT_A)
         return messages[-1]["content"] if messages else None
 
     def assert_agreed(self, outcome, expected, *, calls):
