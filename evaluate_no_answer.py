@@ -11,7 +11,7 @@ REFUSAL_MARKERS = ("无法确定", "没有相关", "未提及", "没有提及", 
 def main() -> None:
     document = Path("sample_company_rules.md")
     chunks = build_index(split_text(read_file(document.name, document.read_bytes()), document.name))
-    cases = json.loads(Path("eval_no_answer.json").read_text(encoding="utf-8"))
+    cases = json.loads(Path("eval/v1/datasets/eval_no_answer.json").read_text(encoding="utf-8"))
     passed = 0
     durations = []
     for index, case in enumerate(cases, start=1):
