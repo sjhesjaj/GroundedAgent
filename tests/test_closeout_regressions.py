@@ -119,8 +119,8 @@ class RecheckDeliveryTests(unittest.TestCase):
         self.assert_agreed(self.both(self.QUESTION,"quantity",self.GOOD,bad),self.GOOD,calls=2)
 
     def test_invalid_identifier_retry_preserves_grounded_first_answer(self):
-        with api_support.api.state_lock:
-            api_support.api.chunks[0]=Chunk(text="正式员工每年享有5天带薪年假。适用资料编号RULE-Q42。",source="rules.md",index=1)
+        with api_support.v1_api.state_lock:
+            api_support.v1_api.chunks[0]=Chunk(text="正式员工每年享有5天带薪年假。适用资料编号RULE-Q42。",source="rules.md",index=1)
         bad="正式员工每年享有5天带薪年假，适用资料编号RULE-Q43。[来源1]"
         self.assert_agreed(self.both(self.QUESTION,"identifier",self.GOOD,bad),self.GOOD,calls=2)
 

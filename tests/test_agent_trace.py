@@ -22,6 +22,7 @@ from starlette.concurrency import iterate_in_threadpool
 
 import agent_trace
 import api
+import v1_api
 import chat_orchestration
 import llm_provider
 import rag
@@ -80,13 +81,13 @@ class TraceTestCase(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.directory.name) / "app.db")
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.directory.name) / "app.db")
         self.addCleanup(setattr, api, "storage", self.original_storage)
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         patch.dict(os.environ, {"TRACE_ENABLED": "1"}).start()
         patch.object(wiki_runtime, "RUNTIME",
                      wiki_runtime.WikiRuntime(root=Path(self.directory.name) / "wiki")).start()
@@ -102,9 +103,9 @@ class TraceTestCase(unittest.TestCase):
         self.client = TestClient(api.create_app(v1_routes=True), raise_server_exceptions=False)
 
     def clear_state(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
 
     # -- helpers ---------------------------------------------------------------------
 
@@ -114,7 +115,7 @@ class TraceTestCase(unittest.TestCase):
                                            "client_id": CLIENT, "mode": mode})
 
     def query(self, sql, params=()):
-        connection = sqlite3.connect(api.storage.path)
+        connection = sqlite3.connect(v1_api.storage.path)
         connection.row_factory = sqlite3.Row
         try:
             return [dict(row) for row in connection.execute(sql, params).fetchall()]
@@ -328,7 +329,7 @@ class GenerationFailureTests(TraceTestCase):
 
     def test_commit_conflict_fails_at_commit(self):
         with patch.object(requests, "post", return_value=ollama_answer("年假为 5 天。[来源 1]")), \
-                patch.object(api, "commit_exchange", side_effect=HTTPException(409, "知识库已更新")):
+                patch.object(v1_api, "commit_exchange", side_effect=HTTPException(409, "知识库已更新")):
             response = self.post("年假最多可以休多少天", "s-commit")
         self.assertEqual(response.status_code, 409)
         run = self.run_row(response.headers["X-Run-Id"])  # error responses carry the id too
@@ -373,7 +374,7 @@ class StreamingTests(TraceTestCase):
         self.assertIn("model crashed", failed["error_message"])
 
     def test_legacy_stream_is_traced(self):
-        with patch.object(api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 3.5)]), \
+        with patch.object(v1_api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 3.5)]), \
                 patch.object(requests, "post", return_value=ollama_stream("年假为 5 天。[来源 1]")):
             response = self.post("年假有几天", "s-legacystream", mode="legacy", stream=True)
         run_id = response.headers["X-Run-Id"]
@@ -384,7 +385,7 @@ class StreamingTests(TraceTestCase):
 
 class LegacyModeTests(TraceTestCase):
     def test_rule_routed_legacy_request(self):
-        with patch.object(api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 3.5)]), \
+        with patch.object(v1_api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 3.5)]), \
                 patch.object(requests, "post", return_value=ollama_answer("年假为 5 天。[来源 1]")):
             response = self.post("年假有几天", "s-legacy", mode="legacy")
         self.assertEqual(set(response.json()), {"answer", "trace", "sources"})
@@ -403,7 +404,7 @@ class LegacyModeTests(TraceTestCase):
         router_reply = FakeResponse({"message": {"role": "assistant", "content": "", "tool_calls": [
             {"function": {"name": "search_knowledge_base", "arguments": {"query": "天气"}}}]},
             "prompt_eval_count": 50, "eval_count": 5})
-        with patch.object(api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 3.5)]), \
+        with patch.object(v1_api, "retrieve_fast", return_value=[(LEAVE_CHUNK, 3.5)]), \
                 patch.object(requests, "post", side_effect=[router_reply, ollama_answer("资料只涉及制度。[来源 1]")]):
             response = self.post("今天天气怎么样", "s-llmrouter", mode="legacy")
         run_id = response.headers["X-Run-Id"]
@@ -417,7 +418,7 @@ class LegacyModeTests(TraceTestCase):
         self.assertEqual(self.run_row(run_id)["llm_calls"], 2)
 
     def test_lock_contention_is_recorded_with_the_run_id_header(self):
-        lock = api.acquire_conversation("s-busy")
+        lock = v1_api.acquire_conversation("s-busy")
         try:
             response = self.post("年假有几天", "s-busy", mode="legacy")
         finally:
@@ -483,7 +484,7 @@ class SwitchAndRobustnessTests(TraceTestCase):
             run_id = self.post("年假最多可以休多少天", "s-cli").headers["X-Run-Id"]
         output = io.StringIO()
         with redirect_stdout(output):
-            code = agent_trace.main(["--db", str(api.storage.path), "show", run_id])
+            code = agent_trace.main(["--db", str(v1_api.storage.path), "show", run_id])
         self.assertEqual(code, 0)
         text = output.getvalue()
         for fragment in ("completed", "[planner] plan_request", "[tool_call] document_search",

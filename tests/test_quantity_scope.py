@@ -25,6 +25,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import rag
 from rag import (
     UNGROUNDED_ANSWER_MESSAGE,
@@ -261,12 +262,12 @@ class QuantityApiEvidenceTests(unittest.TestCase):
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
         patch(
             "orchestration.document_adapter.retrieve_fast",
@@ -277,10 +278,10 @@ class QuantityApiEvidenceTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     def payload(self, question, session_id):
@@ -386,8 +387,8 @@ class QuantityApiEvidenceTests(unittest.TestCase):
                 self.assertEqual(plain_post.call_count, stream_post.call_count)
                 self.assertLessEqual(stream_post.call_count, 2)
 
-                stored_plain = api.storage.get_messages(plain_session, CLIENT_A)
-                stored_stream = api.storage.get_messages(stream_session, CLIENT_A)
+                stored_plain = v1_api.storage.get_messages(plain_session, CLIENT_A)
+                stored_stream = v1_api.storage.get_messages(stream_session, CLIENT_A)
                 self.assertEqual(stored_plain[-1]["content"], expected)
                 self.assertEqual(stored_stream[-1]["content"], expected)
 
@@ -409,7 +410,7 @@ class QuantityApiEvidenceTests(unittest.TestCase):
         self.assertEqual(plain_post.call_count, 1)
         self.assertEqual(stream_post.call_count, 1)
         self.assertEqual(
-            api.storage.get_messages("q-ok-s", CLIENT_A)[-1]["content"], body
+            v1_api.storage.get_messages("q-ok-s", CLIENT_A)[-1]["content"], body
         )
 
 

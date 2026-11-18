@@ -18,6 +18,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import wiki_runtime
 from storage import SQLiteStorage
 from tests.test_wiki_runtime import WAIT_SECONDS, model_for
@@ -59,12 +60,12 @@ class UploadFixture(unittest.TestCase):
         self.addCleanup(self.temp_directory.cleanup)
         self.root = Path(self.temp_directory.name)
 
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(self.root / "test.db")
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(self.root / "test.db")
         self.addCleanup(lambda: setattr(api, "storage", self.original_storage))
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
 
         # Records exactly which documents were handed to the embedder.
@@ -85,7 +86,7 @@ class UploadFixture(unittest.TestCase):
                 )
             return parsed
 
-        patch.object(api, "build_index", side_effect=fake_build_index).start()
+        patch.object(v1_api, "build_index", side_effect=fake_build_index).start()
         self.addCleanup(patch.stopall)
 
         self.runtime = WikiRuntime(hold_as_draft=False,
@@ -131,12 +132,12 @@ class UploadFixture(unittest.TestCase):
         return body
 
     def rag_sources(self) -> set[str]:
-        with api.state_lock:
-            return {chunk.source for chunk in api.chunks}
+        with v1_api.state_lock:
+            return {chunk.source for chunk in v1_api.chunks}
 
     def rag_text(self) -> str:
-        with api.state_lock:
-            return "\n".join(chunk.text for chunk in api.chunks)
+        with v1_api.state_lock:
+            return "\n".join(chunk.text for chunk in v1_api.chunks)
 
     def wiki_claims(self) -> list[str]:
         pages = self.runtime.published_pages() or ()
@@ -167,7 +168,7 @@ class UploadUpsertTests(UploadFixture):
         self.assertIn("5 天带薪年假", " ".join(self.wiki_claims()))
         self.assertIn("2 天远程办公", " ".join(self.wiki_claims()))
         # `chunks` is the whole base; `uploaded_chunks` is this upload's share.
-        self.assertEqual(body["chunks"], len(api.chunks))
+        self.assertEqual(body["chunks"], len(v1_api.chunks))
         self.assertEqual(body["uploaded_chunks"], 1)
         self.assertEqual(body["files"], [REMOTE_FILE])
 
@@ -190,18 +191,18 @@ class UploadUpsertTests(UploadFixture):
 
     def test_a_kept_document_is_never_re_embedded(self):
         self.upload((LEAVE_FILE, DOC_A))
-        with api.state_lock:
+        with v1_api.state_lock:
             kept_embedding = next(
-                chunk.embedding for chunk in api.chunks if chunk.source == LEAVE_FILE
+                chunk.embedding for chunk in v1_api.chunks if chunk.source == LEAVE_FILE
             )
 
         self.upload((REMOTE_FILE, DOC_B))
 
         # The embedder only ever saw each document when it was uploaded.
         self.assertEqual(self.embedded, [[LEAVE_FILE], [REMOTE_FILE]])
-        with api.state_lock:
+        with v1_api.state_lock:
             still_kept = next(
-                chunk.embedding for chunk in api.chunks if chunk.source == LEAVE_FILE
+                chunk.embedding for chunk in v1_api.chunks if chunk.source == LEAVE_FILE
             )
         self.assertEqual(still_kept, kept_embedding)
 
@@ -214,12 +215,12 @@ class UploadUpsertTests(UploadFixture):
     def test_chunk_positions_are_renumbered_across_the_merged_base(self):
         self.upload((LEAVE_FILE, DOC_A))
         self.upload((REMOTE_FILE, DOC_B))
-        with api.state_lock:
-            positions = [chunk.index for chunk in api.chunks]
+        with v1_api.state_lock:
+            positions = [chunk.index for chunk in v1_api.chunks]
         self.assertEqual(positions, list(range(1, len(positions) + 1)))
 
         # And the renumbering survived the round trip through storage.
-        reloaded = api.storage.load_chunks()
+        reloaded = v1_api.storage.load_chunks()
         self.assertEqual(
             [chunk.index for chunk in reloaded], list(range(1, len(reloaded) + 1))
         )
@@ -232,8 +233,8 @@ class UploadUpsertTests(UploadFixture):
 
         self.assertEqual(body["files"], [LEAVE_FILE, REMOTE_FILE])
         self.assertEqual(self.rag_sources(), {LEAVE_FILE, REMOTE_FILE})
-        self.assertEqual(body["chunks"], len(api.chunks))
-        self.assertEqual(body["uploaded_chunks"], len(api.chunks))
+        self.assertEqual(body["chunks"], len(v1_api.chunks))
+        self.assertEqual(body["uploaded_chunks"], len(v1_api.chunks))
         self.assertEqual(self.embedded, [[LEAVE_FILE, REMOTE_FILE]])
         self.assertEqual(self.wiki_sources(), {LEAVE_FILE, REMOTE_FILE})
 
@@ -244,9 +245,9 @@ class UploadUpsertTests(UploadFixture):
 
         self.assertEqual(self.client.delete("/api/knowledge").status_code, 200)
 
-        with api.state_lock:
-            self.assertEqual(api.chunks, [])
-        self.assertEqual(api.storage.load_chunks(), [])
+        with v1_api.state_lock:
+            self.assertEqual(v1_api.chunks, [])
+        self.assertEqual(v1_api.storage.load_chunks(), [])
         self.assertIsNone(self.runtime.current_build_id())
         self.assertIsNone(self.runtime.published_pages())
 
@@ -265,8 +266,8 @@ class UploadUpsertTests(UploadFixture):
         self.upload((LEAVE_FILE, DOC_A))
         self.upload((LEAVE_FILE, DOC_A_V2))
 
-        with api.state_lock:
-            document_ids = {derive_document_id(c.source) for c in api.chunks}
+        with v1_api.state_lock:
+            document_ids = {derive_document_id(c.source) for c in v1_api.chunks}
         self.assertEqual(document_ids, {derive_document_id(LEAVE_FILE)})
         self.assertEqual(self.wiki_sources(), {LEAVE_FILE})
         # One document in, one document version recorded by the build.
@@ -323,10 +324,10 @@ class DuplicateDocumentInOneBatchTests(UploadFixture):
         self.client.post(
             "/api/conversations", json={"title": "保留我", "client_id": CLIENT}
         )
-        with api.state_lock:
-            before_chunks = [(c.source, c.text, c.index) for c in api.chunks]
-            before_version = api.knowledge_version
-        before_stored = [(c.source, c.text) for c in api.storage.load_chunks()]
+        with v1_api.state_lock:
+            before_chunks = [(c.source, c.text, c.index) for c in v1_api.chunks]
+            before_version = v1_api.knowledge_version
+        before_stored = [(c.source, c.text) for c in v1_api.storage.load_chunks()]
         before_conversations = self.client.get(
             f"/api/conversations?client_id={CLIENT}"
         ).json()["items"]
@@ -342,13 +343,13 @@ class DuplicateDocumentInOneBatchTests(UploadFixture):
         submit.assert_not_called()
         # Nothing was embedded, stored, or queued.
         self.assertEqual(self.embedded, before_embedded)
-        with api.state_lock:
+        with v1_api.state_lock:
             self.assertEqual(
-                [(c.source, c.text, c.index) for c in api.chunks], before_chunks
+                [(c.source, c.text, c.index) for c in v1_api.chunks], before_chunks
             )
-            self.assertEqual(api.knowledge_version, before_version)
+            self.assertEqual(v1_api.knowledge_version, before_version)
         self.assertEqual(
-            [(c.source, c.text) for c in api.storage.load_chunks()], before_stored
+            [(c.source, c.text) for c in v1_api.storage.load_chunks()], before_stored
         )
         self.assertEqual(
             self.client.get(f"/api/conversations?client_id={CLIENT}").json()["items"],

@@ -8,6 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import storage as storage_module
 from rag import EMBED_MODEL, Chunk
 from storage import SQLiteStorage
@@ -142,31 +143,31 @@ class StorageKnowledgeAtomicityTests(unittest.TestCase):
 class ApiKnowledgeVersionTests(unittest.TestCase):
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        self.original_chunks = list(api.chunks)
-        self.original_version = api.knowledge_version
-        self.original_conversation_locks = dict(api.conversation_locks)
-        with api.state_lock:
-            api.storage = SQLiteStorage(Path(self.temp_directory.name) / "api.db")
-            api.chunks[:] = [
+        self.original_storage = v1_api.storage
+        self.original_chunks = list(v1_api.chunks)
+        self.original_version = v1_api.knowledge_version
+        self.original_conversation_locks = dict(v1_api.conversation_locks)
+        with v1_api.state_lock:
+            v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "api.db")
+            v1_api.chunks[:] = [
                 Chunk(
                     text="## Policy\nCurrent policy content",
                     source="current.md",
                     index=1,
                 )
             ]
-            api.knowledge_version = 100
-            api.conversation_locks.clear()
+            v1_api.knowledge_version = 100
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
 
     def tearDown(self):
         self.client.close()
-        with api.state_lock:
-            api.storage = self.original_storage
-            api.chunks[:] = self.original_chunks
-            api.knowledge_version = self.original_version
-            api.conversation_locks.clear()
-            api.conversation_locks.update(self.original_conversation_locks)
+        with v1_api.state_lock:
+            v1_api.storage = self.original_storage
+            v1_api.chunks[:] = self.original_chunks
+            v1_api.knowledge_version = self.original_version
+            v1_api.conversation_locks.clear()
+            v1_api.conversation_locks.update(self.original_conversation_locks)
         self.temp_directory.cleanup()
 
     @staticmethod
@@ -188,8 +189,8 @@ class ApiKnowledgeVersionTests(unittest.TestCase):
 
     @staticmethod
     def advance_knowledge_version():
-        with api.state_lock:
-            api.knowledge_version += 1
+        with v1_api.state_lock:
+            v1_api.knowledge_version += 1
 
     def test_non_streaming_answer_is_not_persisted_after_knowledge_changes(self):
         def stale_answer(*_args):
@@ -197,9 +198,9 @@ class ApiKnowledgeVersionTests(unittest.TestCase):
             return "Answer generated from the old snapshot"
 
         with (
-            patch.object(api, "decide_action", return_value=self.search_decision()),
-            patch.object(api, "retrieve_fast", return_value=[(api.chunks[0], 1.0)]),
-            patch.object(api, "answer_structured", side_effect=stale_answer),
+            patch.object(v1_api, "decide_action", return_value=self.search_decision()),
+            patch.object(v1_api, "retrieve_fast", return_value=[(v1_api.chunks[0], 1.0)]),
+            patch.object(v1_api, "answer_structured", side_effect=stale_answer),
         ):
             response = self.client.post(
                 "/api/chat",
@@ -208,7 +209,7 @@ class ApiKnowledgeVersionTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 409)
         self.assertEqual(
-            api.storage.get_messages("stale-non-stream", CLIENT_ID),
+            v1_api.storage.get_messages("stale-non-stream", CLIENT_ID),
             [],
         )
 
@@ -219,9 +220,9 @@ class ApiKnowledgeVersionTests(unittest.TestCase):
             yield "from the old snapshot"
 
         with (
-            patch.object(api, "decide_action", return_value=self.search_decision()),
-            patch.object(api, "retrieve_fast", return_value=[(api.chunks[0], 1.0)]),
-            patch.object(api, "answer_stream", side_effect=stale_stream),
+            patch.object(v1_api, "decide_action", return_value=self.search_decision()),
+            patch.object(v1_api, "retrieve_fast", return_value=[(v1_api.chunks[0], 1.0)]),
+            patch.object(v1_api, "answer_stream", side_effect=stale_stream),
         ):
             response = self.client.post(
                 "/api/chat/stream",
@@ -232,7 +233,7 @@ class ApiKnowledgeVersionTests(unittest.TestCase):
         self.assertIn("event: delta", response.text)
         self.assertIn("event: error", response.text)
         self.assertNotIn("event: done", response.text)
-        self.assertEqual(api.storage.get_messages("stale-stream", CLIENT_ID), [])
+        self.assertEqual(v1_api.storage.get_messages("stale-stream", CLIENT_ID), [])
 
 
 if __name__ == "__main__":

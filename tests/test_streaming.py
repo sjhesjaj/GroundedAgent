@@ -7,6 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import rag
 from rag import Chunk
 from storage import SQLiteStorage
@@ -85,21 +86,21 @@ class OllamaStreamTests(unittest.TestCase):
 class ApiStreamTests(unittest.TestCase):
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(
                 Chunk(text="## Test section\nPolicy content", source="rules.md", index=1)
             )
-            api.conversation_locks.clear()
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     def chat_payload(self, question, session_id, client_id=CLIENT_A):
@@ -111,7 +112,7 @@ class ApiStreamTests(unittest.TestCase):
 
     def test_successful_stream_commits_only_its_client_session(self):
         decision = {"type": "direct", "content": "Hello", "seconds": 0.01}
-        with patch.object(api, "decide_action", return_value=decision):
+        with patch.object(v1_api, "decide_action", return_value=decision):
             response = self.client.post(
                 "/api/chat/stream",
                 json=self.chat_payload("hi", "session-a"),
@@ -120,12 +121,12 @@ class ApiStreamTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("event: delta", response.text)
         self.assertIn("event: done", response.text)
-        self.assertEqual(len(api.storage.get_messages("session-a", CLIENT_A)), 2)
+        self.assertEqual(len(v1_api.storage.get_messages("session-a", CLIENT_A)), 2)
         self.assertIn(
             "session-a",
-            {item["id"] for item in api.storage.list_conversations(CLIENT_A)},
+            {item["id"] for item in v1_api.storage.list_conversations(CLIENT_A)},
         )
-        self.assertEqual(api.storage.list_conversations(CLIENT_B), [])
+        self.assertEqual(v1_api.storage.list_conversations(CLIENT_B), [])
 
     def test_failed_stream_does_not_commit_partial_history(self):
         decision = {
@@ -140,9 +141,9 @@ class ApiStreamTests(unittest.TestCase):
             raise RuntimeError("model interrupted")
 
         with (
-            patch.object(api, "decide_action", return_value=decision),
-            patch.object(api, "retrieve_fast", return_value=[(api.chunks[0], 1.0)]),
-            patch.object(api, "answer_stream", side_effect=broken_answer),
+            patch.object(v1_api, "decide_action", return_value=decision),
+            patch.object(v1_api, "retrieve_fast", return_value=[(v1_api.chunks[0], 1.0)]),
+            patch.object(v1_api, "answer_stream", side_effect=broken_answer),
         ):
             response = self.client.post(
                 "/api/chat/stream",
@@ -152,7 +153,7 @@ class ApiStreamTests(unittest.TestCase):
         self.assertIn("event: delta", response.text)
         self.assertIn("event: error", response.text)
         self.assertNotIn("event: done", response.text)
-        self.assertEqual(api.storage.get_messages("session-b", CLIENT_A), [])
+        self.assertEqual(v1_api.storage.get_messages("session-b", CLIENT_A), [])
 
     def test_conversation_endpoints_are_scoped_to_client(self):
         created = self.client.post(
@@ -185,13 +186,11 @@ class ApiStreamTests(unittest.TestCase):
         self.assertEqual(own_delete.status_code, 200)
 
     def test_chat_rejects_conversation_owned_by_another_client(self):
-        api.storage.create_conversation(
+        v1_api.storage.create_conversation(
             CLIENT_A,
             conversation_id="owned-by-client-a",
         )
-        with patch.object(
-            api,
-            "decide_action",
+        with patch.object(v1_api, "decide_action",
             return_value={"type": "direct", "content": "should not run", "seconds": 0.01},
         ) as decide:
             response = self.client.post(
@@ -201,7 +200,7 @@ class ApiStreamTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         decide.assert_not_called()
-        self.assertEqual(api.storage.get_messages("owned-by-client-a", CLIENT_A), [])
+        self.assertEqual(v1_api.storage.get_messages("owned-by-client-a", CLIENT_A), [])
 
 
 if __name__ == "__main__":

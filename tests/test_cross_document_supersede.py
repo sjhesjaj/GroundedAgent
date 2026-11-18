@@ -24,6 +24,7 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import wiki_runtime
 from storage import SQLiteStorage
 from tests.test_wiki_compiler import ScriptedModel, dumps
@@ -119,13 +120,13 @@ class SupersedeFixture(unittest.TestCase):
         self.addCleanup(self.temp_directory.cleanup)
         self.root = Path(self.temp_directory.name)
 
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(self.root / "test.db")
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(self.root / "test.db")
         self.addCleanup(lambda: setattr(api, "storage", self.original_storage))
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-            api.document_upload_versions.clear()
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+            v1_api.document_upload_versions.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
 
         self.embedded: list[list[str]] = []
@@ -138,7 +139,7 @@ class SupersedeFixture(unittest.TestCase):
                 stats.update({"chunks": len(parsed)})
             return parsed
 
-        patch.object(api, "build_index", side_effect=fake_build_index).start()
+        patch.object(v1_api, "build_index", side_effect=fake_build_index).start()
         self.addCleanup(patch.stopall)
 
         self.submitted: list[str] = []
@@ -174,15 +175,15 @@ class SupersedeFixture(unittest.TestCase):
     # -- observations -------------------------------------------------
 
     def rag_sources(self):
-        with api.state_lock:
-            return {chunk.source for chunk in api.chunks}
+        with v1_api.state_lock:
+            return {chunk.source for chunk in v1_api.chunks}
 
     def rag_text(self):
-        with api.state_lock:
-            return "\n".join(chunk.text for chunk in api.chunks)
+        with v1_api.state_lock:
+            return "\n".join(chunk.text for chunk in v1_api.chunks)
 
     def stored_text(self):
-        return "\n".join(chunk.text for chunk in api.storage.load_chunks())
+        return "\n".join(chunk.text for chunk in v1_api.storage.load_chunks())
 
     def wiki_text(self):
         pages = self.runtime.published_pages() or ()
@@ -229,7 +230,7 @@ class CrossDocumentSupersedeTests(SupersedeFixture):
         self.upload((NEW_FILE, NEW_DOC))
 
         # A restart reloads the index from storage.
-        reloaded = api.storage.load_chunks()
+        reloaded = v1_api.storage.load_chunks()
         self.assertNotIn(OLD_FACT, "\n".join(c.text for c in reloaded))
         self.assertIn(NEW_FACT, "\n".join(c.text for c in reloaded))
         self.assertEqual({c.source for c in reloaded}, {NEW_FILE})
@@ -249,9 +250,9 @@ class CrossDocumentSupersedeTests(SupersedeFixture):
         )
         self.upload((OLD_FILE, OLD_DOC))
         self.upload((UNRELATED_FILE, UNRELATED_DOC))
-        with api.state_lock:
+        with v1_api.state_lock:
             kept_embedding = next(
-                c.embedding for c in api.chunks if c.source == UNRELATED_FILE
+                c.embedding for c in v1_api.chunks if c.source == UNRELATED_FILE
             )
 
         self.upload((NEW_FILE, NEW_DOC))
@@ -262,8 +263,8 @@ class CrossDocumentSupersedeTests(SupersedeFixture):
         self.assertEqual(
             self.embedded, [[OLD_FILE], [UNRELATED_FILE], [NEW_FILE]]
         )
-        with api.state_lock:
-            still = next(c.embedding for c in api.chunks if c.source == UNRELATED_FILE)
+        with v1_api.state_lock:
+            still = next(c.embedding for c in v1_api.chunks if c.source == UNRELATED_FILE)
         self.assertEqual(still, kept_embedding)
 
 
@@ -418,8 +419,8 @@ class RetirementCannotOutrunTheUserTests(SupersedeFixture):
         self.assertEqual(status["status"], JobStatus.CANCELLED.value)
         self.assertEqual(status["retired_document_ids"], [])
         self.assertIsNone(self.runtime.current_build_id())
-        with api.state_lock:
-            self.assertEqual(api.chunks, [])
+        with v1_api.state_lock:
+            self.assertEqual(v1_api.chunks, [])
 
 
 class ReAddedInTheSameBatchTests(SupersedeFixture):
@@ -498,20 +499,20 @@ class UploadAndRetirementAreSerialisedTests(SupersedeFixture):
         # Signals the moment the retirement is at the door, so the upload can be
         # held open across the retirement's attempt rather than merely near it.
         retire_attempted = threading.Event()
-        real_retire = api.retire_superseded_documents
+        real_retire = v1_api.retire_superseded_documents
 
         def probing_retire(ids, version):
             retire_attempted.set()
             return real_retire(ids, version)
 
-        patch.object(api, "retire_superseded_documents", probing_retire).start()
+        patch.object(v1_api, "retire_superseded_documents", probing_retire).start()
 
         # The superseding batch is submitted and then parks inside the model,
         # so its upload has already returned and released the mutation lock.
         body = self.upload((NEW_FILE, NEW_DOC), wait=False)
         self.assertTrue(plan_reached.wait(WAIT_SECONDS), "wiki job never parked")
 
-        original_build_index = api.build_index
+        original_build_index = v1_api.build_index
 
         def blocking_build_index(parsed, stats=None):
             # Park the unrelated upload between its snapshot of the surviving
@@ -544,7 +545,7 @@ class UploadAndRetirementAreSerialisedTests(SupersedeFixture):
             except BaseException as exc:  # surfaced after the join
                 errors.append(exc)
 
-        with patch.object(api, "build_index", side_effect=blocking_build_index):
+        with patch.object(v1_api, "build_index", side_effect=blocking_build_index):
             uploader = threading.Thread(target=upload_unrelated)
             uploader.start()
             self.assertTrue(embedding_reached.wait(WAIT_SECONDS), "upload never parked")
@@ -596,7 +597,7 @@ class RetirementFailureIsCompensatedTests(SupersedeFixture):
         wiki_before = self.wiki_text()
 
         with patch.object(
-            api.storage, "replace_chunks", side_effect=OSError("disk gone")
+            v1_api.storage, "replace_chunks", side_effect=OSError("disk gone")
         ):
             body = self.upload((NEW_FILE, NEW_DOC))
 
@@ -642,7 +643,7 @@ class RetirementFailureIsCompensatedTests(SupersedeFixture):
         with patch.object(repository, "retract_current", retract), patch.object(
             repository, "rollback", rollback
         ), patch.object(self.runtime, "_restore_previous_build", restore), patch.object(
-            api.storage, "replace_chunks", write
+            v1_api.storage, "replace_chunks", write
         ):
             body = self.upload((OLD_FILE, OLD_DOC), (NEW_FILE, NEW_DOC))
 
@@ -689,7 +690,7 @@ class RetirementFailureIsCompensatedTests(SupersedeFixture):
             return original_restore(runtime, *args, **kwargs)
 
         with patch.object(
-            api.storage, "replace_chunks", side_effect=OSError("disk gone")
+            v1_api.storage, "replace_chunks", side_effect=OSError("disk gone")
         ), patch.object(WikiRuntime, "_restore_previous_build", clear_then_restore):
             body = self.upload((NEW_FILE, NEW_DOC))
 
@@ -701,8 +702,8 @@ class RetirementFailureIsCompensatedTests(SupersedeFixture):
         # The clear stands: no build is live and retrieval is empty.
         self.assertIsNone(self.runtime.current_build_id())
         self.assertIsNone(self.runtime.published_pages())
-        with api.state_lock:
-            self.assertEqual(api.chunks, [])
+        with v1_api.state_lock:
+            self.assertEqual(v1_api.chunks, [])
 
 
 if __name__ == "__main__":

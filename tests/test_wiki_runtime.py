@@ -16,6 +16,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import chat_orchestration
 import wiki_runtime
 from rag import Chunk
@@ -548,16 +549,15 @@ class LiveWikiTests(RuntimeTestCase):
 class UploadEndpointTests(RuntimeTestCase):
     def setUp(self):
         super().setUp()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
         self.addCleanup(lambda: setattr(api, "storage", self.original_storage))
-        with api.state_lock:
-            api.chunks.clear()
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
 
         # Indexing must not call Ollama for embeddings.
-        self.build_index = patch.object(
-            api, "build_index", side_effect=lambda parsed, stats: parsed
+        self.build_index = patch.object(v1_api, "build_index", side_effect=lambda parsed, stats: parsed
         ).start()
         self.addCleanup(patch.stopall)
 

@@ -30,11 +30,14 @@ foundation. It is not the product mainline; do not extend it.
   decisions, `/api/aftersales/*` routes) and the M1 grounding gate.
 - `eval_v2/`, `eval/v2/`: V2 evaluation stack and datasets (frozen).
 - `eval_m1/`: M1-A2 grounding before/after comparison.
-- `api.py`: FastAPI app; mounts the after-sales router and keeps the V1 Q&A /
-  SSE endpoints.
+- `api.py`: FastAPI app; mounts login, the after-sales router and the
+  liveness-only `/api/health`. It must not import V1 runtime modules.
+- `v1_api.py`: the V1 Q&A / SSE endpoints and their in-process state; imported
+  and mounted only when `ENABLE_V1_ROUTES` is on (or `create_app(v1_routes=True)`
+  in tests).
 - `frontend/`: Vue after-sales customer-service UI (since M0-A2).
-- V1 modules (`agent.py`, `rag.py`, `orchestration/`, `wiki_maintenance/`,
-  `eval_env/`, `storage.py`): historical, read-only behavior.
+- V1 modules (`v1_api.py`, `agent.py`, `rag.py`, `orchestration/`,
+  `wiki_maintenance/`, `eval_env/`, `storage.py`): historical, read-only behavior.
 
 Unless the active task says otherwise, preserve these contracts.
 
@@ -112,7 +115,7 @@ DeepSeek, Ollama, the internet, or the real persistent database.
 
 V1-only unit tests have been deleted; the V1 code is kept but no longer
 maintained. The V1-touching tests that remain guard the V1 Q&A endpoints in
-`api.py`, V1 modules that V2 imports (`orchestration.contracts`,
+`v1_api.py`, V1 modules that V2 imports (`orchestration.contracts`,
 `orchestration.wiki_adapter`, `wiki_maintenance`, `llm_provider`), and the V1
 dataset pins.
 

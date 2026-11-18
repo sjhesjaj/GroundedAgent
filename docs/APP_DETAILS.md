@@ -123,7 +123,10 @@ py -m venv .venv
 
 ### 3. 启动 FastAPI
 
+本文描述的 V1 接口默认不挂载，必须在同一个终端里先设置环境变量再启动，否则 V1 请求都会返回 404：
+
 ```powershell
+$env:ENABLE_V1_ROUTES = "1"
 .\start_api.ps1
 ```
 
@@ -210,7 +213,7 @@ Wiki 是从上传文档派生的**编译知识**，与原文是两种知识形�
 
 | 方法 | 地址 | 用途 |
 |---|---|---|
-| GET | `/api/health` | 模型连接与知识库状态 |
+| GET | `/api/health` | 进程存活检查（只返回 `{"status": "ok"}`，不检查模型和知识库） |
 | POST | `/api/knowledge/upload` | 上传文档、按文档 upsert 索引并触发 Wiki 编译 |
 | GET | `/api/wiki/status` | Wiki 编译任务状态与当前已发布构建 |
 | DELETE | `/api/knowledge` | 清空知识库、Wiki 构建与历史会话 |
@@ -282,7 +285,7 @@ Wiki的claim自身分数只裁主排序分数相等的记录，主分数相等�
 
 ## 运行验证
 
-后端验收请在隔离源码副本运行，并隔离其 `data` 与 Wiki 目录。`api.py` 导入会按源文件位置初始化 SQLite，仅切换工作目录不能保护真实数据库。下面是副本内已有测试环境的命令形态；也可使用原项目解释器的绝对路径。
+后端验收请在隔离源码副本运行，并隔离其 `data` 与 Wiki 目录。`v1_api.py`（V1 接口所在模块）导入会按源文件位置初始化 SQLite，仅切换工作目录不能保护真实数据库。下面是副本内已有测试环境的命令形态；也可使用原项目解释器的绝对路径。
 
 ```powershell
 # 安装测试依赖
@@ -314,7 +317,8 @@ M10 的自测入口 `evaluate_retrieval_relevance.py` 与 `verify_api_sse.py` �
 
 ```text
 knowledge-agent/
-├── api.py                       # FastAPI、SSE、会话与知识库接口
+├── api.py                       # FastAPI 应用入口；V1 接口只在 ENABLE_V1_ROUTES=1 时挂载
+├── v1_api.py                    # V1 的 SSE、会话与知识库接口
 ├── storage.py                   # SQLite 持久化与事务
 ├── agent.py                     # legacy Agent 路由和工具
 ├── rag.py                       # 切分、检索、重排、生成与答案交付校验

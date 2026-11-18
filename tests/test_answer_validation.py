@@ -24,6 +24,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import api
+import v1_api
 import rag
 from rag import (
     UNGROUNDED_ANSWER_MESSAGE,
@@ -559,12 +560,12 @@ class ApiDeliveryTests(unittest.TestCase):
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
-        self.original_storage = api.storage
-        api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
-        with api.state_lock:
-            api.chunks.clear()
-            api.chunks.append(LEAVE_CHUNK)
-            api.conversation_locks.clear()
+        self.original_storage = v1_api.storage
+        v1_api.storage = SQLiteStorage(Path(self.temp_directory.name) / "test.db")
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.chunks.append(LEAVE_CHUNK)
+            v1_api.conversation_locks.clear()
         self.client = TestClient(api.create_app(v1_routes=True))
         patch(
             "orchestration.document_adapter.retrieve_fast",
@@ -575,10 +576,10 @@ class ApiDeliveryTests(unittest.TestCase):
         self.addCleanup(patch.stopall)
 
     def tearDown(self):
-        with api.state_lock:
-            api.chunks.clear()
-            api.conversation_locks.clear()
-        api.storage = self.original_storage
+        with v1_api.state_lock:
+            v1_api.chunks.clear()
+            v1_api.conversation_locks.clear()
+        v1_api.storage = self.original_storage
         self.temp_directory.cleanup()
 
     def payload(self, question, session_id):
@@ -600,7 +601,7 @@ class ApiDeliveryTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["answer"], UNGROUNDED_ANSWER_MESSAGE)
-        stored = api.storage.get_messages("s-1", CLIENT_A)
+        stored = v1_api.storage.get_messages("s-1", CLIENT_A)
         self.assertEqual(stored[-1]["content"], UNGROUNDED_ANSWER_MESSAGE)
 
     @staticmethod
@@ -671,8 +672,8 @@ class ApiDeliveryTests(unittest.TestCase):
                 self.assertEqual(plain_post.call_count, stream_post.call_count)
                 self.assertLessEqual(stream_post.call_count, 2)
                 # identical persistence
-                stored_plain = api.storage.get_messages(f"p-{abs(hash(label))}", CLIENT_A)
-                stored_stream = api.storage.get_messages(f"s-{abs(hash(label))}", CLIENT_A)
+                stored_plain = v1_api.storage.get_messages(f"p-{abs(hash(label))}", CLIENT_A)
+                stored_stream = v1_api.storage.get_messages(f"s-{abs(hash(label))}", CLIENT_A)
                 self.assertEqual(len(stored_plain), len(stored_stream))
                 self.assertEqual(stored_plain[-1]["content"], stored_stream[-1]["content"])
                 self.assertEqual(stored_stream[-1]["content"], expected)
@@ -703,8 +704,8 @@ class ApiDeliveryTests(unittest.TestCase):
         self.assertEqual(shown, UNGROUNDED_ANSWER_MESSAGE)
         self.assertNotIn(question, shown)
         self.assertEqual(terminal, "done")
-        stored_plain = api.storage.get_messages("s-2a", CLIENT_A)
-        stored_stream = api.storage.get_messages("s-2b", CLIENT_A)
+        stored_plain = v1_api.storage.get_messages("s-2a", CLIENT_A)
+        stored_stream = v1_api.storage.get_messages("s-2b", CLIENT_A)
         self.assertEqual(len(stored_plain), len(stored_stream))
         self.assertEqual(stored_plain[-1]["content"], stored_stream[-1]["content"])
         self.assertEqual(stored_stream[-1]["content"], UNGROUNDED_ANSWER_MESSAGE)
@@ -738,7 +739,7 @@ class ApiDeliveryTests(unittest.TestCase):
         self.assertEqual(answer_body, body)
         self.assertNotIn('{"answer"', answer_body)
         self.assertEqual(
-            api.storage.get_messages("s-env", CLIENT_A)[-1]["content"], body
+            v1_api.storage.get_messages("s-env", CLIENT_A)[-1]["content"], body
         )
 
     def test_a_plain_text_fallback_is_delivered_as_prose(self):
@@ -774,7 +775,7 @@ class ApiDeliveryTests(unittest.TestCase):
             )
         _shown, terminal = self._sse(response)
         self.assertEqual(terminal, "error")
-        self.assertEqual(api.storage.get_messages("s-2c", CLIENT_A), [])
+        self.assertEqual(v1_api.storage.get_messages("s-2c", CLIENT_A), [])
 
     def test_a_valid_answer_still_reaches_both_interfaces(self):
         question = "年假有多少天"
@@ -790,8 +791,8 @@ class ApiDeliveryTests(unittest.TestCase):
         self.assertEqual(plain.json()["answer"], text)
         self.assertIn("event: done", streamed.text)
         self.assertEqual(
-            api.storage.get_messages("s-3", CLIENT_A)[-1]["content"],
-            api.storage.get_messages("s-4", CLIENT_A)[-1]["content"],
+            v1_api.storage.get_messages("s-3", CLIENT_A)[-1]["content"],
+            v1_api.storage.get_messages("s-4", CLIENT_A)[-1]["content"],
         )
 
     def test_both_interfaces_return_the_same_sources_for_the_same_question(self):
