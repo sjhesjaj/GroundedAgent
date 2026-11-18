@@ -30,3 +30,17 @@
 ## 历史例外
 
 Stage 0（commit `416fd0d`）的原始输出在这条规则制定之前就已经提交，位置是 `eval/runs/baseline_qwen/`、`eval/runs/regression_qwen/`、`eval/*.console.txt`。**它们保留在原处，不移动也不改写**，因为 `stage0_comparison.json` 和 HANDOFF 都引用了这些路径。新的运行不要再往 `eval/runs/` 里写。
+
+## V1 数据集的位置
+
+不被任何冻结记录引用的 V1 数据集放在 `eval/v1/datasets/`：`eval_cases.json`、`eval_cases_extended.json`、`eval_agent_routes.json`、`eval_no_answer.json`、`eval_temporal_freshness_dev.json`。脚本里的默认路径已经指向新位置；历史结果文件（例如 `eval/stage3/*.json`）里记录的是当时的文件名，保持原样。
+
+下面这些**留在仓库根目录，不要搬**，因为冻结记录或校验代码按根目录路径引用它们：
+
+| 数据集 | 锁定它的地方 |
+|---|---|
+| `eval_answerability_validation_v1.json` | `eval/environments/eval-env-v1/manifest.json`，`eval_env` 按根目录路径校验 sha256 |
+| `eval_answerability_blind_v2.json`、`eval_orchestrated_routes_blind_v2.json` | `evaluation_runs/blind-v2-freeze-manifest.json` |
+| `eval_orchestrated_routes_dev.json`、`eval_orchestrated_routes_validation_v1.json` | `eval/label_revisions/` 的冻结 overlay 按文件名关联 |
+| `eval_answerability_dev.json`、`eval_answerability_holdout.json`、`eval_orchestrated_routes_holdout.json` | `evaluation_runs/dataset-sha256.json` 的历史哈希记录 |
+| `eval_temporal_freshness_holdout.json` | `eval/stage3_freshness_holdout.py` 要求自封存提交 `7cc5abe` 起没有任何提交动过这个路径 |

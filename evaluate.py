@@ -7,7 +7,7 @@ from rag import bm25_rank, build_index, hybrid_retrieve, read_file, retrieve, sp
 
 def main() -> None:
     document = Path("sample_company_rules.md")
-    case_file = Path(sys.argv[1] if len(sys.argv) > 1 else "eval_cases.json")
+    case_file = Path(sys.argv[1] if len(sys.argv) > 1 else "eval/v1/datasets/eval_cases.json")
     cases = json.loads(case_file.read_text(encoding="utf-8"))
     chunks = build_index(
         split_text(read_file(document.name, document.read_bytes()), document.name)

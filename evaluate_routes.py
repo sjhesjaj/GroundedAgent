@@ -5,7 +5,7 @@ from agent import decide_action
 
 
 def main() -> None:
-    cases = json.loads(Path("eval_agent_routes.json").read_text(encoding="utf-8"))
+    cases = json.loads(Path("eval/v1/datasets/eval_agent_routes.json").read_text(encoding="utf-8"))
     passed = 0
     for index, case in enumerate(cases, start=1):
         decision = decide_action(case["question"], [])

@@ -29,7 +29,7 @@ pnpm run build
 
 ## 检索评测
 
-第一组 `eval_cases.json`：
+第一组 `eval/v1/datasets/eval_cases.json`：
 
 | 方法 | Recall@1 | Recall@3 | MRR |
 |---|---:|---:|---:|
@@ -37,7 +37,7 @@ pnpm run build
 | 纯 BM25 | 90.0% | 97.5% | 0.938 |
 | RRF 融合 | 60.0% | 82.5% | 0.715 |
 
-第二组 `eval_cases_extended.json`：
+第二组 `eval/v1/datasets/eval_cases_extended.json`：
 
 | 方法 | Recall@1 | Recall@3 | MRR |
 |---|---:|---:|---:|
@@ -61,7 +61,7 @@ pnpm run build
 
 ## Agent 路由评测
 
-`eval_agent_routes.json` 覆盖普通对话、知识检索、来源列表和知识库总结四类意图。
+`eval/v1/datasets/eval_agent_routes.json` 覆盖普通对话、知识检索、来源列表和知识库总结四类意图。
 
 - Tool Selection Accuracy：100%（15/15）
 
@@ -69,7 +69,7 @@ pnpm run build
 
 ## 无答案拒答评测
 
-`eval_no_answer.json` 包含 20 条知识库中没有明确依据的问题。
+`eval/v1/datasets/eval_no_answer.json` 包含 20 条知识库中没有明确依据的问题。
 
 最终结果：
 

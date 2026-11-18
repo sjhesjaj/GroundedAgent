@@ -31,7 +31,7 @@ from orchestration.planner import FRESHNESS_MARKERS, ToolName, plan_request  # n
 from orchestration.wiki_adapter import WIKI_AUTHORITY  # noqa: E402
 from rag import Chunk  # noqa: E402
 
-DATASET = ROOT / "eval_temporal_freshness_dev.json"
+DATASET = ROOT / "eval" / "v1" / "datasets" / "eval_temporal_freshness_dev.json"
 EXPECTED_ANSWERABLE = {"current_knowledge", "incidental"}
 
 
