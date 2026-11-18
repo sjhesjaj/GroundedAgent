@@ -13,7 +13,7 @@
 `document_search` 给出原文条款，`system_query` 给出当前业务状态。系统先判定一个请求
 需要哪几条通道，合并证据后作答；证据不足时明确拒答，能力未开放时给出固定边界文案。
 
-系统默认使用 Ollama 运行 Qwen3 4B 和 nomic-embed-text，不依赖付费模型 API。原有 Streamlit 页面仍保留，可作为轻量原型入口。
+系统默认使用 Ollama 运行 Qwen3 4B 和 nomic-embed-text，不依赖付费模型 API。原有 Streamlit 页面已退役，保留在 [`v1-final`](https://github.com/sjhesjaj/GroundedAgent/tree/v1-final) 标签上。
 
 > **范围说明**：这是一个本地演示项目。三通道里的「业务状态」读的是仓库内的内存样例
 > 数据，**只开放库存查询**，没有接入任何真实企业系统；也没有登录鉴权和写操作。
@@ -179,12 +179,6 @@ npm run dev
 
 完整演示流程、固定问题与预期路由见 **[docs/DEMO_GUIDE.md](DEMO_GUIDE.md)**。
 
-详细使用说明见 [FRONTEND.md](../FRONTEND.md)。如需运行原有 Streamlit 版本：
-
-```powershell
-.\start.ps1
-```
-
 ## 上下文与持久化
 
 - SQLite 按 `client_id + conversation_id` 保存全部聊天记录。
@@ -283,7 +277,7 @@ Wiki的claim自身分数只裁主排序分数相等的记录，主分数相等�
 不能称为“仅同页平局”。
 
 完整结果、原始记录索引、源码身份、取舍、未覆盖项和归档清单见
-**[M10收尾验收报告](M10_CLOSEOUT_REPORT.md)**。旧实现与各轮返修报告保持原样，
+**[M10收尾验收报告](https://github.com/sjhesjaj/GroundedAgent/blob/v1-final/docs/M10_CLOSEOUT_REPORT.md)**（已从主干移除，保留在 `v1-final` 标签上）。旧实现与各轮返修报告保持原样，
 其中的历史“不通过”、旧测试数量和旧候选哈希不代表本次状态。验收报告记录的是提交前冻结快照，后续提交状态以 Git 历史为准。
 
 ## 运行验证
@@ -301,15 +295,9 @@ Wiki的claim自身分数只裁主排序分数相等的记录，主分数相等�
 .\.venv\Scripts\python.exe evaluate_orchestrated_routes.py `
     --dataset eval_orchestrated_routes_blind_v2.json --output out\route-v2.json
 
-# 检索相关性评测（静态 Wiki / 动态 Wiki / 原文三条路径）
-.\.venv\Scripts\python.exe evaluate_retrieval_relevance.py --output-dir out\relevance
-
 # 回答、拒答与边界评测（真实本地模型，3 轮）
 .\.venv\Scripts\python.exe evaluate_answerability.py `
     --dataset eval_answerability_blind_v2.json --runs 3 --output-dir out\answer-v2
-
-# 真实 API / SSE 两接口自测（会启动一个 uvicorn，占用一个空闲端口）
-.\.venv\Scripts\python.exe verify_api_sse.py --output-dir out\api-sse
 
 # 完整离线/本地模型评测
 .\run_tests.ps1
@@ -319,10 +307,8 @@ cd frontend
 pnpm run build
 ```
 
-`evaluate_retrieval_relevance.py` 与 `verify_api_sse.py` 是本轮新增的自测入口，
-不被产品代码导入，也不改动任何既有评测程序或题集。两者都会在隔离目录里落原始结果，
-`verify_api_sse.py` 启动时会打印它解析到的数据库路径——**请在隔离源码副本中运行**，
-因为 `api.py` 在导入时就会按 `storage.py` 的位置解析数据库。
+M10 的自测入口 `evaluate_retrieval_relevance.py` 与 `verify_api_sse.py` 已从主干移除，
+保留在 [`v1-final`](https://github.com/sjhesjaj/GroundedAgent/tree/v1-final) 标签上。
 
 ## 项目结构
 
@@ -344,12 +330,10 @@ knowledge-agent/
 ├── wiki_maintenance/            # Wiki 编译器、构建仓库、来源片段与差异
 ├── wiki_pages/                  # 随仓库分发的样例 Wiki 页面
 ├── system_fixtures/             # 只读业务状态样例数据（SQLite 脚本）
-├── app.py                       # 保留的 Streamlit 原型
 ├── frontend/                    # Vue 3 + Vite 前端
 ├── tests/                       # 自动化测试
 ├── eval_*.json                  # 检索相关性、路由、回答与拒答评测集
 ├── evaluate*.py                 # 评测脚本
-├── verify_api_sse.py            # 真实 API / SSE 两接口自测
 ├── sample_company_rules.md      # 演示知识库
 ├── evaluation_runs/             # 历史评测原始记录（只追加，不覆写）
 └── data/                        # 本地 SQLite 与 Wiki 构建（Git 忽略）

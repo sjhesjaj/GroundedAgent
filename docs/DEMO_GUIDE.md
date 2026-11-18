@@ -1,7 +1,7 @@
 # V1 演示指南
 
 三通道知识 Agent 的固定演示流程：Wiki、原文检索、只读实时状态。
-下列问题用于演示固定通道组合；模型措辞与检索结果可能波动。最新实测范围及限制见 [M10收尾验收报告](M10_CLOSEOUT_REPORT.md)。
+下列问题用于演示固定通道组合；模型措辞与检索结果可能波动。最新实测范围及限制见 [M10收尾验收报告](https://github.com/sjhesjaj/GroundedAgent/blob/v1-final/docs/M10_CLOSEOUT_REPORT.md)（保留在 `v1-final` 标签上）。
 
 ---
 

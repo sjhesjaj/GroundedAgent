@@ -506,7 +506,7 @@ flowchart TB
 | freshness holdout（24 条，已开封） | precision 1.000 / recall 0.500（修改前 0.545 / 0.600） | Stage 3，只开封一次 |
 | Trace 开销 | `/api/chat` 每个请求 +20.9 ms，约占真实请求 p50 的 0.74%（Qwen）/ 1.8%（DeepSeek） | 每组 200 次 A/B，`551bab2`（Stage 3 之前测得，之后没有重测） |
 
-历史结果都保留在 `eval/` 中，不会被覆写：Stage 0 基线、Stage 1 Trace 回归、Stage 2.5 对照、post-main-integration baseline，以及 Stage 3 的 freshness 评测（`eval/stage3/`）。M10 阶段的验收记录见 [docs/M10_CLOSEOUT_REPORT.md](docs/M10_CLOSEOUT_REPORT.md)，每个阶段的完整记录见 [HANDOFF.md](HANDOFF.md)。
+历史结果都保留在 `eval/` 中，不会被覆写：Stage 0 基线、Stage 1 Trace 回归、Stage 2.5 对照、post-main-integration baseline，以及 Stage 3 的 freshness 评测（`eval/stage3/`）。M10 阶段的验收记录见 [`v1-final` 标签上的 M10_CLOSEOUT_REPORT.md](https://github.com/sjhesjaj/GroundedAgent/blob/v1-final/docs/M10_CLOSEOUT_REPORT.md)，每个阶段的完整记录见 [HANDOFF.md](HANDOFF.md)。
 
 ### Quick start（V1 知识问答链路）
 
