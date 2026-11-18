@@ -79,11 +79,12 @@ flowchart TB
 |---|---|
 | M0 后端售后产品 / API 测试 | **30/30** 通过（`tests/test_aftersales_service.py`，离线，模型由测试替身代替） |
 | M1 grounding gate 测试 | **50/50** 通过（`tests/test_aftersales_grounding.py`，离线） |
-| M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`） |
+| JWT 鉴权测试 | **24/24** 通过（`tests/test_aftersales_auth.py`，离线） |
+| M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`）；前端全部测试 **45/45**（`node --test`） |
 | M0 前端构建 | 通过（`pnpm run build`） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
 | M2 重启恢复测试 | **62/62** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
-| 后端全量离线套件 | **2477/2477**（`.\run_tests.ps1 -Full`，M3 默认策略切换后），只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
+| 后端全量离线套件 | 运行 **2515** 项，4 项跳过，零失败和错误（`.\run_tests.ps1 -Full`，2026-11-18 仓库清理之后），只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
 | M3 KB-HOLDOUT（20 条，开封一次） | **12/20**；六个硬安全不变量 0 违反（见下文 M3） |
 | Stage 6 DEV（40 条） | E2E **37/40** |
 | Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
@@ -277,9 +278,10 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── system_fixtures/       # 演示用的业务数据（SQLite seed）
 ├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
 ├── api.py                 # FastAPI：/auth + /api/aftersales 路由 + /api/health
+├── auth.py                # JWT 登录、演示账号与角色校验（/auth/*）
 ├── v1_api.py              # V1 问答接口 / SSE 与其状态；只在 ENABLE_V1_ROUTES=1 时导入和挂载
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── tests/                 # 2477 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
+├── tests/                 # 2515 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
 │
 │                          # —— V1 / 工程基础 ——
@@ -293,10 +295,10 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── storage.py             # SQLite 持久化
 ├── wiki_runtime.py        # Wiki 编译任务、发布、回退
 ├── wiki_maintenance/      # Wiki 编译器与构建仓库
-├── eval_*.json            # 评测数据集
+├── eval_*.json            # 被冻结记录按根目录路径锁定的 V1 数据集；其余 V1 数据集在 eval/v1/datasets/（见 eval/README.md）
 ├── evaluate*.py           # 评测脚本
 ├── HANDOFF.md             # 每个阶段的决策、结果与风险记录
-└── docs/                  # 应用细节、演示指南、M10 报告
+└── docs/v1/               # V1 文档：应用细节、演示指南、两份 V1 评测报告（M10 报告与 V1 任务书保留在 v1-final 标签上）
 ```
 
 ---
@@ -321,7 +323,9 @@ V2 之前，这个仓库是一个面向企业制度问答的 Agent（V1）。它
 | Qwen vs DeepSeek | 在这 40 题上**质量没有差异**（Stage 3 之前、同一份代码的对照）；DeepSeek 延迟更低（平均 1.96 s vs 3.60 s），但有 API 费用 |
 
 > [!IMPORTANT]
-> **`blind_v2` 已经在开发中被使用过**（M10 用它的路由结果做过验收基线），**不能再当作真正的盲测集**。上面的 validation 集同样是开发中见过的回归集。所以 V1 问答链路的这些数字说明的是回归稳定性和链路可用性，**不是**对未见数据的泛化能力。Stage 3 的 temporal holdout 是 V1 唯一一份隔离编写的集合，但它已经开封过一次，以后也不能再当作 holdout 使用。V2 Stage 6 的 holdout 由隔离上下文编写并封存，在栈冻结后只开封、只运行一次；它现在同样已经开封。
+> **`blind_v2` 已经在开发中被使用过**（M10 用它的路由结果做过验收基线），**不能再当作真正的盲测集**。上面的 validation 集同样是开发中见过的回归集。所以 V1 问答链路的这些数字说明的是回归稳定性和链路可用性，**不是**对未见数据的泛化能力。Stage 3 的 temporal holdout 由隔离上下文编写，用来衡量 freshness 修复的泛化；它已经开封过一次，以后也不能再当作 holdout 使用。V2 Stage 6 的 holdout 由隔离上下文编写并封存，在栈冻结后只开封、只运行一次；它现在同样已经开封。
+>
+> 修复前的那次盲测说明了差距有多大：在独立 Agent 盲写的 Blind Holdout V1 上，Planner 路由准确率只有 **22.5%**、回答/拒答通过率 **54.2%**，而同期开发集上是 95.0% / 97.5%。这个集合之后被用于缺陷分析，已经降级为回归审计集。完整报告见 [docs/v1/EVALUATION_V1_AGENT.md](docs/v1/EVALUATION_V1_AGENT.md)。
 
 > **V1 范围说明**：这是一个本地运行的演示项目，**不是生产系统**。语料是一份模拟的公司制度（约 20 个知识块）；「业务状态」通道读的是仓库内的样例数据，没有接入真实企业系统；没有登录鉴权。V1 问答链路只读。
 
@@ -369,7 +373,7 @@ flowchart TB
 - **混合检索**：Jieba + BM25 + Embedding + RRF，高置信问题走 BM25 快速路径，复合问题拆子问题并用 LLM 重排。
 - **答案交付校验**：结构化输出，检查引用编号越界、缺引用、复述问题、无依据的数量；失败时最多复查一次，仍不通过就拒答。只做**形式上可判定**的检查，不判断语义是否正确。
 - **LLM Provider**：统一的 `chat` / `chat_stream` 接口，支持本地 Ollama（Qwen3-4B）和 DeepSeek API（OpenAI 兼容）。通过 `.env` 切换，业务代码不感知。为适配 DeepSeek 的 JSON 模式所做的 prompt 调整会被记录下来，不会悄悄发生。
-- **应用层**：FastAPI + Vue 3（V1 界面；M0-A2 起默认前端换成了售后客服界面），SSE 流式回答，多会话，SQLite 持久化，文档增量更新，Wiki 后台编译与发布/回退。详见 [docs/APP_DETAILS.md](docs/APP_DETAILS.md)。
+- **应用层**：FastAPI + Vue 3（V1 界面；M0-A2 起默认前端换成了售后客服界面），SSE 流式回答，多会话，SQLite 持久化，文档增量更新，Wiki 后台编译与发布/回退。详见 [docs/v1/APP_DETAILS.md](docs/v1/APP_DETAILS.md)。
 
 ### Trace / Diagnostic Eval
 
@@ -532,7 +536,7 @@ ollama pull nomic-embed-text
 $env:ENABLE_V1_ROUTES = "1"; .\start_api.ps1
 ```
 
-V1 的完整演示步骤（基于旧前端）见 [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)，应用层说明见 [docs/APP_DETAILS.md](docs/APP_DETAILS.md)。
+V1 的完整演示步骤（基于旧前端）见 [docs/v1/DEMO_GUIDE.md](docs/v1/DEMO_GUIDE.md)，应用层说明见 [docs/v1/APP_DETAILS.md](docs/v1/APP_DETAILS.md)。
 
 ### Known limitations / Roadmap（V1）
 

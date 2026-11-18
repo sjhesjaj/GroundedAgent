@@ -429,7 +429,7 @@ Citation Index Validity = 100%，与此同时 `answer_holdout_024` 编造了加�
 **现象**：`extract_sku` 在发现多个不同 SKU 时返回 `None`，随后返回
 「请提供需要查询的 SKU。」——用户已经提供了两个合法 SKU。
 
-**说明**：`docs/DEMO_GUIDE.md` 未把「一次只能查一个 SKU」写为已知限制，盲写
+**说明**：评测当时的 `docs/DEMO_GUIDE.md` 未把「一次只能查一个 SKU」写为已知限制，盲写
 Agent 因此按人类直觉标注为可回答。这既是产品限制也是文档缺口。
 
 ### 缺陷 6：`freshness_unsupported` 误拒（M7 已记录，此处为盲测证据）

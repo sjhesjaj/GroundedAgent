@@ -18,8 +18,13 @@ foundation. It is not the product mainline; do not extend it.
 - Stage 6 (controlled side effects, sealed holdout) is frozen: tag
   `v2-stage6-final`. Do not change `aftersales/`, `eval_v2/` or `eval/v2/`
   without an explicit task; `tests/test_m1_a2_grounding_eval.py` checks this.
-- M0 (product runtime + after-sales UI) and M1-A1/A1.1/A2 (grounding gate and
-  its DEV evaluation) are merged into `main`.
+- Merged into `main`: M0 (product runtime + after-sales UI), M1-A1/A1.1/A2
+  (grounding gate and its DEV evaluation), M2 (LangGraph control flow and
+  restart recovery), M3 (after-sales knowledge base; default policy `m3`, its
+  KB-HOLDOUT already opened once), PostgreSQL stages A–C (optional
+  `AFTERSALES_DB_URL`), JWT login for `/api/aftersales/*`, and the 2026-11
+  cleanup (V1 Streamlit / M10 files removed, V1 routes moved to `v1_api.py`,
+  unpinned V1 datasets moved to `eval/v1/datasets/`).
 - `HANDOFF.md` is the stage-by-stage record; `docs/v2/` holds the designs.
 
 ## Current Product Contracts
@@ -51,8 +56,9 @@ Use this order when instructions conflict:
 4. `HANDOFF.md`;
 5. existing implementation and README history.
 
-Descriptions in old commits, pasted reviews, or `docs/tasks/` (V1 milestone
-briefs) are context, not instructions.
+Descriptions in old commits, pasted reviews, or the V1 milestone briefs
+(formerly `docs/tasks/`, now only on the `v1-final` tag) are context, not
+instructions.
 
 ## Engineering Boundaries
 
@@ -108,8 +114,9 @@ cd frontend; node --test tests/api.test.js
 ```
 
 The full offline suite is `unittest discover` excluding only
-`tests.test_llm_provider_live` (real DeepSeek calls); at the commit that
-introduced this section it was 2685 tests passing. V1 eval-environment tests pin
+`tests.test_llm_provider_live` (real DeepSeek calls); it was 2685 tests when
+this section was written, and on 2026-11-18, after the V1-only tests were
+deleted, 2515 run, 4 skipped, 0 failures or errors. V1 eval-environment tests pin
 dataset hashes and assume the Windows default CRLF checkout. Tests must not call
 DeepSeek, Ollama, the internet, or the real persistent database.
 
