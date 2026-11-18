@@ -169,7 +169,7 @@ npm run dev
 ### 7. 六步演示流程
 
 一条能把本项目主要能力串起来的最短路径。逐题脚本、预期路由与排查表见
-**[docs/DEMO_GUIDE.md](DEMO_GUIDE.md)**。
+**[docs/v1/DEMO_GUIDE.md](DEMO_GUIDE.md)**。
 
 | 步骤 | 做什么 | 看什么 |
 |---|---|---|
@@ -180,7 +180,7 @@ npm run dev
 | 5 新事实生效 | 再问同一条规则 | 答案与引用变成新值，旧值不再出现在证据里 |
 | 6 拒答与边界 | 问资料里没有的事；问订单状态 | 前者明确拒答，后者返回能力边界文案，两者都不编答案 |
 
-完整演示流程、固定问题与预期路由见 **[docs/DEMO_GUIDE.md](DEMO_GUIDE.md)**。
+完整演示流程、固定问题与预期路由见 **[docs/v1/DEMO_GUIDE.md](DEMO_GUIDE.md)**。
 
 ## 上下文与持久化
 
@@ -242,7 +242,7 @@ Wiki 是从上传文档派生的**编译知识**，与原文是两种知识形�
 - Agent Tool Selection Accuracy：100%（15/15）
 - 无答案拒答准确率：100%（20/20）
 
-分组结果与复现命令见 [EVALUATION.md](../EVALUATION.md)。
+分组结果与复现命令见 [docs/v1/EVALUATION.md](EVALUATION.md)。
 
 ### M10 当前验收与收尾（2026-09-15）
 

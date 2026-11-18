@@ -2,6 +2,8 @@
 
 评测日期：2026-07-20
 
+> **历史快照。** 这是 V1 旧版单步检索链路在 2026-07-20 的评测结果，不是当前产品（V2 售后 Agent）的结果，当前结果见 [README](../../README.md)。文中的「当前」都指当时的代码；文中提到的 V1 单元测试（例如 `tests/test_routing.py`）已在 PR #46 删除，保留在 [`v1-final`](https://github.com/sjhesjaj/GroundedAgent/tree/v1-final) 标签上。V1 三通道链路的评测见 [EVALUATION_V1_AGENT.md](EVALUATION_V1_AGENT.md)。
+
 本报告记录企业知识库 RAG Agent 在当前代码版本上的可复现结果。测试资料为 `sample_company_rules.md`，包含 20 个制度知识块；模型通过本地 Ollama 运行。
 
 ## 环境
