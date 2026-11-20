@@ -40,6 +40,7 @@ import sqlite3
 import tempfile
 from contextlib import contextmanager
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
 
@@ -79,6 +80,24 @@ if DEMO_OPERATOR_REF not in STAGE6_TRUSTED_OPERATORS:
 # Audit columns a product view may show. Never the idempotency key, persona or args.
 AUDIT_VIEW_COLUMNS = ("event_seq", "event_name", "action_name", "pending_action_id",
                       "receipt_id", "phase", "decision", "code", "approver_ref", "at")
+
+# Order columns the display views may show (GET /orders, the operator's order
+# summary). Never customer_id. Amounts are the stored decimal strings:
+#   total_amount  the order's amount (订单金额)
+#   unit_price    one unit's price when ordered (下单单价)
+#   subtotal      unit_price x quantity (商品小计), computed here, not stored
+# Packages belong to an order (one order may ship in several), never to a line.
+ORDER_VIEW_COLUMNS = ("order_id", "status", "paid_at", "total_amount")
+ITEM_VIEW_COLUMNS = ("order_item_id", "sku", "product_name", "category", "quantity", "unit_price")
+PACKAGE_VIEW_COLUMNS = ("tracking_no", "carrier", "status", "shipped_at", "delivered_at",
+                        "last_event_at")
+_CENT = Decimal("0.01")
+
+
+def _item_view(row: tuple) -> dict[str, object]:
+    item = dict(zip(ITEM_VIEW_COLUMNS, row))
+    item["subtotal"] = str((Decimal(item["unit_price"]) * item["quantity"]).quantize(_CENT))
+    return item
 
 
 class ReadSide:
@@ -260,6 +279,64 @@ class DemoStore:
         finally:
             connection.close()
         return [dict(zip(AUDIT_VIEW_COLUMNS, row)) for row in rows]
+
+    def customer_orders(self, customer_id: str) -> list[dict[str, object]]:
+        """Every order of one customer, highest order number first, each with its lines
+        and its packages. Read-only; nothing of another customer's."""
+        connection = self._read_connection()
+        try:
+            orders = connection.execute(
+                "SELECT " + ", ".join(ORDER_VIEW_COLUMNS)
+                + " FROM orders WHERE customer_id = ? ORDER BY order_id DESC", (customer_id,)).fetchall()
+            items = connection.execute(
+                "SELECT " + ", ".join("i." + column for column in ("order_id",) + ITEM_VIEW_COLUMNS)
+                + " FROM order_items AS i JOIN orders AS o ON o.order_id = i.order_id"
+                " WHERE o.customer_id = ? ORDER BY i.order_item_id", (customer_id,)).fetchall()
+            packages = connection.execute(
+                "SELECT " + ", ".join("l." + column for column in ("order_id",) + PACKAGE_VIEW_COLUMNS)
+                + " FROM logistics AS l JOIN orders AS o ON o.order_id = l.order_id"
+                " WHERE o.customer_id = ? ORDER BY l.shipped_at, l.tracking_no", (customer_id,)).fetchall()
+        finally:
+            connection.close()
+        views = {row[0]: {**dict(zip(ORDER_VIEW_COLUMNS, row)), "items": [], "packages": []}
+                 for row in orders}
+        for order_id, *row in items:
+            views[order_id]["items"].append(_item_view(tuple(row)))
+        for order_id, *row in packages:
+            views[order_id]["packages"].append(dict(zip(PACKAGE_VIEW_COLUMNS, row)))
+        return list(views.values())
+
+    def order_line(self, customer_id: str, order_id: object,
+                   order_item_id: object) -> dict[str, object]:
+        """One line of one customer's order: {"order": ..., "item": ...}. Read-only.
+
+        "order" is that order with its packages, None unless it is this
+        customer's; "item" is the line, None unless it is in that order.
+        """
+        order = item = None
+        connection = self._read_connection()
+        try:
+            if isinstance(order_id, str):
+                row = connection.execute(
+                    "SELECT " + ", ".join(ORDER_VIEW_COLUMNS)
+                    + " FROM orders WHERE order_id = ? AND customer_id = ?",
+                    (order_id, customer_id)).fetchone()
+                if row is not None:
+                    packages = connection.execute(
+                        "SELECT " + ", ".join(PACKAGE_VIEW_COLUMNS)
+                        + " FROM logistics WHERE order_id = ? ORDER BY shipped_at, tracking_no",
+                        (order_id,)).fetchall()
+                    order = {**dict(zip(ORDER_VIEW_COLUMNS, row)),
+                             "packages": [dict(zip(PACKAGE_VIEW_COLUMNS, package)) for package in packages]}
+            if order is not None and isinstance(order_item_id, str):
+                row = connection.execute(
+                    "SELECT " + ", ".join(ITEM_VIEW_COLUMNS)
+                    + " FROM order_items WHERE order_item_id = ? AND order_id = ?",
+                    (order_item_id, order_id)).fetchone()
+                item = None if row is None else _item_view(row)
+        finally:
+            connection.close()
+        return {"order": order, "item": item}
 
     def close(self) -> None:
         if self._closed:

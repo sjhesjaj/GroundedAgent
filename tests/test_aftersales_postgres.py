@@ -492,6 +492,23 @@ class ServiceTests(PostgresCase):
             store.close()
         self.assertFalse(database_exists(store.db_path))
 
+    def test_the_order_views_read_the_same_on_both_backends(self):
+        from aftersales_service.demo_store import DemoStore
+        views = []
+        for url in (TEST_PG_URL, ""):   # "" = SQLite
+            with mock.patch.dict("os.environ", {"AFTERSALES_DB_URL": url}):
+                store = DemoStore()
+            try:
+                self.assertEqual(is_postgres(store.db_path), bool(url))
+                views.append((store.customer_orders("CUST-001"), store.customer_orders("CUST-002"),
+                              store.order_line("CUST-001", "ORD-1004", "OI-1004-2"),
+                              store.order_line("CUST-002", "ORD-1004", "OI-1004-2")))
+            finally:
+                store.close()
+        self.assertEqual(views[0], views[1])
+        self.assertEqual(len(views[0][0][0]["packages"]), 2)   # ORD-1004 first, two packages
+        self.assertEqual(views[0][3], {"order": None, "item": None})
+
     def test_a_generation_is_a_schema_created_and_dropped_with_it(self):
         from aftersales.action_db_pg import database_exists
         from aftersales_service.demo_store import generation_database

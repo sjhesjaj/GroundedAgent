@@ -80,11 +80,12 @@ flowchart TB
 | M0 后端售后产品 / API 测试 | **30/30** 通过（`tests/test_aftersales_service.py`，离线，模型由测试替身代替） |
 | M1 grounding gate 测试 | **50/50** 通过（`tests/test_aftersales_grounding.py`，离线） |
 | JWT 鉴权测试 | **24/24** 通过（`tests/test_aftersales_auth.py`，离线） |
+| 订单展示接口测试 | **18/18** 通过（`tests/test_aftersales_orders.py`，离线：顾客订单与包裹、审批单商品摘要、登录 / 角色 / 跨顾客隔离、摘要不触发会话恢复） |
 | M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`）；前端全部测试 **45/45**（`node --test`） |
 | M0 前端构建 | 通过（`pnpm run build`） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
 | M2 重启恢复测试 | **62/62** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
-| 后端全量离线套件 | 运行 **2515** 项，4 项跳过，零失败和错误（`.\run_tests.ps1 -Full`，2026-11-18 仓库清理之后），只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
+| 后端全量离线套件 | 运行 **2533** 项，4 项跳过，零失败和错误（`.\run_tests.ps1 -Full`，2026-11-20 加入订单展示接口之后），只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
 | M3 KB-HOLDOUT（20 条，开封一次） | **12/20**；六个硬安全不变量 0 违反（见下文 M3） |
 | Stage 6 DEV（40 条） | E2E **37/40** |
 | Stage 6 sealed holdout（25 条，只开封一次） | E2E **21/25**；六个硬安全不变量 **25/25**；`final_state_ok` **25/25**；动作最终状态（状态 + 码）**24/25**；基础设施失败 **0** |
@@ -281,7 +282,7 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── auth.py                # JWT 登录、演示账号与角色校验（/auth/*）
 ├── v1_api.py              # V1 问答接口 / SSE 与其状态；只在 ENABLE_V1_ROUTES=1 时导入和挂载
 ├── llm_provider.py        # 统一 LLM 接口：Ollama / DeepSeek（OpenAI 兼容）
-├── tests/                 # 2515 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
+├── tests/                 # 2533 项后端离线自动化测试（含 30 项 M0 产品测试、50 项 M1 grounding 测试、62 项 M2 恢复测试）
 ├── docs/v2/               # V2 设计文档与 M0 运行时说明
 │
 │                          # —— V1 / 工程基础 ——

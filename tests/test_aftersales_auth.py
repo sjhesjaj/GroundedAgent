@@ -120,12 +120,13 @@ class AuthenticationTests(AuthTestCase):
             for method in operations:
                 if (method, path) == ("post", "/auth/login"):
                     continue
-                calls.append((method.upper(), path.replace("{session_id}", SESSION), bodies.get(path)))
+                calls.append((method.upper(), path.replace("{session_id}", SESSION)
+                              .replace("{pending_action_id}", PENDING), bodies.get(path)))
         return calls
 
     def test_every_route_but_login_needs_a_token(self):
         calls = self.protected_calls()
-        self.assertEqual(len(calls), 9)   # 8 under /api/aftersales + GET /auth/me
+        self.assertEqual(len(calls), 11)   # 10 under /api/aftersales + GET /auth/me
         for method, path, body in calls:
             with self.subTest(method=method, path=path):
                 response = self.raw.request(method, path, json=body)
@@ -182,6 +183,8 @@ class RoleTests(AuthTestCase):
                  {"pending_action_id": pending_id, "decision": "APPROVE"}),
                 ("GET", "/api/aftersales/operator/sessions", None),
                 ("GET", "/api/aftersales/operator/sessions/" + session_id, None),
+                ("GET", "/api/aftersales/operator/sessions/" + session_id + "/actions/" + pending_id
+                 + "/order-summary", None),
                 ("POST", "/api/aftersales/demo/reset", None)):
             with self.subTest(method=method, path=path):
                 response = self.raw.request(method, path, json=body, headers=customer)
@@ -194,6 +197,7 @@ class RoleTests(AuthTestCase):
         session_id = self.session()
         operator = self.as_("operator")
         for method, path, body in (("POST", "/api/aftersales/sessions", None),
+                                   ("GET", "/api/aftersales/orders", None),
                                    ("GET", "/api/aftersales/sessions/" + session_id, None),
                                    ("POST", "/api/aftersales/sessions/" + session_id + "/messages",
                                     {"text": "我是顾客"})):

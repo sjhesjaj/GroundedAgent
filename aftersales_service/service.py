@@ -280,6 +280,39 @@ class AftersalesService:
                               "message_count": len(view["messages"])})
         return summaries
 
+    def customer_orders(self, persona_id: str) -> dict[str, object]:
+        """One persona's own orders, lines and packages, for display. Read-only.
+
+        The customer is the server-side persona's; the persona is the caller's.
+        """
+        persona = DEMO_PERSONAS.get(persona_id) if isinstance(persona_id, str) else None
+        if persona is None:
+            raise UnknownPersona("unknown persona")
+        with self._lock:
+            store = self._require_runtime().store
+            return {"business_time": store.business_time_iso,
+                    "orders": store.customer_orders(persona.customer_id)}
+
+    def order_summary(self, session_id: str, pending_action_id: str) -> dict[str, object]:
+        """The order and line one of this session's pending actions names, for the
+        operator's review. Another session's action is not found.
+
+        Read-only: not `_locked`, whose ensure_loaded recovers and reconciles
+        (and so writes). The session is read from its committed head under its
+        lock, and is left as it was: one with a submission still to recover
+        answers recovery_pending (Conversation.order_summary).
+        """
+        if not isinstance(session_id, str) or not HEX_ID.fullmatch(session_id):
+            raise SessionNotFound("no such session")
+        with self._lock:
+            conversation = self._cached(session_id)
+        if conversation is None:
+            raise SessionNotFound("no such session")
+        with conversation.lock:
+            if conversation.closed:
+                raise SessionNotFound("the session was reset")
+            return conversation.order_summary(pending_action_id)
+
     def submit(self, session_id: str, text: str, *, persona_id: str | None = None) -> dict[str, object]:
         with self._locked(session_id, persona_id) as conversation:
             filtered = conversation.submit_smalltalk(text)

@@ -173,6 +173,24 @@ with 422. Session ids must match `^[0-9a-f]{32}$`.
 
 **Decision response:** the turn response shape with `reply.kind = operator_decision` and `trace = null`, plus `operator_decision {pending_action_id, decision, approver_ref}`.
 
+### Order views (added for the frontend redesign)
+
+Two read-only display endpoints, added after M0 and behind the same JWT login
+(`routes.py` lists every route and its role). They never feed the agent, the
+Guard or a decision, and reading one writes nothing.
+
+| Method | Path | Role | Result |
+|---|---|---|---|
+| GET | `/orders` | customer | `{business_time, orders}`: the token's customer's own orders, highest order number first. |
+| GET | `/operator/sessions/{id}/actions/{pending_action_id}/order-summary` | operator | `{session_id, pending_action_id, action_name, order, item}`: only the order and line that this one pending action names. |
+
+- An order is `{order_id, status, paid_at, total_amount, items, packages}`. In `/orders` it lists every line; in the order summary `order` has no `items`, and `item` is only the action's line.
+- A line is `{order_item_id, sku, product_name, category, quantity, unit_price, subtotal}`.
+- The amounts are decimal strings as stored. `total_amount` is the order's amount (订单金额). `unit_price` is the price of one unit when the order was placed (下单单价). `subtotal` is `unit_price × quantity` (商品小计), computed on read.
+- `packages [{tracking_no, carrier, status, shipped_at, delivered_at, last_event_at}]` belong to the order, since one order can ship in several packages. A line never carries a logistics status.
+- Order summary: the summary reads only the session's committed head. Unlike the other session requests, it never loads the conversation, recovers an in-flight submission or reconciles with the gateway, because each of those can write. A session whose file still holds an in-flight marker returns 409 `recovery_pending`; the next request that loads the session recovers it.
+- Order summary: a pending action of another session returns 404 `pending_action_not_found`, and an unknown session returns 404 `session_not_found`. The order is looked up for that session's customer only. If the order is not theirs, `order` is null; if the line is not in that order, `item` is null. The action is still shown and decided as usual.
+
 **What responses never contain:** a customer id, an idempotency key, SQL, prompts, model reasoning, or raw tool results.
 
 **Errors:** `detail = {code}`.

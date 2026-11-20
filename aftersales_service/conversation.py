@@ -413,6 +413,28 @@ class Conversation:
         return {**self._common(), "messages": messages,
                 "pending_actions": pending, "audit": self._store.audit(self.request_id)}
 
+    def order_summary(self, pending_action_id: str) -> dict[str, object]:
+        """The order and line a pending action of THIS conversation names. Read-only.
+
+        From the committed head alone: unlike every other request, it never
+        loads this object, recovers a marked submission or reconciles with the
+        gateway, since each of those can write. A session that still has a
+        submission to recover answers recovery_pending; the next request that
+        loads it recovers it. Caller holds the conversation lock.
+
+        Looked up from the action's own order_id / order_item_id, for this
+        conversation's customer only: an order or line that is not theirs is
+        None, and the action is reviewed and decided as usual.
+        """
+        proposal = self._committed_actions().get(pending_action_id)
+        if proposal is None:
+            raise PendingActionNotInConversation("this conversation has no such pending action")
+        arguments = proposal["arguments"]
+        line = self._store.order_line(self.persona.customer_id, arguments.get("order_id"),
+                                      arguments.get("order_item_id"))
+        return {"session_id": self.session_id, "pending_action_id": pending_action_id,
+                "action_name": proposal["action_name"], **line}
+
     @staticmethod
     def _action_view(outcome: ActionOutcome, proposal: Mapping[str, object]) -> dict[str, object]:
         data = outcome.to_dict()
@@ -450,6 +472,39 @@ class Conversation:
          provenance, submissions) = saved
         self._provenance.restore(provenance)
         self._submissions.restore(submissions)
+
+    @staticmethod
+    def _snapshot_actions(saved: tuple) -> Mapping[str, dict]:
+        """The proposals of a `_snapshot()` tuple (its eighth piece), without restoring it."""
+        return saved[7]
+
+    def _committed_actions(self) -> Mapping[str, dict]:
+        """The proposals recorded in the committed head, read without changing anything.
+
+        The same checks as ensure_loaded, and the same answers, but nothing is
+        recovered, reconciled or loaded into this object. Proposals are recorded
+        once per pending action and never change, so the head's are current
+        whenever the session file has no in-flight marker.
+        """
+        self.require_configured_policy()
+        try:
+            manifest = self._files.read(self.session_id)
+            if manifest is not None and manifest["decision_policy"] != self.policy:
+                raise PolicyVersionMismatch("the stored decision policy does not match")
+            if manifest is None or manifest["persona_id"] != self.persona.persona_id:
+                raise PersistenceError("the session file is missing or names another persona")
+            if manifest["inflight"] is not None:
+                raise PersistenceError("a submission must be recovered first")
+            head = self._checkpoint(manifest["head"])
+            if head.next:
+                raise PersistenceError("the head is not the end of a turn")
+            return self._snapshot_actions(self._unpacked(head.values)["snapshot"])
+        except SessionPolicyUnknown as error:
+            raise PolicyVersionMismatch("the stored decision policy is unknown") from error
+        except PolicyVersionMismatch:
+            raise
+        except Exception as error:
+            raise RecoveryPending("the conversation must be recovered first") from error
 
     def require_configured_policy(self) -> None:
         if self.policy != decision_policy.configured_policy():
