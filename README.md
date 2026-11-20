@@ -81,8 +81,8 @@ flowchart TB
 | M1 grounding gate 测试 | **50/50** 通过（`tests/test_aftersales_grounding.py`，离线） |
 | JWT 鉴权测试 | **24/24** 通过（`tests/test_aftersales_auth.py`，离线） |
 | 订单展示接口测试 | **18/18** 通过（`tests/test_aftersales_orders.py`，离线：顾客订单与包裹、审批单商品摘要、登录 / 角色 / 跨顾客隔离、摘要不触发会话恢复） |
-| M0 前端 API 测试 | **20/20** 通过（`node --test tests/api.test.js`）；前端全部测试 **45/45**（`node --test`） |
-| M0 前端构建 | 通过（`pnpm run build`） |
+| 前端测试 | **59/59** 通过（`pnpm test`，Vitest：API 22、登录与路由 12、会话记忆 12、M3 引用展示 6、token 6、「刷新状态」1） |
+| 前端构建 | 通过（`pnpm run build`，先跑 `vue-tsc` 类型检查） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
 | M2 重启恢复测试 | **62/62** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
 | 后端全量离线套件 | 运行 **2533** 项，4 项跳过，零失败和错误（`.\run_tests.ps1 -Full`，2026-11-20 加入订单展示接口之后），只排除需要真实 DeepSeek 调用的测试模块 `tests.test_llm_provider_live`（V1 评测环境的测试按哈希钉住数据集，需要 Windows 默认的 CRLF 检出） |
@@ -217,13 +217,15 @@ pnpm dev
 | `customer-b` | `demo-b-2026` | 顾客 | `demo-b` / `CUST-002`（订单 ORD-2001、ORD-2002） |
 | `operator` | `operator-2026` | 操作员 | 审批人 `op-demo-1` |
 
+`pnpm dev` 的登录页下方有这三个账号的「一键填入」。普通的 `pnpm run build` 产物里不包含它们；需要在构建出的演示站上显示时，构建前设置 `$env:VITE_DEMO_ACCOUNTS = "true"`。
+
 **鉴权**：`POST /auth/login` 返回 2 小时有效的 HS256 access token（载荷 `sub` = 用户 id、`role`），前端存在 localStorage，每个请求带 `Authorization: Bearer`；`/api/aftersales/*` 全部要求登录，顾客接口只给顾客、审批 / 重置等操作员接口只给操作员（无效或过期 401，角色不对 403）。顾客身份只从 token 取：会话绑定到 token 对应的顾客，别的顾客的会话一律按「不存在」处理（404）。密钥读环境变量 `JWT_SECRET`；用户表默认在数据目录下的 `users.sqlite3`（可用 `AFTERSALES_USERS_DB` 改位置），「重置 Demo」不影响账号。
 
 用顾客账号登录后，可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`；退出后用 `operator` 登录进入审批台，在会话列表里选中这个会话，点「批准」或「拒绝」，就能走完审批、恢复和执行；回到顾客端，点待审批动作卡片上的「刷新状态」就能看到执行结果（页面不会自动轮询）。审批台的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service tests.test_aftersales_auth   # 产品 / API / 鉴权测试（离线）
-cd frontend; node --test tests/api.test.js tests/auth.test.js tests/customerRefresh.test.js   # 前端 API、token 与「刷新状态」测试
+cd frontend; pnpm test   # 前端全部测试（Vitest）：API、token、登录与路由、会话记忆、「刷新状态」
 ```
 
 真实 DeepSeek 测试默认跳过；配置好 `.env` 后，在项目根目录执行 `$env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m unittest tests.test_llm_provider_live -v` 可开启。
@@ -277,7 +279,7 @@ knowledge-agent/           # 仓库名沿用 V1
 ├── eval_v2/               # V2 评测：Stage 5 工具循环，Stage 6 动作循环、runner、scorer、oracle
 ├── eval/v2/               # V2 规格、数据集、封存 manifest（Stage 6 holdout 不入库）
 ├── system_fixtures/       # 演示用的业务数据（SQLite seed）
-├── frontend/              # Vue 3 + Vite 售后客服界面（M0-A2）
+├── frontend/              # 售后服务中心前端：Vue 3 + TypeScript + Element Plus，vue-router、Pinia，Vitest 测试
 ├── api.py                 # FastAPI：/auth + /api/aftersales 路由 + /api/health
 ├── auth.py                # JWT 登录、演示账号与角色校验（/auth/*）
 ├── v1_api.py              # V1 问答接口 / SSE 与其状态；只在 ENABLE_V1_ROUTES=1 时导入和挂载

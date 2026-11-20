@@ -1,0 +1,54 @@
+/* The redesign's tokens: a light service-center look with one warm primary.
+ *
+ * The primary #c8501e carries white text at 4.54:1 (WCAG AA); the light-N and
+ * dark-2 shades are Element Plus's own mixes of it with white and black.
+ * `html:root` outranks the `:root` defaults that each on-demand Element Plus
+ * stylesheet brings, whatever order they load in.
+ */
+html:root {
+  --el-color-primary: #c8501e;
+  --el-color-primary-light-3: #d98562;
+  --el-color-primary-light-5: #e4a88f;
+  --el-color-primary-light-7: #efcbbc;
+  --el-color-primary-light-8: #f4dcd2;
+  --el-color-primary-light-9: #faeee9;
+  --el-color-primary-dark-2: #a04018;
+  --el-border-radius-base: 8px;
+  --el-font-family: var(--app-font);
+}
+
+:root {
+  --app-font: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Segoe UI", system-ui, sans-serif;
+  --app-bg: #f5f3f0;
+  --app-surface: #ffffff;
+  --app-surface-muted: #faf8f6;
+  --app-text: #1f1a17;
+  --app-text-muted: #6b625c;
+  --app-border: #e9e3dd;
+  --app-shadow: 0 12px 32px rgb(31 26 23 / 8%);
+  --app-brand-ink: #3b1c0f;
+
+  font-family: var(--app-font);
+  color: var(--app-text);
+  /* On html, not body: the pages still on the old stylesheet replace it while they are shown. */
+  background: var(--app-bg);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.boot-screen {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  color: var(--app-text-muted);
+  font-size: 14px;
+}

@@ -40,7 +40,11 @@ foundation. It is not the product mainline; do not extend it.
 - `v1_api.py`: the V1 Q&A / SSE endpoints and their in-process state; imported
   and mounted only when `ENABLE_V1_ROUTES` is on (or `create_app(v1_routes=True)`
   in tests).
-- `frontend/`: Vue after-sales customer-service UI (since M0-A2).
+- `frontend/`: Vue after-sales UI (since M0-A2), TypeScript + Element Plus +
+  vue-router + Pinia since the 2026-11 redesign; tests are Vitest
+  (`corepack pnpm test`). The customer and operator pages still use the old
+  stylesheet (`src/styles/legacy.css`, added only while they are shown) until
+  their own redesign.
 - V1 modules (`v1_api.py`, `agent.py`, `rag.py`, `orchestration/`,
   `wiki_maintenance/`, `eval_env/`, `storage.py`): historical, read-only behavior.
 
@@ -110,7 +114,7 @@ Use the worktree-local environment:
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m unittest tests.test_aftersales_service tests.test_aftersales_grounding
-cd frontend; node --test tests/api.test.js
+cd frontend; corepack pnpm test
 ```
 
 The full offline suite is `unittest discover` excluding only

@@ -1,21 +1,15 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import test from 'node:test'
-import * as Vue from 'vue'
-import { parse, compileScript } from '@vue/compiler-sfc'
-import { renderToString } from '@vue/server-renderer'
-import { aftersalesApi, AftersalesApiError } from '../src/api.js'
-import { openSession, rememberedSessions, SESSION_STORAGE_KEY } from '../src/sessionMemory.js'
+import { createSSRApp } from 'vue'
+import { renderToString } from 'vue/server-renderer'
+import { test, vi } from 'vitest'
+import { aftersalesApi, AftersalesApiError } from '../src/api'
+import AgentDetails from '../src/components/AgentDetails.vue'
+import { openSession, rememberedSessions, SESSION_STORAGE_KEY } from '../src/sessionMemory'
+import type { SessionHost } from '../src/sessionMemory'
 
-// Render the real component with Vue's compiler and server renderer, so these
-// assertions cover escaped customer-facing output, not a second formatter.
-const source = readFileSync(new URL('../src/components/AgentDetails.vue', import.meta.url), 'utf8')
-const { descriptor } = parse(source)
-const compiled = compileScript(descriptor, { id: 'm3-agent-details', inlineTemplate: true }).content
-const executable = compiled.replace(/import\s*\{([^}]+)\}\s*from\s*['"]vue['"];?/g,
-  (_, names) => `const {${names.replace(/\s+as\s+/g, ':')}} = Vue;`).replace('export default', 'return')
-const AgentDetails = new Function('Vue', executable)(Vue)
-const render = (props) => renderToString(Vue.createSSRApp(AgentDetails, props))
+// Render the real component with Vue's server renderer, so these assertions
+// cover escaped customer-facing output, not a second formatter.
+const render = (props: Record<string, unknown>) => renderToString(createSSRApp(AgentDetails, props))
 
 test('KB citations show the document title, version and section', async () => {
   const html = await render({ citations: [{ ref: 'evidence:internal', producer: 'search_knowledge_base',
@@ -49,26 +43,26 @@ test('generation and decision calls display real usage and unknown usage separat
   for (const text of ['处理决策', '回复生成', '输入 321', '输出 45', '1.25 秒', '回复校验失败', '调用失败', '输入 —']) assert.ok(html.includes(text))
 })
 
-test('409 policy mismatch uses a new-session notice and makes only one request', async (t) => {
-  const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json(
+test('409 policy mismatch uses a new-session notice and makes only one request', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json(
     { detail: { code: 'policy_version_mismatch' } }, { status: 409 }))
-  await assert.rejects(aftersalesApi.sendMessage('a'.repeat(32), '进度怎么样'), (error) => {
+  await assert.rejects(aftersalesApi.sendMessage('a'.repeat(32), '进度怎么样'), (error: AftersalesApiError) => {
     assert.equal(error.status, 409)
     assert.equal(error.code, 'policy_version_mismatch')
     assert.match(error.message, /新建会话/)
     return true
   })
-  assert.equal(fetch.mock.callCount(), 1)
+  assert.equal(fetch.mock.calls.length, 1)
 })
 
 test('a remembered policy mismatch does not create or migrate a session automatically', async () => {
   const sessionId = 'a'.repeat(32)
-  const values = new Map([[SESSION_STORAGE_KEY, sessionId]])
-  const target = { sessionStorage: { getItem: (key) => values.get(key), removeItem: (key) => values.delete(key) } }
+  const values = new Map<string, string>([[SESSION_STORAGE_KEY, sessionId]])
+  const target: SessionHost = { sessionStorage: { getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => { values.delete(key) } } }
   let creates = 0
-  const api = { session: async () => { throw new AftersalesApiError('请新建会话', 409, 'policy_version_mismatch') },
-    createSession: async () => { creates += 1 } }
-  await assert.rejects(openSession(api, target), (error) => error.code === 'policy_version_mismatch')
+  const api = { session: async (): Promise<never> => { throw new AftersalesApiError('请新建会话', 409, 'policy_version_mismatch') },
+    createSession: async (): Promise<never> => { creates += 1; return undefined as never } }
+  await assert.rejects(openSession(api, target), (error: AftersalesApiError) => error.code === 'policy_version_mismatch')
   assert.equal(creates, 0)
   assert.deepEqual(rememberedSessions(target), [sessionId])
 })
