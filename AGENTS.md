@@ -116,7 +116,8 @@ cd frontend; node --test tests/api.test.js
 The full offline suite is `unittest discover` excluding only
 `tests.test_llm_provider_live` (real DeepSeek calls); it was 2685 tests when
 this section was written, and on 2026-11-18, after the V1-only tests were
-deleted, 2515 run, 4 skipped, 0 failures or errors. V1 eval-environment tests pin
+deleted, 2515 run, 4 skipped, 0 failures or errors; on 2026-11-20, with the
+order views, 2533 run, 4 skipped, 0 failures or errors. V1 eval-environment tests pin
 dataset hashes and assume the Windows default CRLF checkout. Tests must not call
 DeepSeek, Ollama, the internet, or the real persistent database.
 

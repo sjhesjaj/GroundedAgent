@@ -11,8 +11,16 @@ Authentication (auth.py): every endpoint needs `Authorization: Bearer <token>`
     any role    GET  /demo
     customer    POST /sessions, GET /sessions/{id}, POST /sessions/{id}/messages
                 - the persona is the token's; another customer's session is 404
+                GET /orders - the token's customer's own orders, lines and packages
     operator    POST /demo/reset, GET /operator/sessions, GET /operator/sessions/{id},
                 POST /operator/sessions/{id}/decision - the approver is the token's
+                GET /operator/sessions/{id}/actions/{pending_action_id}/order-summary
+                - the order and line that one pending action of that session names
+
+The two order views are read-only displays: they never feed the agent, the
+Guard or a decision. The order summary reads only the session's committed
+state - it never recovers or reconciles it - and answers 409 recovery_pending
+for a session that still has a submission to recover.
 """
 
 from __future__ import annotations
@@ -97,6 +105,7 @@ def create_router(service: AftersalesService) -> APIRouter:
     # with an in-flight marker (idempotent; without it, the first request does it).
     router = APIRouter(prefix="/api/aftersales", tags=["aftersales"], on_startup=[service.start])
     session_path = Path(pattern=SESSION_ID_PATTERN)
+    pending_path = Path(pattern=PENDING_ACTION_ID_PATTERN.pattern)
     customer = require_role(CUSTOMER)
     operator = require_role(OPERATOR)
 
@@ -139,6 +148,13 @@ def create_router(service: AftersalesService) -> APIRouter:
         except ConversationError as error:
             raise _http_error(error) from None
 
+    @router.get("/orders")
+    def customer_orders(user: AuthUser = Depends(customer)) -> dict:
+        try:
+            return service.customer_orders(user.persona_id)
+        except ConversationError as error:
+            raise _http_error(error) from None
+
     @router.get("/operator/sessions")
     def operator_sessions(user: AuthUser = Depends(operator)) -> dict:
         return {"items": service.operator_sessions()}
@@ -147,6 +163,14 @@ def create_router(service: AftersalesService) -> APIRouter:
     def operator_session(session_id: str = session_path, user: AuthUser = Depends(operator)) -> dict:
         try:
             return service.session_view(session_id)
+        except ConversationError as error:
+            raise _http_error(error) from None
+
+    @router.get("/operator/sessions/{session_id}/actions/{pending_action_id}/order-summary")
+    def operator_order_summary(session_id: str = session_path, pending_action_id: str = pending_path,
+                               user: AuthUser = Depends(operator)) -> dict:
+        try:
+            return service.order_summary(session_id, pending_action_id)
         except ConversationError as error:
             raise _http_error(error) from None
 

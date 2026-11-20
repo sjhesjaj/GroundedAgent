@@ -15,6 +15,8 @@ FAST_TESTS = (
     "tests.test_aftersales_service",
     # JWT login, roles and identity from the token (auth.py, routes.py).
     "tests.test_aftersales_auth",
+    # The read-only order views (customer orders, the operator's order summary).
+    "tests.test_aftersales_orders",
     "tests.test_aftersales_grounding",
     "tests.test_aftersales_state_codec",
     "tests.test_aftersales_graph",
