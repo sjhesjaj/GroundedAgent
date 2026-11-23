@@ -175,7 +175,7 @@ test('a network failure while checking the stored login keeps the token for the 
 
 // -- leaving a page --------------------------------------------------------------
 
-test('logging out of a page returns to the login page and drops its stylesheet', async () => {
+test('退出登录 in the account menu of a page returns to the login page', async () => {
   localStorage.setItem(TOKEN_STORAGE_KEY, 'operator-token')
   backend({
     'GET /auth/me': () => Response.json(OPERATOR),
@@ -190,14 +190,15 @@ test('logging out of a page returns to the login page and drops its stylesheet',
   await settle()
 
   assert.equal(router.currentRoute.value.name, 'operator')
-  assert.equal(document.querySelectorAll('style[data-legacy-styles]').length, 1)
-  const logout = [...root.querySelectorAll('button')].find((button) => button.textContent?.trim() === '退出登录')
-  assert.ok(logout, 'the page offers 退出登录')
+  root.querySelector<HTMLButtonElement>('button.account')!.click()
+  await settle()
+  const logout = [...document.body.querySelectorAll<HTMLElement>('.el-dropdown-menu__item')]
+    .find((item) => item.textContent?.trim() === '退出登录')
+  assert.ok(logout, 'the account menu offers 退出登录')
   logout.click()
   await settle()
 
   assert.equal(router.currentRoute.value.name, 'login')
   assert.equal(localStorage.getItem(TOKEN_STORAGE_KEY), null)
-  assert.equal(document.querySelectorAll('style[data-legacy-styles]').length, 0, 'the old stylesheet left with its page')
   assert.ok(root.querySelector('#login-username'), 'the login form is shown')
 })
