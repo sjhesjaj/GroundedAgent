@@ -42,9 +42,10 @@ foundation. It is not the product mainline; do not extend it.
   in tests).
 - `frontend/`: Vue after-sales UI (since M0-A2), TypeScript + Element Plus +
   vue-router + Pinia since the 2026-11 redesign; tests are Vitest
-  (`corepack pnpm test`). The customer and operator pages still use the old
-  stylesheet (`src/styles/legacy.css`, added only while they are shown) until
-  their own redesign.
+  (`corepack pnpm test`). The customer page is the redesigned service center
+  (orders, 申请售后 drafts, progress cards, evidence drawer); the operator page
+  still uses the old stylesheet (`src/styles/legacy.css`, added only while it
+  is shown) until its own redesign.
 - V1 modules (`v1_api.py`, `agent.py`, `rag.py`, `orchestration/`,
   `wiki_maintenance/`, `eval_env/`, `storage.py`): historical, read-only behavior.
 
