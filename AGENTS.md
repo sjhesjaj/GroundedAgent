@@ -44,8 +44,9 @@ foundation. It is not the product mainline; do not extend it.
   vue-router + Pinia since the 2026-11 redesign; tests are Vitest
   (`corepack pnpm test`). The customer page is the redesigned service center
   (orders, 申请售后 drafts, progress cards, evidence drawer); the operator page
-  still uses the old stylesheet (`src/styles/legacy.css`, added only while it
-  is shown) until its own redesign.
+  is the three-column approval desk (queue, transcript, 审批详情 with the
+  read-only order summary). Decisions go only through the decision endpoint,
+  after a confirmation, and are never retried by the page.
 - V1 modules (`v1_api.py`, `agent.py`, `rag.py`, `orchestration/`,
   `wiki_maintenance/`, `eval_env/`, `storage.py`): historical, read-only behavior.
 
