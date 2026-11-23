@@ -1,63 +1,115 @@
-<script setup>
-// The customer view. Who the customer is comes from the login token (the
-// server binds every new session to the token's customer); this page never
-// names a customer and has no approval controls - operators decide.
+<script setup lang="ts">
+// The customer's 售后服务中心. Who the customer is comes from the login token
+// (the server binds every new session to it); this page never names a customer
+// and has no approval controls: operators decide.
 //
-// Still the pre-redesign page (and stylesheet) until the customer-page redesign.
+// Left: 我的订单, the entry point. A product's 申请售后 / 咨询 only prepare a
+// draft; the customer sends it. Right: the 智能售后助手 conversation with the
+// request's progress card. Once a conversation has started it becomes the main
+// column. On a phone the orders are the page and the conversation opens full
+// screen.
+//
+// The session logic (start-up, reconnect, send, read back after a failure) is
+// the pre-redesign page's, unchanged.
+import { ArrowLeft, ChatDotRound, Document, MoreFilled, Refresh } from '@element-plus/icons-vue'
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { aftersalesApi } from '@/api'
-import { useLegacyStyles } from '@/composables/useLegacyStyles'
+
+import { aftersalesApi, type AftersalesApiError } from '@/api'
+import AppTopBar from '@/components/AppTopBar.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import ApplicationCard from '@/components/customer/ApplicationCard.vue'
+import ApplySheet from '@/components/customer/ApplySheet.vue'
+import ChatComposer from '@/components/customer/ChatComposer.vue'
+import EvidenceDrawer from '@/components/customer/EvidenceDrawer.vue'
+import OrderList from '@/components/customer/OrderList.vue'
+import ProductThumb from '@/components/customer/ProductThumb.vue'
 import { connectPage, recoveryAction, rememberSession } from '@/sessionMemory'
 import { useAuthStore } from '@/stores/auth'
-import ActionCard from '@/components/ActionCard.vue'
-import AgentDetails from '@/components/AgentDetails.vue'
-import AuditTimeline from '@/components/AuditTimeline.vue'
+import type {
+  ActionView, AuditEvent, Citation, DemoInfo, Message, Order, OrderItem, SessionView, Trace, TurnResponse,
+} from '@/types'
+import { askDraft, composeDraft, type Attachment } from '@/utils/draft'
+import { dateTime, money } from '@/utils/format'
+import { describeAction, lineBadges, type NextKind, type Tone } from '@/utils/outcome'
 
-useLegacyStyles()
 const auth = useAuthStore()
 // The account this page was opened for; logging out leaves the page.
-const user = auth.user
+const user = auth.user!
 
-const demo = ref(null)
-const session = ref(null)
-const messages = ref([])
-const actions = ref({})
-const audit = ref([])
+type Header = Pick<SessionView, 'session_id' | 'persona' | 'business_time' | 'status' | 'pending_action_id'>
+
+interface Entry extends Message {
+  id: number
+  actionKey?: string | null
+  citations?: Citation[]
+  trace?: Trace | null
+  traceAction?: ActionView | null
+  attachment?: Attachment | null
+}
+
+type Busy = '' | 'startup' | 'session' | 'sync' | 'message'
+
+const demo = ref<DemoInfo | null>(null)
+const session = ref<Header | null>(null)
+const messages = ref<Entry[]>([])
+const actions = ref<Record<string, ActionView>>({})
+const audit = ref<AuditEvent[]>([])
 const question = ref('')
-const busy = ref('startup')
+const busy = ref<Busy>('startup')
 const notice = ref('')
 const invalidSession = ref(false)
 const policyVersionMismatch = ref(false)
 const syncRequired = ref(false)
-const messageList = ref(null)
-const composer = ref(null)
+const messageList = ref<HTMLElement | null>(null)
+const composer = ref<InstanceType<typeof ChatComposer> | null>(null)
 let messageSequence = 0
 
-const suggestions = [
-  { label: '查询订单', text: 'ORD-1001 现在是什么状态？', icon: '01' },
-  { label: '申请退货', text: '我要退 ORD-1001 里的内衣，不想要了', icon: '02' },
-  { label: '咨询换货', text: 'ORD-1001 的商品可以换货吗？', icon: '03' },
-  { label: '人工协助', text: '我想转人工处理这个售后问题', icon: '04' },
-]
-const statusLabels = { OPEN: '会话进行中', NEEDS_CLARIFICATION: '等待补充信息', WAITING_APPROVAL: '等待人工审批' }
+// -- the order list and the drafts it prepares -----------------------------------
+
+const orders = ref<Order[]>([])
+const ordersLoading = ref(true)
+const ordersError = ref('')
+const attachment = ref<Attachment | null>(null)
+const sending = ref<{ text: string, attachment: Attachment | null } | null>(null)
+const panelOpen = ref(false)
+const sheet = ref<{ open: boolean, order: Order | null, item: OrderItem | null }>({ open: false, order: null, item: null })
+const evidence = ref<{ open: boolean, action: ActionView | null, citations: Citation[], trace: Trace | null, subject: string }>(
+  { open: false, action: null, citations: [], trace: null, subject: '' })
+
+const QUESTIONS = ['我的包裹到哪了？', '退货需要满足什么条件？', '贴身衣物可以退吗？', '怎么联系人工客服？']
+const statusLabels: Record<string, string> = { OPEN: '会话进行中', NEEDS_CLARIFICATION: '等待补充信息', WAITING_APPROVAL: '等待人工审核' }
+const statusTones: Record<string, Tone> = { OPEN: 'green', NEEDS_CLARIFICATION: 'peach', WAITING_APPROVAL: 'amber' }
+
 const locked = computed(() => Boolean(busy.value))
 const canInteract = computed(() => Boolean(session.value) && !invalidSession.value && !policyVersionMismatch.value && !syncRequired.value && !locked.value)
 const canSend = computed(() => canInteract.value && question.value.trim().length > 0 && question.value.trim().length <= 2000)
-const sessionStatus = computed(() => policyVersionMismatch.value ? '请新建会话' : (invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : statusLabels[session.value?.status] || '尚未连接')))
-const businessTime = computed(() => (session.value?.business_time || demo.value?.business_time || '').replace('T', ' '))
+const unusable = computed(() => invalidSession.value || policyVersionMismatch.value || syncRequired.value)
+const sessionStatus = computed(() => policyVersionMismatch.value ? '请新建会话' : (invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : (session.value ? statusLabels[session.value.status] || session.value.status : '尚未连接'))))
+const sessionTone = computed<Tone>(() => unusable.value ? 'red' : (session.value ? statusTones[session.value.status] ?? 'gray' : 'gray'))
+const businessTime = computed(() => dateTime(session.value?.business_time || demo.value?.business_time || ''))
 const unplacedActions = computed(() => Object.entries(actions.value).filter(([key]) => !messages.value.some((message) => message.actionKey === key)))
 const recovery = computed(() => policyVersionMismatch.value ? 'new_session' : recoveryAction({
   hasSession: Boolean(session.value), invalidSession: invalidSession.value, syncRequired: syncRequired.value,
 }))
+const conversing = computed(() => messages.value.length > 0 || Boolean(sending.value))
+
+function findLine(orderId: string | undefined, itemId: string | undefined) {
+  const order = orders.value.find((entry) => entry.order_id === orderId)
+  const item = order?.items.find((entry) => entry.order_item_id === itemId)
+  return order && item ? { order, item } : null
+}
+
+/** Each product line with a request in this session carries one badge (utils/outcome.ts lineBadges). */
+const badges = computed(() => lineBadges(Object.values(actions.value)))
+const activeRequests = computed(() => Object.values(actions.value).filter((action) => action.status === 'WAITING_APPROVAL').length)
 
 async function scrollToEnd() {
   await nextTick()
-  if (window.matchMedia('(max-width: 760px)').matches) {
-    messageList.value?.lastElementChild?.scrollIntoView({ block: 'end' })
-  } else messageList.value?.scrollTo({ top: messageList.value.scrollHeight, behavior: 'auto' })
+  const list = messageList.value
+  if (list) list.scrollTop = list.scrollHeight
 }
 
-function updateHeader(data) {
+function updateHeader(data: Header) {
   session.value = {
     session_id: data.session_id, persona: data.persona, business_time: data.business_time,
     status: data.status, pending_action_id: data.pending_action_id,
@@ -66,18 +118,20 @@ function updateHeader(data) {
 
 // GET /sessions owns the transcript; rich metadata survives only when the
 // corresponding entry still matches, since the server does not persist trace.
-function reconcile(data) {
+function reconcile(data: SessionView) {
   const previous = messages.value
   updateHeader(data)
-  for (const action of data.pending_actions || []) actions.value[action.pending_action_id] = action
-  const placed = new Set()
+  for (const action of data.pending_actions || []) {
+    if (action.pending_action_id) actions.value[action.pending_action_id] = action
+  }
+  const placed = new Set<string>()
   messages.value = data.messages.map((entry, index) => {
     const old = previous[index]
     const same = old?.role === entry.role && old?.text === entry.text
-    const item = { ...(same ? old : {}), ...entry, id: same ? old.id : ++messageSequence }
+    const item: Entry = { ...(same ? old : {}), ...entry, id: same ? old.id : ++messageSequence }
     const key = entry.pending_action_id || (same ? old.actionKey : null)
     item.actionKey = entry.role === 'assistant' && key && !placed.has(key) ? key : null
-    if (item.actionKey) placed.add(key)
+    if (item.actionKey) placed.add(item.actionKey)
     return item
   })
   audit.value = data.audit || []
@@ -86,23 +140,24 @@ function reconcile(data) {
   syncRequired.value = false
 }
 
-function activate(data) {
+function activate(data: SessionView) {
   messages.value = []
   actions.value = {}
   audit.value = []
   question.value = ''
+  attachment.value = null
   reconcile(data)
   // Survives a page reload; the server keeps the session across restarts.
   rememberSession(data.session_id)
 }
 
-function applyResponse(data, customerText) {
+function applyResponse(data: TurnResponse, customerText?: string, attached: Attachment | null = null) {
   updateHeader(data)
-  if (customerText !== undefined) messages.value.push({ id: ++messageSequence, role: 'customer', text: customerText })
+  if (customerText !== undefined) messages.value.push({ id: ++messageSequence, role: 'customer', text: customerText, attachment: attached })
   const actionKey = data.action ? (data.action.pending_action_id || `turn-${++messageSequence}`) : null
-  if (actionKey) actions.value[actionKey] = data.action
+  if (actionKey && data.action) actions.value[actionKey] = data.action
   // Replays/conflicts return a reply but do not append to the server transcript.
-  const replayedDecision = data.operator_decision && (data.action?.idempotent_replay || data.action?.decision_conflict)
+  const replayedDecision = 'operator_decision' in data && (data.action?.idempotent_replay || data.action?.decision_conflict)
   if (replayedDecision) notice.value = data.reply.text
   else messages.value.push({
     id: ++messageSequence, role: 'assistant', text: data.reply.text, kind: data.reply.kind,
@@ -113,7 +168,7 @@ function applyResponse(data, customerText) {
   audit.value = data.audit || []
 }
 
-function showError(error) {
+function showError(error: AftersalesApiError) {
   notice.value = error.message
   if (error.code === 'session_not_found') invalidSession.value = true
   if (error.code === 'policy_version_mismatch') {
@@ -131,8 +186,10 @@ async function connect() {
     const { demo: loaded, data } = await connectPage(aftersalesApi)
     demo.value = loaded
     activate(data)
+    // A resumed conversation opens on its latest message.
+    await scrollToEnd()
   } catch (error) {
-    showError(error)
+    showError(error as AftersalesApiError)
   } finally {
     busy.value = ''
   }
@@ -145,7 +202,7 @@ async function newSession() {
   try {
     activate(await aftersalesApi.createSession())
   } catch (error) {
-    showError(error)
+    showError(error as AftersalesApiError)
   } finally {
     busy.value = ''
   }
@@ -154,8 +211,9 @@ async function newSession() {
 async function recoverSession() {
   syncRequired.value = true
   try {
-    reconcile(await aftersalesApi.session(session.value.session_id))
-  } catch (error) {
+    reconcile(await aftersalesApi.session(session.value!.session_id))
+  } catch (failure) {
+    const error = failure as AftersalesApiError
     if (error.code === 'session_not_found' || error.code === 'policy_version_mismatch') showError(error)
     else notice.value += ' 无法同步会话，请先刷新状态再继续。'
   }
@@ -165,131 +223,432 @@ async function refreshSession() {
   if (locked.value || !session.value) return
   busy.value = 'sync'
   notice.value = ''
+  const before = messages.value.length
   await recoverSession()
   busy.value = ''
+  // A decision arrives as a new message at the end: bring it into view.
+  if (messages.value.length > before) await scrollToEnd()
 }
 
 async function send() {
   if (!canSend.value) return
   const text = question.value.trim()
+  const attached = attachment.value
+  // Once the message is in, clear the composer only if it still holds what
+  // was sent: a draft prepared while waiting (咨询, 申请售后) is the next message.
+  const clearSent = () => {
+    if (question.value.trim() === text) question.value = ''
+    if (attachment.value === attached) attachment.value = null
+  }
   busy.value = 'message'
   notice.value = ''
+  sending.value = { text, attachment: attached }
+  await scrollToEnd()
   try {
-    applyResponse(await aftersalesApi.sendMessage(session.value.session_id, text), text)
-    question.value = ''
-  } catch (error) {
+    applyResponse(await aftersalesApi.sendMessage(session.value!.session_id, text), text, attached)
+    clearSent()
+  } catch (failure) {
+    const error = failure as AftersalesApiError
     showError(error)
     // An interrupted response may already have committed an action. Read its
     // persisted outcome instead of automatically retrying the mutation.
     if (!error.status || error.status >= 500 || error.code === 'invalid_response') {
       const oldCount = messages.value.length
       await recoverSession()
-      if (messages.value.slice(oldCount).some((entry) => entry.role === 'customer' && entry.text === text)) question.value = ''
+      if (messages.value.slice(oldCount).some((entry) => entry.role === 'customer' && entry.text === text)) clearSent()
     }
   } finally {
+    sending.value = null
     busy.value = ''
     await scrollToEnd()
     composer.value?.focus()
   }
 }
 
-async function chooseSuggestion(text) {
-  if (!canInteract.value) return
+async function draft(text: string, attached: Attachment | null) {
   question.value = text
+  attachment.value = attached
+  panelOpen.value = true
   await nextTick()
   composer.value?.focus()
 }
 
-function composerKeydown(event) {
-  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
-    event.preventDefault()
-    send()
+async function chooseSuggestion(text: string) {
+  if (!canInteract.value) return
+  await draft(text, null)
+}
+
+function onCommand(command: string) {
+  if (command === 'new') newSession()
+  else if (command === 'refresh') refreshSession()
+}
+
+// -- orders, drafts, progress and evidence ---------------------------------------
+
+async function loadOrders() {
+  ordersLoading.value = true
+  ordersError.value = ''
+  try {
+    orders.value = (await aftersalesApi.orders()).orders
+  } catch (error) {
+    ordersError.value = (error as AftersalesApiError).message
+  } finally {
+    ordersLoading.value = false
   }
 }
 
+function openSheet(order: Order, item: OrderItem) {
+  sheet.value = { open: true, order, item }
+}
+
+function useSheetDraft(text: string) {
+  const { order, item } = sheet.value
+  draft(text, order && item ? { order_id: order.order_id, item } : null)
+}
+
+function ask(order: Order, item: OrderItem) {
+  draft(askDraft({ order_id: order.order_id, product_name: item.product_name }), { order_id: order.order_id, item })
+}
+
+function attach(choice: Attachment) {
+  attachment.value = choice
+  if (!question.value.trim()) question.value = askDraft({ order_id: choice.order_id, product_name: choice.item.product_name })
+  composer.value?.focus()
+}
+
+function lineOf(action: ActionView) {
+  return findLine(action.arguments?.order_id, action.arguments?.order_item_id)
+}
+
+function nextStep(action: ActionView, kind: NextKind) {
+  const line = lineOf(action)
+  if (kind === 'refresh') refreshSession()
+  else if (kind === 'reapply' && line) openSheet(line.order, line.item)
+  else if (kind === 'human') {
+    draft(line ? composeDraft('human', { order_id: line.order.order_id, product_name: line.item.product_name }, null) : '我需要人工协助。',
+      line ? { order_id: line.order.order_id, item: line.item } : null)
+  } else draft('', null)
+}
+
+function showEvidence(entry: Entry | null, action: ActionView | null) {
+  const owner = entry ?? messages.value.find((message) => action && message.actionKey === action.pending_action_id) ?? null
+  const shown = action ?? owner?.traceAction ?? null
+  const line = shown ? lineOf(shown) : null
+  const subject = shown
+    ? [describeAction(shown).title, line?.item.product_name, shown.arguments?.order_id && `订单 ${shown.arguments.order_id}`].filter(Boolean).join(' · ')
+    : '这条回复'
+  evidence.value = { open: true, action: shown, citations: owner?.citations ?? [], trace: owner?.trace ?? null, subject }
+}
+
+// A reply with a progress card links its evidence from the card instead.
+const hasEvidence = (entry: Entry) => entry.role === 'assistant' && !(entry.actionKey && actions.value[entry.actionKey])
+  && Boolean(entry.citations?.length || entry.trace || entry.traceAction)
+
 onMounted(connect)
+onMounted(loadOrders)
 </script>
 
 <template>
-  <main class="shell">
-    <aside class="sidebar" aria-label="演示控制台">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">G<span></span></span>
-        <span><strong>GroundedAgent</strong><small>电商售后客服</small></span>
-      </div>
-      <div class="sidebar-label">DEMO WORKSPACE <span>M0</span></div>
-      <section class="panel persona-panel">
-        <h2 class="section-title">当前顾客 <span>Signed in</span></h2>
-        <div class="customer-icon" aria-hidden="true">客</div>
-        <strong class="account-name">{{ user.display_name }}</strong>
-        <small class="persona-reference">{{ user.username }} · {{ user.persona_id }}</small>
-        <p class="helper">身份来自登录令牌。切换顾客请退出后用另一个账号登录。</p>
-        <button class="secondary logout" @click="auth.logout()">退出登录</button>
-      </section>
-      <section class="panel demo-panel">
-        <h2 class="section-title">演示状态 <span>Demo state</span></h2>
-        <dl>
-          <div><dt>业务时间</dt><dd class="business-time">{{ businessTime || '—' }}</dd></div>
-          <div><dt>当前会话</dt><dd class="mono" :title="session?.session_id">{{ session ? `${session.session_id.slice(0, 8)}…${session.session_id.slice(-4)}` : '—' }}</dd></div>
-          <div><dt>会话状态</dt><dd class="session-state" :class="{ waiting: session?.status === 'WAITING_APPROVAL', invalid: invalidSession || policyVersionMismatch || syncRequired }"><i></i>{{ sessionStatus }}</dd></div>
-        </dl>
-      </section>
-      <div class="sidebar-actions">
-        <button class="primary new-session" :disabled="locked" @click="newSession()"><span aria-hidden="true">＋</span>新建会话</button>
-        <small>退货、换货等操作由售后操作员审批后执行。</small>
-      </div>
-      <div class="demo-warning"><span aria-hidden="true">◇</span><p>本地演示环境 · 非真实支付/退款/履约系统</p></div>
-    </aside>
+  <div class="service-center" :class="{ conversing }">
+    <AppTopBar page="售后服务中心" :user="user" :business-time="businessTime" @logout="auth.logout()" />
 
-    <section class="chat" aria-label="售后客服会话">
-      <header class="chat-header">
-        <div><div class="eyebrow">GROUNDED IN EVERY STEP</div><h1>电商售后客服</h1><p>订单查询、退换货与人工升级</p></div>
-        <span class="header-badge"><i></i>售后服务 Demo</span>
-      </header>
-      <div v-if="notice" class="notice" role="alert">
-        <span>{{ notice }}</span>
-        <button v-if="recovery === 'refresh'" :disabled="locked" @click="refreshSession">刷新状态</button>
-        <button v-else-if="recovery === 'new_session'" :disabled="locked" @click="newSession()">新建会话</button>
-        <button v-else-if="recovery === 'reconnect'" :disabled="locked" @click="connect">重新连接</button>
-        <button v-else class="dismiss" aria-label="关闭提示" @click="notice = ''">×</button>
-      </div>
-      <div ref="messageList" class="messages" :aria-busy="locked">
-        <section v-if="!messages.length" class="welcome">
-          <div class="welcome-symbol" aria-hidden="true">G<span>✓</span></div>
-          <div class="eyebrow">YOUR AFTER-SALES ASSISTANT</div>
-          <h2>售后问题，从这里开始。</h2>
-          <p>告诉我你的订单和遇到的问题。<br>查询有依据，操作有审批，处理有记录。</p>
-          <div class="welcome-steps" aria-label="服务流程"><span>查询订单与规则</span><b>→</b><span>提出售后方案</span><b>→</b><span>审批与执行</span></div>
-          <div class="suggestions">
-            <button v-for="item in suggestions" :key="item.label" :disabled="!canInteract" @click="chooseSuggestion(item.text)">
-              <span class="suggestion-top"><span>{{ item.icon }}</span><b>{{ item.label }}</b><span aria-hidden="true">↗</span></span>
-              <span class="suggestion-text">{{ item.text }}</span>
-            </button>
+    <main class="layout">
+      <OrderList class="orders" :orders="orders" :loading="ordersLoading" :error="ordersError" :badges="badges"
+        :subtitle="conversing ? '正在办理的售后会标在对应的商品上。' : ''" @apply="openSheet" @ask="ask" @retry="loadOrders" />
+
+      <section class="chat-panel" :class="{ open: panelOpen }" aria-label="智能售后助手">
+        <header class="assistant-head">
+          <el-button class="back" text circle :icon="ArrowLeft" aria-label="返回我的订单" @click="panelOpen = false" />
+          <span class="mark" aria-hidden="true">G<span class="online"></span></span>
+          <div class="assistant-title">
+            <strong>智能售后助手</strong>
+            <StatusTag class="state" :tone="sessionTone" :pulse="session?.status === 'WAITING_APPROVAL'">{{ sessionStatus }}</StatusTag>
           </div>
-          <small>示例仅供开始对话，具体处理以实际查询和审核结果为准。</small>
-        </section>
-        <div v-else class="conversation-start"><span></span>本次会话 · {{ session?.persona.display_name }}<span></span></div>
-        <article v-for="message in messages" :key="message.id" class="message" :class="message.role">
-          <div class="avatar" aria-hidden="true">{{ message.role === 'customer' ? '客' : 'G' }}</div>
-          <div class="message-body">
-            <div class="message-label">{{ message.role === 'customer' ? session?.persona.display_name : 'GroundedAgent' }}<span v-if="message.kind === 'operator_decision'">审批结果</span></div>
-            <p class="message-text">{{ message.text }}</p>
-            <AgentDetails v-if="message.role === 'assistant'" :citations="message.citations" :trace="message.trace" :action="message.traceAction" />
-            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
-          </div>
-        </article>
-        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
-        <AuditTimeline :events="audit" />
-        <div v-if="busy" class="processing" role="status"><i></i>{{ busy === 'message' ? '正在处理…' : busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</div>
-      </div>
-      <footer class="chat-footer">
-        <form class="composer" @submit.prevent="send">
-          <label class="sr-only" for="message">售后问题</label>
-          <textarea id="message" ref="composer" v-model="question" rows="2" maxlength="2000" :disabled="!canInteract" placeholder="输入订单号或描述你的售后问题…" @keydown="composerKeydown"></textarea>
-          <button class="primary" type="submit" :disabled="!canSend">{{ busy === 'message' ? '正在处理…' : '发送' }}<span v-if="busy !== 'message'" aria-hidden="true">↑</span></button>
-        </form>
-        <div class="composer-hint"><span>Enter 发送 · Shift + Enter 换行</span><span>{{ question.length }} / 2000</span></div>
-      </footer>
-    </section>
-  </main>
+          <el-tooltip content="刷新状态" placement="bottom">
+            <el-button text circle :icon="Refresh" aria-label="刷新状态" :disabled="locked || !session" @click="refreshSession" />
+          </el-tooltip>
+          <el-dropdown trigger="click" placement="bottom-end" @command="onCommand">
+            <el-button text circle :icon="MoreFilled" aria-label="更多操作" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="new" :disabled="locked">新建会话</el-dropdown-item>
+                <el-dropdown-item command="refresh" :disabled="locked || !session">刷新状态</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </header>
+
+        <div v-if="notice" class="notice" role="alert">
+          <span>{{ notice }}</span>
+          <button v-if="recovery === 'refresh'" type="button" class="notice-action" :disabled="locked" @click="refreshSession">刷新状态</button>
+          <button v-else-if="recovery === 'new_session'" type="button" class="notice-action" :disabled="locked" @click="newSession()">新建会话</button>
+          <button v-else-if="recovery === 'reconnect'" type="button" class="notice-action" :disabled="locked" @click="connect">重新连接</button>
+          <button v-else type="button" class="notice-dismiss" aria-label="关闭提示" @click="notice = ''">×</button>
+        </div>
+
+        <div ref="messageList" class="thread" :aria-busy="locked" aria-live="polite">
+          <section v-if="!conversing" class="welcome">
+            <h2>你好，{{ user.display_name }}</h2>
+            <p>在订单里选中商品点「申请售后」，或者直接问我。退货、换货会先核对订单和规则，需要时转给售后专员审核。</p>
+            <span class="label">常见问题</span>
+            <div class="questions">
+              <button v-for="text in QUESTIONS" :key="text" type="button" class="question" :disabled="!canInteract"
+                @click="chooseSuggestion(text)">{{ text }}</button>
+            </div>
+            <div class="how">
+              <span class="label">售后怎么处理</span>
+              <ol>
+                <li>智能客服读取订单、物流和售后规则</li>
+                <li>符合条件的申请按规则直接办理，或转售后专员审核</li>
+                <li>处理结果显示在这里的申请进度卡上</li>
+              </ol>
+            </div>
+          </section>
+
+          <TransitionGroup name="msg" tag="div" class="messages">
+            <article v-for="message in messages" :key="message.id" class="message" :class="message.role">
+              <span v-if="message.role === 'assistant'" class="avatar" aria-hidden="true">G</span>
+              <div class="body">
+                <span v-if="message.kind === 'operator_decision'" class="who">审核结果</span>
+                <div v-if="message.attachment" class="card">
+                  <ProductThumb :category="message.attachment.item.category" :size="40" />
+                  <span>{{ message.attachment.item.product_name }}<small>订单 {{ message.attachment.order_id }} · {{ money(message.attachment.item.unit_price) }} × {{ message.attachment.item.quantity }}</small></span>
+                </div>
+                <p class="bubble">{{ message.text }}</p>
+                <el-button v-if="hasEvidence(message)" class="evidence-link" text type="primary" size="small" :icon="Document"
+                  @click="showEvidence(message, message.traceAction ?? null)">处理依据</el-button>
+                <ApplicationCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]"
+                  :item="lineOf(actions[message.actionKey])?.item" :disabled="locked"
+                  @next="(kind) => nextStep(actions[message.actionKey!], kind)" @evidence="showEvidence(message, actions[message.actionKey!])" />
+              </div>
+            </article>
+          </TransitionGroup>
+
+          <ApplicationCard v-for="[key, action] in unplacedActions" :key="key" class="unplaced" :action="action"
+            :item="lineOf(action)?.item" :disabled="locked" @next="(kind) => nextStep(action, kind)" @evidence="showEvidence(null, action)" />
+
+          <template v-if="sending">
+            <article class="message customer pending">
+              <div class="body">
+                <div v-if="sending.attachment" class="card">
+                  <ProductThumb :category="sending.attachment.item.category" :size="40" />
+                  <span>{{ sending.attachment.item.product_name }}<small>订单 {{ sending.attachment.order_id }}</small></span>
+                </div>
+                <p class="bubble">{{ sending.text }}</p>
+              </div>
+            </article>
+            <div class="message assistant" role="status">
+              <span class="avatar" aria-hidden="true">G</span>
+              <span class="typing"><i></i><i></i><i></i><span class="sr-only">正在处理…</span></span>
+            </div>
+          </template>
+          <p v-else-if="busy" class="busy" role="status">{{ busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</p>
+        </div>
+
+        <ChatComposer ref="composer" v-model="question" :attachment="attachment" :orders="orders" :disabled="!canInteract"
+          :sending="busy === 'message'" :can-send="canSend" @send="send" @detach="attachment = null" @attach="attach" />
+      </section>
+    </main>
+
+    <button type="button" class="fab" :class="{ hidden: panelOpen }" @click="panelOpen = true">
+      <el-icon aria-hidden="true"><ChatDotRound /></el-icon>智能客服
+      <span v-if="activeRequests" class="fab-badge">{{ activeRequests }} 项审核中</span>
+    </button>
+
+    <ApplySheet v-model="sheet.open" :order="sheet.order" :item="sheet.item" @use="useSheetDraft" />
+    <EvidenceDrawer v-model="evidence.open" :action="evidence.action" :citations="evidence.citations"
+      :trace="evidence.trace" :audit="audit" :session-id="session?.session_id" :subject="evidence.subject" />
+  </div>
 </template>
+
+<style scoped>
+.service-center { min-height: 100dvh; background: var(--app-bg); color: var(--app-text); }
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  align-items: start;
+  gap: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 32px 48px;
+  transition: grid-template-columns var(--motion-slow) var(--motion-ease);
+}
+/* Once a conversation has started, it and its progress are the main column. */
+.conversing .layout { grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); }
+
+.chat-panel {
+  position: sticky;
+  top: 88px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 112px);
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgb(31 26 23 / 6%);
+}
+.assistant-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #efe9e3; }
+.assistant-head :deep(.el-button + .el-button) { margin-left: 0; }
+.back { display: none; }
+.mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+.online { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 6px; background: var(--tone-green-dot); }
+.assistant-title { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.assistant-title strong { font-size: 15px; }
+.state { height: 20px; padding: 0 8px; font-size: 11px; }
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f3dfb8;
+  background: #fff8ec;
+  color: var(--tone-amber);
+  font-size: 13px;
+  line-height: 1.6;
+  animation: app-rise var(--motion-base) ease-out both;
+}
+.notice span { flex: 1; }
+.notice-action {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--tone-amber-dot);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--tone-amber);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.notice-action:disabled { opacity: 0.6; cursor: not-allowed; }
+.notice-dismiss { flex: none; width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--tone-amber); font-size: 18px; cursor: pointer; }
+
+.thread { display: flex; flex: 1; flex-direction: column; gap: 14px; overflow-y: auto; padding: 18px 16px; background: #fcfbfa; scroll-behavior: smooth; }
+.welcome { display: flex; flex-direction: column; gap: 12px; }
+.welcome h2 { margin: 0; font-size: 18px; }
+.welcome p { margin: 0; color: var(--app-text-body); font-size: 13px; line-height: 1.75; }
+.label { color: var(--app-text-body); font-size: 12px; font-weight: 600; letter-spacing: 1px; }
+.questions { display: flex; flex-direction: column; gap: 8px; }
+.question {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast), transform var(--motion-fast);
+}
+.question:hover:not(:disabled) { border-color: var(--el-color-primary-light-5); transform: translateX(2px); }
+.question:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+.question:disabled { color: var(--app-text-muted); cursor: not-allowed; }
+.how { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid #efe9e3; border-radius: 10px; background: var(--app-surface); }
+.how ol { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 18px; color: var(--app-text-body); font-size: 13px; line-height: 1.6; }
+
+.messages { display: flex; flex-direction: column; gap: 14px; }
+.message { display: flex; gap: 10px; }
+.message.customer { justify-content: flex-end; }
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--el-color-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.body { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 86%; min-width: 0; }
+.customer .body { align-items: flex-end; max-width: 82%; }
+.message.assistant .body { flex: 1; }
+.who { color: var(--app-text-muted); font-size: 12px; }
+.bubble { margin: 0; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.customer .bubble { border-top-right-radius: 4px; background: var(--el-color-primary); color: #fff; }
+.message.assistant .bubble { border: 1px solid #ece6e0; border-top-left-radius: 4px; background: var(--app-surface); }
+.pending .bubble { opacity: 0.75; }
+.card { display: flex; align-items: center; gap: 10px; min-width: 220px; padding: 8px 10px; border: 1px solid #ece6e0; border-radius: 12px; background: var(--app-surface); font-size: 13px; font-weight: 600; }
+.card span { display: flex; flex-direction: column; }
+.card small { color: var(--app-text-muted); font-size: 12px; font-weight: 400; }
+.evidence-link { padding: 0 4px; }
+.message :deep(.application) { align-self: stretch; width: 100%; }
+.unplaced { margin-left: 42px; }
+.typing { display: inline-flex; align-items: center; gap: 5px; padding: 13px 16px; border: 1px solid #ece6e0; border-radius: 14px; border-top-left-radius: 4px; background: var(--app-surface); }
+.typing i { width: 7px; height: 7px; border-radius: 4px; background: #a39a93; animation: dots 1.2s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+.busy { margin: 0; color: var(--app-text-muted); font-size: 13px; text-align: center; }
+.msg-enter-active { transition: opacity var(--motion-base) ease-out, transform var(--motion-base) ease-out; }
+.msg-enter-from { opacity: 0; transform: translateY(8px); }
+
+.fab { display: none; }
+
+@keyframes dots {
+  0%, 60%, 100% { opacity: 0.5; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* Tablets and phones: the orders are the page; the conversation opens over it. */
+@media (max-width: 900px) {
+  .layout, .conversing .layout { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 96px; }
+  .chat-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    height: auto;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    transform: translateX(100%);
+    visibility: hidden;
+    transition: transform var(--motion-slow) var(--motion-ease), visibility 0s linear var(--motion-slow);
+  }
+  .chat-panel.open { transform: none; visibility: visible; transition: transform var(--motion-slow) var(--motion-ease); }
+  .back { display: inline-flex; }
+  .unplaced { margin-left: 0; }
+  .fab {
+    position: fixed;
+    right: 16px;
+    bottom: 24px;
+    z-index: 30;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 52px;
+    padding: 0 20px 0 16px;
+    border: 0;
+    border-radius: 26px;
+    background: var(--el-color-primary);
+    color: #fff;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    box-shadow: 0 10px 24px rgb(160 64 24 / 35%);
+    cursor: pointer;
+    transition: transform var(--motion-base), opacity var(--motion-base);
+  }
+  .fab .el-icon { font-size: 20px; }
+  .fab.hidden { opacity: 0; pointer-events: none; transform: translateY(12px); }
+  .fab-badge { padding: 2px 8px; border-radius: 10px; background: #fff; color: var(--el-color-primary-dark-2); font-size: 12px; }
+}
+</style>

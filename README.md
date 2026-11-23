@@ -81,7 +81,7 @@ flowchart TB
 | M1 grounding gate 测试 | **50/50** 通过（`tests/test_aftersales_grounding.py`，离线） |
 | JWT 鉴权测试 | **24/24** 通过（`tests/test_aftersales_auth.py`，离线） |
 | 订单展示接口测试 | **18/18** 通过（`tests/test_aftersales_orders.py`，离线：顾客订单与包裹、审批单商品摘要、登录 / 角色 / 跨顾客隔离、摘要不触发会话恢复） |
-| 前端测试 | **59/59** 通过（`pnpm test`，Vitest：API 22、登录与路由 12、会话记忆 12、M3 引用展示 6、token 6、「刷新状态」1） |
+| 前端测试 | **71/71** 通过（`pnpm test`，Vitest：API 22、登录与路由 12、会话记忆 12、M3 引用展示 6、token 6、申请状态与草稿 6、售后服务中心 6、「刷新进度」1） |
 | 前端构建 | 通过（`pnpm run build`，先跑 `vue-tsc` 类型检查） |
 | 真实 DeepSeek 浏览器演示 | 退货 → `WAITING_APPROVAL` → `APPROVE` → `EXECUTED` → receipt，端到端走通（单次演示，不是统计结果） |
 | M2 重启恢复测试 | **62/62** 通过（LangGraph 状态图、状态 codec、与 M0 逐字节一致的 golden、持久化与恢复、9 个真实进程崩溃场景，离线） |
@@ -221,11 +221,11 @@ pnpm dev
 
 **鉴权**：`POST /auth/login` 返回 2 小时有效的 HS256 access token（载荷 `sub` = 用户 id、`role`），前端存在 localStorage，每个请求带 `Authorization: Bearer`；`/api/aftersales/*` 全部要求登录，顾客接口只给顾客、审批 / 重置等操作员接口只给操作员（无效或过期 401，角色不对 403）。顾客身份只从 token 取：会话绑定到 token 对应的顾客，别的顾客的会话一律按「不存在」处理（404）。密钥读环境变量 `JWT_SECRET`；用户表默认在数据目录下的 `users.sqlite3`（可用 `AFTERSALES_USERS_DB` 改位置），「重置 Demo」不影响账号。
 
-用顾客账号登录后，可以直接点欢迎页上的示例，例如"我要退 ORD-1001 里的内衣，不想要了"。退货会停在 `WAITING_APPROVAL`；退出后用 `operator` 登录进入审批台，在会话列表里选中这个会话，点「批准」或「拒绝」，就能走完审批、恢复和执行；回到顾客端，点待审批动作卡片上的「刷新状态」就能看到执行结果（页面不会自动轮询）。审批台的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
+用顾客账号登录后进入售后服务中心：在「我的订单」里找到 ORD-1001 的「棉质内衣 L码」，点「申请售后」，选「退货」和「不想要了」，点「带入对话」后再点「发送」（也可以直接输入"我要退 ORD-1001 里的内衣，不想要了"）。退货会停在 `WAITING_APPROVAL`；退出后用 `operator` 登录进入审批台，在会话列表里选中这个会话，点「批准」或「拒绝」，就能走完审批、恢复和执行；回到顾客端，点申请进度卡上的「刷新进度」就能看到结果：批准后是「申请已提交 · 待处理」和售后单号（页面不会自动轮询）。审批台的「重置 Demo」会新建一代数据库，恢复到种子状态。会话和数据库保存在 `.aftersales-demo/`（可用 `AFTERSALES_DATA_DIR` 改位置），重启 API 后仍在；前端会记住当前会话，刷新页面后恢复显示（见[重启演示](docs/v2/m2-restart-demo.md)）。
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tests.test_aftersales_service tests.test_aftersales_auth   # 产品 / API / 鉴权测试（离线）
-cd frontend; pnpm test   # 前端全部测试（Vitest）：API、token、登录与路由、会话记忆、「刷新状态」
+cd frontend; pnpm test   # 前端全部测试（Vitest）：API、token、登录与路由、会话记忆、售后服务中心、申请状态文案、「刷新进度」
 ```
 
 真实 DeepSeek 测试默认跳过；配置好 `.env` 后，在项目根目录执行 `$env:RUN_LIVE_TESTS="1"; .\.venv\Scripts\python.exe -m unittest tests.test_llm_provider_live -v` 可开启。
