@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import test from 'node:test'
-import { AftersalesApiError } from '../src/api.js'
+import { test } from 'vitest'
+import { AftersalesApiError } from '../src/api'
 import {
   SESSION_STORAGE_KEY,
   connectPage,
@@ -10,39 +10,45 @@ import {
   recoveryAction,
   rememberSession,
   rememberedSessions,
-} from '../src/sessionMemory.js'
+} from '../src/sessionMemory'
+import type { DemoInfo, SessionView } from '../src/types'
 
 const idA = 'a'.repeat(32)
 const idB = 'b'.repeat(32)
 const newId = 'c'.repeat(32)
 
-function memoryStorage(initial) {
-  const values = new Map(initial === undefined ? [] : [[SESSION_STORAGE_KEY, initial]])
+// The views below carry only the fields a test looks at.
+type View = Record<string, unknown>
+const asView = (view: View) => view as unknown as SessionView
+
+function memoryStorage(initial?: string) {
+  const values = new Map<string, string>(initial === undefined ? [] : [[SESSION_STORAGE_KEY, initial]])
   return {
-    getItem: (key) => (values.has(key) ? values.get(key) : null),
-    setItem: (key, value) => { values.set(key, String(value)) },
-    removeItem: (key) => { values.delete(key) },
+    getItem: (key: string) => (values.has(key) ? values.get(key)! : null),
+    setItem: (key: string, value: unknown) => { values.set(key, String(value)) },
+    removeItem: (key: string) => { values.delete(key) },
   }
 }
 
 // A browser tab: its own sessionStorage, the origin's shared localStorage.
-function tab(own, shared = memoryStorage()) {
+function tab(own?: string, shared = memoryStorage()) {
   return { sessionStorage: memoryStorage(own), localStorage: shared }
 }
 
-function fakeApi(views = {}, created = { session_id: newId, status: 'OPEN' }) {
-  const calls = { session: [], createSession: [] }
+function fakeApi(views: Record<string, View | Error> = {}, created: View = { session_id: newId, status: 'OPEN' }) {
+  const calls = { session: [] as string[], createSession: [] as unknown[][] }
   return {
     calls,
-    session: async (id) => {
+    session: async (id: string) => {
       calls.session.push(id)
       if (!(id in views)) throw new AftersalesApiError('gone', 404, 'session_not_found')
-      if (views[id] instanceof Error) throw views[id]
-      return views[id]
+      const view = views[id]
+      if (view instanceof Error) throw view
+      return asView(view)
     },
-    createSession: async (...args) => {
+    createSession: async (...args: unknown[]) => {
       calls.createSession.push(args)
-      return created
+      return asView(created)
     },
   }
 }
@@ -138,27 +144,28 @@ test('a malformed remembered value is ignored', async () => {
 
 // -- connecting the page: start-up and "重新连接" ------------------------------
 
-const DEMO = { personas: [{ persona_id: 'demo-a' }, { persona_id: 'demo-b' }] }
+const DEMO = { personas: [{ persona_id: 'demo-a' }, { persona_id: 'demo-b' }] } as unknown as DemoInfo
 
 // A backend that can be down, then up again.
-function flakyBackend(views) {
-  const state = { up: false, calls: { demo: 0, session: [], createSession: [] } }
+function flakyBackend(views: Record<string, View | Error>) {
+  const state = { up: false, calls: { demo: 0, session: [] as string[], createSession: [] as unknown[][] } }
   const api = {
     demo: async () => {
       state.calls.demo += 1
       if (!state.up) throw new AftersalesApiError('连接中断，暂时无法确认请求结果。')
       return DEMO
     },
-    session: async (id) => {
+    session: async (id: string) => {
       state.calls.session.push(id)
       if (!state.up) throw new AftersalesApiError('连接中断，暂时无法确认请求结果。')
-      if (views[id] instanceof Error) throw views[id]
+      const view = views[id]
+      if (view instanceof Error) throw view
       if (!(id in views)) throw new AftersalesApiError('gone', 404, 'session_not_found')
-      return views[id]
+      return asView(view)
     },
-    createSession: async (...args) => {
+    createSession: async (...args: unknown[]) => {
       state.calls.createSession.push(args)
-      return { session_id: newId, persona: { persona_id: 'demo-b' }, status: 'OPEN' }
+      return asView({ session_id: newId, persona: { persona_id: 'demo-b' }, status: 'OPEN' })
     },
   }
   return { api, state }
@@ -170,7 +177,7 @@ test('reconnecting after a failed load returns to the remembered session, identi
   const target = tab(idB, memoryStorage(idB))
 
   // The page loads while the backend is down: an error, no session, nothing forgotten.
-  await assert.rejects(connectPage(api, target), (error) => error.code === 'network_error')
+  await assert.rejects(connectPage(api, target), (error: AftersalesApiError) => error.code === 'network_error')
   assert.equal(recoveryAction({ hasSession: false, invalidSession: false, syncRequired: false }), 'reconnect')
   assert.deepEqual(rememberedSessions(target), [idB])
 
@@ -203,13 +210,13 @@ test('a session still recovering (409) is not replaced on reconnect', async () =
   const { api, state } = flakyBackend({ [idB]: new AftersalesApiError('recovering', 409, 'recovery_pending') })
   state.up = true
   const target = tab(idB, memoryStorage(idB))
-  await assert.rejects(connectPage(api, target), (error) => error.code === 'recovery_pending')
+  await assert.rejects(connectPage(api, target), (error: AftersalesApiError) => error.code === 'recovery_pending')
   assert.deepEqual(state.calls.createSession, [])
   assert.deepEqual(rememberedSessions(target), [idB])
 })
 
 test('"新建会话" is offered only for a session the server no longer has', () => {
-  const cases = [
+  const cases: [Parameters<typeof recoveryAction>[0], ReturnType<typeof recoveryAction>][] = [
     [{ hasSession: false, invalidSession: false, syncRequired: false }, 'reconnect'],   // failed load, 409, 5xx
     [{ hasSession: true, invalidSession: true, syncRequired: false }, 'new_session'],   // 404
     [{ hasSession: true, invalidSession: true, syncRequired: true }, 'new_session'],
@@ -219,8 +226,8 @@ test('"新建会话" is offered only for a session the server no longer has', ()
   for (const [state, expected] of cases) assert.equal(recoveryAction(state), expected, JSON.stringify(state))
 })
 
-test('App.vue wires start-up and "重新连接" to connect, never to newSession', () => {
-  const source = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+test('CustomerView.vue wires start-up and "重新连接" to connect, never to newSession', () => {
+  const source = readFileSync(new URL('../src/views/CustomerView.vue', import.meta.url), 'utf8')
   assert.match(source, /onMounted\(connect\)/)
   const buttons = [...source.matchAll(/<button\b[^>]*>[^<]*<\/button>/g)].map((match) => match[0])
   const reconnect = buttons.filter((button) => button.includes('重新连接'))

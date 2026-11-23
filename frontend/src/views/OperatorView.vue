@@ -3,13 +3,19 @@
 // transcript and actions, APPROVE / REJECT on its pending actions, and the demo
 // reset. The approver recorded with a decision is the logged-in operator's
 // (from the token, server-side); nothing here names it.
+//
+// Still the pre-redesign page (and stylesheet) until the approval-desk redesign.
 import { computed, onMounted, ref } from 'vue'
-import { aftersalesApi } from './api'
-import ActionCard from './components/ActionCard.vue'
-import AuditTimeline from './components/AuditTimeline.vue'
+import { aftersalesApi } from '@/api'
+import { useLegacyStyles } from '@/composables/useLegacyStyles'
+import { useAuthStore } from '@/stores/auth'
+import ActionCard from '@/components/ActionCard.vue'
+import AuditTimeline from '@/components/AuditTimeline.vue'
 
-defineProps({ user: { type: Object, required: true } })
-defineEmits(['logout'])
+useLegacyStyles()
+const auth = useAuthStore()
+// The account this page was opened for; logging out leaves the page.
+const user = auth.user
 
 const sessions = ref([])
 const selectedId = ref('')
@@ -113,7 +119,7 @@ onMounted(refresh)
         <div class="customer-icon" aria-hidden="true">审</div>
         <strong class="account-name">{{ user.display_name }}</strong>
         <small class="persona-reference">{{ user.username }}</small>
-        <button class="secondary logout" @click="$emit('logout')">退出登录</button>
+        <button class="secondary logout" @click="auth.logout()">退出登录</button>
       </section>
       <section class="panel session-list" aria-label="会话列表">
         <h2 class="section-title">会话 <span>{{ waitingCount }} 个待审批</span></h2>

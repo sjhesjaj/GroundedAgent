@@ -1,0 +1,295 @@
+<script setup>
+// The customer view. Who the customer is comes from the login token (the
+// server binds every new session to the token's customer); this page never
+// names a customer and has no approval controls - operators decide.
+//
+// Still the pre-redesign page (and stylesheet) until the customer-page redesign.
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { aftersalesApi } from '@/api'
+import { useLegacyStyles } from '@/composables/useLegacyStyles'
+import { connectPage, recoveryAction, rememberSession } from '@/sessionMemory'
+import { useAuthStore } from '@/stores/auth'
+import ActionCard from '@/components/ActionCard.vue'
+import AgentDetails from '@/components/AgentDetails.vue'
+import AuditTimeline from '@/components/AuditTimeline.vue'
+
+useLegacyStyles()
+const auth = useAuthStore()
+// The account this page was opened for; logging out leaves the page.
+const user = auth.user
+
+const demo = ref(null)
+const session = ref(null)
+const messages = ref([])
+const actions = ref({})
+const audit = ref([])
+const question = ref('')
+const busy = ref('startup')
+const notice = ref('')
+const invalidSession = ref(false)
+const policyVersionMismatch = ref(false)
+const syncRequired = ref(false)
+const messageList = ref(null)
+const composer = ref(null)
+let messageSequence = 0
+
+const suggestions = [
+  { label: '查询订单', text: 'ORD-1001 现在是什么状态？', icon: '01' },
+  { label: '申请退货', text: '我要退 ORD-1001 里的内衣，不想要了', icon: '02' },
+  { label: '咨询换货', text: 'ORD-1001 的商品可以换货吗？', icon: '03' },
+  { label: '人工协助', text: '我想转人工处理这个售后问题', icon: '04' },
+]
+const statusLabels = { OPEN: '会话进行中', NEEDS_CLARIFICATION: '等待补充信息', WAITING_APPROVAL: '等待人工审批' }
+const locked = computed(() => Boolean(busy.value))
+const canInteract = computed(() => Boolean(session.value) && !invalidSession.value && !policyVersionMismatch.value && !syncRequired.value && !locked.value)
+const canSend = computed(() => canInteract.value && question.value.trim().length > 0 && question.value.trim().length <= 2000)
+const sessionStatus = computed(() => policyVersionMismatch.value ? '请新建会话' : (invalidSession.value ? '会话已失效' : (syncRequired.value ? '等待同步状态' : statusLabels[session.value?.status] || '尚未连接')))
+const businessTime = computed(() => (session.value?.business_time || demo.value?.business_time || '').replace('T', ' '))
+const unplacedActions = computed(() => Object.entries(actions.value).filter(([key]) => !messages.value.some((message) => message.actionKey === key)))
+const recovery = computed(() => policyVersionMismatch.value ? 'new_session' : recoveryAction({
+  hasSession: Boolean(session.value), invalidSession: invalidSession.value, syncRequired: syncRequired.value,
+}))
+
+async function scrollToEnd() {
+  await nextTick()
+  if (window.matchMedia('(max-width: 760px)').matches) {
+    messageList.value?.lastElementChild?.scrollIntoView({ block: 'end' })
+  } else messageList.value?.scrollTo({ top: messageList.value.scrollHeight, behavior: 'auto' })
+}
+
+function updateHeader(data) {
+  session.value = {
+    session_id: data.session_id, persona: data.persona, business_time: data.business_time,
+    status: data.status, pending_action_id: data.pending_action_id,
+  }
+}
+
+// GET /sessions owns the transcript; rich metadata survives only when the
+// corresponding entry still matches, since the server does not persist trace.
+function reconcile(data) {
+  const previous = messages.value
+  updateHeader(data)
+  for (const action of data.pending_actions || []) actions.value[action.pending_action_id] = action
+  const placed = new Set()
+  messages.value = data.messages.map((entry, index) => {
+    const old = previous[index]
+    const same = old?.role === entry.role && old?.text === entry.text
+    const item = { ...(same ? old : {}), ...entry, id: same ? old.id : ++messageSequence }
+    const key = entry.pending_action_id || (same ? old.actionKey : null)
+    item.actionKey = entry.role === 'assistant' && key && !placed.has(key) ? key : null
+    if (item.actionKey) placed.add(key)
+    return item
+  })
+  audit.value = data.audit || []
+  invalidSession.value = false
+  policyVersionMismatch.value = false
+  syncRequired.value = false
+}
+
+function activate(data) {
+  messages.value = []
+  actions.value = {}
+  audit.value = []
+  question.value = ''
+  reconcile(data)
+  // Survives a page reload; the server keeps the session across restarts.
+  rememberSession(data.session_id)
+}
+
+function applyResponse(data, customerText) {
+  updateHeader(data)
+  if (customerText !== undefined) messages.value.push({ id: ++messageSequence, role: 'customer', text: customerText })
+  const actionKey = data.action ? (data.action.pending_action_id || `turn-${++messageSequence}`) : null
+  if (actionKey) actions.value[actionKey] = data.action
+  // Replays/conflicts return a reply but do not append to the server transcript.
+  const replayedDecision = data.operator_decision && (data.action?.idempotent_replay || data.action?.decision_conflict)
+  if (replayedDecision) notice.value = data.reply.text
+  else messages.value.push({
+    id: ++messageSequence, role: 'assistant', text: data.reply.text, kind: data.reply.kind,
+    citations: data.citations, trace: data.trace, traceAction: data.action,
+    pending_action_id: data.action?.pending_action_id,
+    actionKey: actionKey && !messages.value.some((message) => message.actionKey === actionKey) ? actionKey : null,
+  })
+  audit.value = data.audit || []
+}
+
+function showError(error) {
+  notice.value = error.message
+  if (error.code === 'session_not_found') invalidSession.value = true
+  if (error.code === 'policy_version_mismatch') {
+    policyVersionMismatch.value = true
+    syncRequired.value = false
+  }
+}
+
+// Page start-up and "重新连接": back to the remembered session while the
+// server has it; a new session only when it is gone (404).
+async function connect() {
+  busy.value = 'startup'
+  notice.value = ''
+  try {
+    const { demo: loaded, data } = await connectPage(aftersalesApi)
+    demo.value = loaded
+    activate(data)
+  } catch (error) {
+    showError(error)
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function newSession() {
+  if (locked.value) return
+  busy.value = 'session'
+  notice.value = ''
+  try {
+    activate(await aftersalesApi.createSession())
+  } catch (error) {
+    showError(error)
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function recoverSession() {
+  syncRequired.value = true
+  try {
+    reconcile(await aftersalesApi.session(session.value.session_id))
+  } catch (error) {
+    if (error.code === 'session_not_found' || error.code === 'policy_version_mismatch') showError(error)
+    else notice.value += ' 无法同步会话，请先刷新状态再继续。'
+  }
+}
+
+async function refreshSession() {
+  if (locked.value || !session.value) return
+  busy.value = 'sync'
+  notice.value = ''
+  await recoverSession()
+  busy.value = ''
+}
+
+async function send() {
+  if (!canSend.value) return
+  const text = question.value.trim()
+  busy.value = 'message'
+  notice.value = ''
+  try {
+    applyResponse(await aftersalesApi.sendMessage(session.value.session_id, text), text)
+    question.value = ''
+  } catch (error) {
+    showError(error)
+    // An interrupted response may already have committed an action. Read its
+    // persisted outcome instead of automatically retrying the mutation.
+    if (!error.status || error.status >= 500 || error.code === 'invalid_response') {
+      const oldCount = messages.value.length
+      await recoverSession()
+      if (messages.value.slice(oldCount).some((entry) => entry.role === 'customer' && entry.text === text)) question.value = ''
+    }
+  } finally {
+    busy.value = ''
+    await scrollToEnd()
+    composer.value?.focus()
+  }
+}
+
+async function chooseSuggestion(text) {
+  if (!canInteract.value) return
+  question.value = text
+  await nextTick()
+  composer.value?.focus()
+}
+
+function composerKeydown(event) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+    event.preventDefault()
+    send()
+  }
+}
+
+onMounted(connect)
+</script>
+
+<template>
+  <main class="shell">
+    <aside class="sidebar" aria-label="演示控制台">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">G<span></span></span>
+        <span><strong>GroundedAgent</strong><small>电商售后客服</small></span>
+      </div>
+      <div class="sidebar-label">DEMO WORKSPACE <span>M0</span></div>
+      <section class="panel persona-panel">
+        <h2 class="section-title">当前顾客 <span>Signed in</span></h2>
+        <div class="customer-icon" aria-hidden="true">客</div>
+        <strong class="account-name">{{ user.display_name }}</strong>
+        <small class="persona-reference">{{ user.username }} · {{ user.persona_id }}</small>
+        <p class="helper">身份来自登录令牌。切换顾客请退出后用另一个账号登录。</p>
+        <button class="secondary logout" @click="auth.logout()">退出登录</button>
+      </section>
+      <section class="panel demo-panel">
+        <h2 class="section-title">演示状态 <span>Demo state</span></h2>
+        <dl>
+          <div><dt>业务时间</dt><dd class="business-time">{{ businessTime || '—' }}</dd></div>
+          <div><dt>当前会话</dt><dd class="mono" :title="session?.session_id">{{ session ? `${session.session_id.slice(0, 8)}…${session.session_id.slice(-4)}` : '—' }}</dd></div>
+          <div><dt>会话状态</dt><dd class="session-state" :class="{ waiting: session?.status === 'WAITING_APPROVAL', invalid: invalidSession || policyVersionMismatch || syncRequired }"><i></i>{{ sessionStatus }}</dd></div>
+        </dl>
+      </section>
+      <div class="sidebar-actions">
+        <button class="primary new-session" :disabled="locked" @click="newSession()"><span aria-hidden="true">＋</span>新建会话</button>
+        <small>退货、换货等操作由售后操作员审批后执行。</small>
+      </div>
+      <div class="demo-warning"><span aria-hidden="true">◇</span><p>本地演示环境 · 非真实支付/退款/履约系统</p></div>
+    </aside>
+
+    <section class="chat" aria-label="售后客服会话">
+      <header class="chat-header">
+        <div><div class="eyebrow">GROUNDED IN EVERY STEP</div><h1>电商售后客服</h1><p>订单查询、退换货与人工升级</p></div>
+        <span class="header-badge"><i></i>售后服务 Demo</span>
+      </header>
+      <div v-if="notice" class="notice" role="alert">
+        <span>{{ notice }}</span>
+        <button v-if="recovery === 'refresh'" :disabled="locked" @click="refreshSession">刷新状态</button>
+        <button v-else-if="recovery === 'new_session'" :disabled="locked" @click="newSession()">新建会话</button>
+        <button v-else-if="recovery === 'reconnect'" :disabled="locked" @click="connect">重新连接</button>
+        <button v-else class="dismiss" aria-label="关闭提示" @click="notice = ''">×</button>
+      </div>
+      <div ref="messageList" class="messages" :aria-busy="locked">
+        <section v-if="!messages.length" class="welcome">
+          <div class="welcome-symbol" aria-hidden="true">G<span>✓</span></div>
+          <div class="eyebrow">YOUR AFTER-SALES ASSISTANT</div>
+          <h2>售后问题，从这里开始。</h2>
+          <p>告诉我你的订单和遇到的问题。<br>查询有依据，操作有审批，处理有记录。</p>
+          <div class="welcome-steps" aria-label="服务流程"><span>查询订单与规则</span><b>→</b><span>提出售后方案</span><b>→</b><span>审批与执行</span></div>
+          <div class="suggestions">
+            <button v-for="item in suggestions" :key="item.label" :disabled="!canInteract" @click="chooseSuggestion(item.text)">
+              <span class="suggestion-top"><span>{{ item.icon }}</span><b>{{ item.label }}</b><span aria-hidden="true">↗</span></span>
+              <span class="suggestion-text">{{ item.text }}</span>
+            </button>
+          </div>
+          <small>示例仅供开始对话，具体处理以实际查询和审核结果为准。</small>
+        </section>
+        <div v-else class="conversation-start"><span></span>本次会话 · {{ session?.persona.display_name }}<span></span></div>
+        <article v-for="message in messages" :key="message.id" class="message" :class="message.role">
+          <div class="avatar" aria-hidden="true">{{ message.role === 'customer' ? '客' : 'G' }}</div>
+          <div class="message-body">
+            <div class="message-label">{{ message.role === 'customer' ? session?.persona.display_name : 'GroundedAgent' }}<span v-if="message.kind === 'operator_decision'">审批结果</span></div>
+            <p class="message-text">{{ message.text }}</p>
+            <AgentDetails v-if="message.role === 'assistant'" :citations="message.citations" :trace="message.trace" :action="message.traceAction" />
+            <ActionCard v-if="message.actionKey && actions[message.actionKey]" :action="actions[message.actionKey]" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
+          </div>
+        </article>
+        <ActionCard v-for="[key, action] in unplacedActions" :key="key" :action="action" :can-decide="false" :disabled="locked" @refresh="refreshSession" />
+        <AuditTimeline :events="audit" />
+        <div v-if="busy" class="processing" role="status"><i></i>{{ busy === 'message' ? '正在处理…' : busy === 'sync' ? '正在同步会话…' : '正在准备会话…' }}</div>
+      </div>
+      <footer class="chat-footer">
+        <form class="composer" @submit.prevent="send">
+          <label class="sr-only" for="message">售后问题</label>
+          <textarea id="message" ref="composer" v-model="question" rows="2" maxlength="2000" :disabled="!canInteract" placeholder="输入订单号或描述你的售后问题…" @keydown="composerKeydown"></textarea>
+          <button class="primary" type="submit" :disabled="!canSend">{{ busy === 'message' ? '正在处理…' : '发送' }}<span v-if="busy !== 'message'" aria-hidden="true">↑</span></button>
+        </form>
+        <div class="composer-hint"><span>Enter 发送 · Shift + Enter 换行</span><span>{{ question.length }} / 2000</span></div>
+      </footer>
+    </section>
+  </main>
+</template>
